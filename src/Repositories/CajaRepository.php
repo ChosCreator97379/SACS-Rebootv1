@@ -105,6 +105,13 @@ final class CajaRepository
             ->fetchAll();
     }
 
+    public function accountingCodes(): array
+    {
+        return Database::connection()
+            ->query('SELECT codigo AS code, nombre_cuenta AS name FROM f38_codigo_contable ORDER BY codigo')
+            ->fetchAll();
+    }
+
     public function findMovement(int $id): ?array
     {
         $query = <<<'SQL'
@@ -290,5 +297,82 @@ final class CajaRepository
         $statement->execute(['client' => (int) $clientId]);
 
         return $statement->fetchAll();
+    }
+
+    public function simulateInstallmentPayment(string $clientId, int $loanId, int $installmentNumber): ?array
+    {
+        $query = <<<'SQL'
+            SELECT
+                p.f16_codigo AS loan_id,
+                p.f16_cliente AS client_id,
+                p.f16_estado AS loan_status,
+                p.f16_saldo AS loan_balance,
+                p.f16_cuotasPend AS pending_installments,
+                p.f16_gastosa AS loan_admin_expense,
+                p.f16_gastosm AS loan_late_fee,
+                p.f16_otros AS loan_other_one,
+                p.f16_otros2 AS loan_other_two,
+                q.f17_ncuota AS installment_number,
+                q.f17_fecha AS installment_date,
+                q.f17_capital AS capital,
+                q.f17_interes AS interest,
+                q.f17_total AS installment_total,
+                q.f17_sobregiro AS overdraft,
+                q.f17_interesSG AS overdraft_interest,
+                q.f17_mora AS installment_late_fee,
+                q.f17_moraSG AS overdraft_late_fee
+            FROM f16_prestamo p
+            INNER JOIN f17_cuotasprestamo q ON q.f17_prestamo = p.f16_codigo
+            WHERE p.f16_codigo = :loan
+              AND CAST(p.f16_cliente AS UNSIGNED) = CAST(:client AS UNSIGNED)
+              AND q.f17_ncuota = :installment
+                            AND q.f17_ncuota > 0
+              AND q.f17_estado = 'VIGENTE'
+            LIMIT 1
+        SQL;
+        $statement = Database::connection()->prepare($query);
+        $statement->execute([
+            'loan' => $loanId,
+            'client' => trim($clientId),
+            'installment' => $installmentNumber,
+        ]);
+        $row = $statement->fetch();
+
+        if ($row === false) {
+            return null;
+        }
+
+        $capital = $this->decimal($row['capital']);
+        $interest = $this->decimal($row['interest']);
+        $installmentLateFee = $this->decimal($row['installment_late_fee']);
+        $overdraft = $this->decimal($row['overdraft']);
+        $overdraftInterest = $this->decimal($row['overdraft_interest']);
+        $overdraftLateFee = $this->decimal($row['overdraft_late_fee']);
+        $total = $capital + $interest + $installmentLateFee + $overdraft + $overdraftInterest + $overdraftLateFee;
+        $balance = $this->decimal($row['loan_balance']);
+
+        return [
+            'loan_id' => (int) $row['loan_id'],
+            'client_id' => (string) $row['client_id'],
+            'loan_status' => (int) $row['loan_status'],
+            'loan_balance' => number_format($balance, 2, '.', ''),
+            'pending_installments' => (int) $row['pending_installments'],
+            'installment_number' => (int) $row['installment_number'],
+            'installment_date' => $row['installment_date'],
+            'capital' => number_format($capital, 2, '.', ''),
+            'interest' => number_format($interest, 2, '.', ''),
+            'installment_late_fee' => number_format($installmentLateFee, 2, '.', ''),
+            'overdraft' => number_format($overdraft, 2, '.', ''),
+            'overdraft_interest' => number_format($overdraftInterest, 2, '.', ''),
+            'overdraft_late_fee' => number_format($overdraftLateFee, 2, '.', ''),
+            'simulated_total' => number_format($total, 2, '.', ''),
+            'simulated_balance' => number_format(max(0, $balance - $capital), 2, '.', ''),
+            'writes' => ['f17_cuotasprestamo', 'f16_prestamo', 'f15_movimiento', 'f37_diario_contable'],
+        ];
+    }
+
+    private function decimal(mixed $value): float
+    {
+        return $value === null || $value === '' ? 0.0 : (float) $value;
     }
 }
