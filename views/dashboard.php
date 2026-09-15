@@ -99,8 +99,9 @@ $supervisor = $user['supervisor'] === 'S';
             <a class="nav-link" href="#socios"><span class="nav-icon">02</span>Socios</a>
             <a class="nav-link" href="#prestamos"><span class="nav-icon">03</span>Prestamos</a>
             <a class="nav-link" href="index.php?module=caja"><span class="nav-icon">04</span>Movimientos</a>
-            <a class="nav-link" href="#reportes"><span class="nav-icon">05</span>Reportes</a>
-            <a class="nav-link" href="#configuracion"><span class="nav-icon">06</span>Configuracion</a>
+            <a class="nav-link" href="index.php?module=caja&action=diario_contable"><span class="nav-icon">05</span>Diario Contable</a>
+            <a class="nav-link" href="#reportes"><span class="nav-icon">06</span>Reportes</a>
+            <a class="nav-link" href="#configuracion"><span class="nav-icon">07</span>Configuracion</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -147,6 +148,7 @@ $supervisor = $user['supervisor'] === 'S';
                     <a class="module" href="#socios"><span class="module-symbol">S</span><span class="module-title">Socios y familiares</span><span class="module-status">Proximo modulo</span></a>
                     <a class="module" href="#prestamos"><span class="module-symbol">P</span><span class="module-title">Prestamos</span><span class="module-status">Proximo modulo</span></a>
                     <a class="module" href="index.php?module=caja"><span class="module-symbol">M</span><span class="module-title">Movimientos</span><span class="module-status">Consulta disponible</span></a>
+                    <a class="module" href="index.php?module=caja&action=diario_contable"><span class="module-symbol">D</span><span class="module-title">Diario Contable</span><span class="module-status">Consulta disponible</span></a>
                     <a class="module" href="#reportes"><span class="module-symbol">R</span><span class="module-title">Reportes</span><span class="module-status">Proximo modulo</span></a>
                 </div>
             </article>

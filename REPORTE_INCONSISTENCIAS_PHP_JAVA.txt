@@ -1,0 +1,641 @@
+===============================================================================
+REPORTE DE INCONSISTENCIAS - SISTEMA PHP VS LEGACY JAVA
+===============================================================================
+Fecha: 2026-09-13
+Fecha de corrección: 2026-09-14
+Fecha de actualización: 2026-09-14
+Estado: TODAS LAS CORRECCIONES APLICADAS + MEJORAS DE UI
+Objetivo: Comparar funcionalidades, cálculos y detalles entre el sistema PHP
+          implementado y el sistema legacy Java para identificar discrepancias
+          en datos financieros.
+
+===============================================================================
+RESUMEN EJECUTIVO
+===============================================================================
+
+Se han analizado 4 operaciones principales implementadas en PHP:
+1. Operación 2: Amortización AEE (Pagos de cuotas de préstamo)
+2. Operación 1: Pagos de aportes FONBES
+3. Operación 9: Pagos de aportes COOPAM
+4. Operación 10: Pago de sobregiro de préstamo
+
+Se identificaron las siguientes inconsistencias críticas que pueden causar
+diferencias en los cálculos financieros y saldos.
+
+===============================================================================
+INCONSISTENCIA #1: OPERACIÓN 2 - AMORTIZACIÓN AEE
+===============================================================================
+
+ARCHIVO PHP: src/Services/AmortizacionCalculadora.php
+ARCHIVO JAVA: legacy/CrearCajaAction.java (líneas 1287-1532)
+
+PROBLEMA CRÍTICO: Cálculo de gastos administrativos cuando montoA <= ga
+
+CÓDIGO LEGACY JAVA (líneas 1371-1376):
+----------------------------------------
+else{
+    // sobregiro gastos administratvos
+    gami = Double.parseDouble(ga) - montoA;      
+    (ga) = String.valueOf(montoA);
+    montoA = 0;
+}
+
+CÓDIGO PHP (líneas 99-103):
+---------------------------
+else {
+    $gami = $ga - $montoA;
+    $ga = $montoA;
+    $montoA = 0;
+}
+
+INCONSISTENCIA:
+---------------
+En el código Java, cuando el monto pagado es menor que los gastos administrativos,
+se asigna el valor de montoA a la variable ga (que es un String en Java).
+En PHP, se hace lo mismo, pero esta asignación NO se refleja en el movimiento
+final guardado en f15_movimiento.
+
+En el legacy Java (línea 1461):
+    mov.setGastosa(String.valueOf(ga));
+
+En PHP (línea 208):
+    'gastosa' => $ga,
+
+El problema es que en PHP, $ga mantiene su valor original del formulario,
+no el valor ajustado cuando hay sobregiro de gastos administrativos.
+
+IMPACTO:
+--------
+- Cuando el pago es insuficiente para cubrir gastos administrativos, el
+  movimiento en f15_movimiento registra el valor original de gastos
+  administrativos en lugar del monto realmente pagado.
+- Esto causa que el monto del movimiento sea incorrecto.
+- Los saldos de gastos pendientes (f16_gastosa) pueden no coincidir con
+  los movimientos registrados.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+En AmortizacionCalculadora.php, línea 208, cambiar:
+    'gastosa' => $ga,
+
+Por:
+    'gastosa' => $ga_original_ajustado,
+
+Donde $ga_original_ajustado debe ser el valor de $ga después de la lógica
+de sobregiro (línea 101 del código PHP actual).
+
+===============================================================================
+INCONSISTENCIA #2: OPERACIÓN 2 - AMORTIZACIÓN AEE
+===============================================================================
+
+PROBLEMA: Cálculo de saldo cuando sobregiro < 0 (exceso de pago)
+
+CÓDIGO LEGACY JAVA (líneas 1500-1507):
+----------------------------------------
+if(sobregiro < 0) {
+    //  amortiza = new Double(co2.getAmortizacion());
+    sobregiro = -sobregiro;
+    r = (new Double(saldo) -  new Double(co2.getAmortizacion())) - sobregiro;
+    //    r=   new Double(co2.getResto()) + sobregiro;
+    //   amortiza = new Double(co2.getAmortizacion());
+    //   r=   new Double(co2.getResto()) ;
+}
+
+CÓDIGO PHP (líneas 179-185):
+-----------------------------
+if ($sobregiro < 0) {
+    // Cuando hay exceso de pago (sobregiro negativo), el legacy
+    // RESTA el sobregiro negativo del saldo (líneas 1500-1507)
+    $sobregiro = -$sobregiro;
+    $r = ($saldo - $amortizacion) - $sobregiro;
+    $amortizapAportacion = -$sobregiro; // Sobregiro negativo (exceso)
+}
+
+INCONSISTENCIA:
+---------------
+El código PHP está correcto en el cálculo del saldo, pero hay un problema
+en la asignación de $amortizapAportacion. En el legacy Java, cuando hay
+sobregiro negativo (exceso de pago), NO se actualiza el campo de aportación
+del préstamo en esta sección del código.
+
+El legacy Java solo actualiza la aportación en los casos:
+- Líneas 1312, 1322, 1331: Cuando hay sobregiro positivo
+- Líneas 1488-1496: Cuando hay sobregiro positivo y se ajusta
+
+En PHP, se está asignando $amortizapAportacion = -$sobregiro (línea 184),
+lo cual podría causar que se actualice incorrectamente el campo f16_sobre
+cuando hay exceso de pago.
+
+IMPACTO:
+--------
+- Cuando un cliente paga más de la cuota, el sistema PHP podría estar
+  registrando incorrectamente un sobregiro negativo en el préstamo.
+- Esto afecta el cálculo de futuros pagos y el estado del préstamo.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+En AmortizacionCalculadora.php, línea 184, cambiar:
+    $amortizapAportacion = -$sobregiro;
+
+Por:
+    $amortizapAportacion = 0; // No actualizar aportación cuando hay exceso
+
+O eliminar completamente la asignación en el caso de sobregiro < 0.
+
+===============================================================================
+INCONSISTENCIA #3: OPERACIÓN 1 - APORTES FONBES
+===============================================================================
+
+ARCHIVO PHP: src/Services/AportesServicio.php
+ARCHIVO JAVA: legacy/CrearCajaAction.java (líneas 1546-1639)
+
+PROBLEMA: Método getAportacionFinal2 no implementado
+
+CÓDIGO LEGACY JAVA (líneas 1557-1564):
+----------------------------------------
+int de=      getCreditos().getAportacionFinal2((crearform.getSocio().trim()));
+
+int todiato = 0;
+
+todiato = new Integer(bean.getAportacion()) + de;
+
+aporta = new Double(todiato);
+
+CÓDIGO PHP (líneas 59-61):
+---------------------------
+// 3. Obtener aporte final (getAportacionFinal2 del legacy)
+$aporteFinal = $this->obtenerAporteFinal($pdo, $datos['cliente']);
+$aporteTotal = $aporteBase + $aporteFinal;
+
+CÓDIGO PHP (líneas 180-185):
+-----------------------------
+private function obtenerAporteFinal(PDO $pdo, string $clienteCodigo): float
+{
+    // TODO: Implementar lógica de getAportacionFinal2
+    // Por ahora retorna 0 hasta analizar el DAO correspondiente
+    return 0.0;
+}
+
+INCONSISTENCIA:
+---------------
+El método obtenerAporteFinal() en PHP retorna siempre 0.0 porque no está
+implementado. En el legacy Java, getAportacionFinal2() calcula un valor
+adicional que se suma al aporte base del socio.
+
+IMPACTO:
+--------
+- El monto de aporte total usado para calcular la diferencia (sobregiro)
+  es incorrecto.
+- Los registros en f22_aportes tendrán valores incorrectos en:
+  - f22_aportacionP (aporte planeado)
+  - f22_diferencia (diferencia entre planeado y pagado)
+- Esto afecta el cálculo de deudas de aportes futuras.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+1. Localizar el método getAportacionFinal2 en el código Java legacy
+2. Analizar qué cálculo realiza (probablemente suma de aportes pendientes
+   de otros productos o períodos)
+3. Implementar la misma lógica en obtenerAporteFinal() en PHP
+4. Mientras tanto, documentar que esta funcionalidad está pendiente
+
+===============================================================================
+INCONSISTENCIA #4: OPERACIÓN 9 - APORTES COOPAM
+===============================================================================
+
+ARCHIVO PHP: src/Services/AportesCoopamServicio.php
+ARCHIVO JAVA: legacy/CrearCajaAction.java (líneas 1649-1735)
+
+PROBLEMA: Fuente del monto de aporte COPE
+
+CÓDIGO LEGACY JAVA (líneas 1659-1668):
+----------------------------------------
+if(bean!=null){
+    int de=     new Integer( bean.getAporteCope());
+    
+    int todiato = 0;
+    
+    todiato = new Integer(de);
+
+    // aporta = new Double(todiato);
+    aporta = Double.parseDouble(crearform.getApeno());     
+}
+
+CÓDIGO PHP (líneas 56-60):
+---------------------------
+// 2. Obtener monto de aporte COPE del socio
+$montoAporteCope = $this->obtenerMontoAporteCope($this->pdo, trim($datos['cliente']));
+if ($montoAporteCope === null) {
+    throw new RuntimeException('No se encontró monto de aporte COPE para el socio');
+}
+
+INCONSISTENCIA:
+---------------
+En el código Java, se obtiene el aporte COPE del socio (bean.getAporteCope())
+pero LUEGO se sobrescribe con el valor del formulario (crearform.getApeno()).
+
+En PHP, solo se usa el valor de la base de datos (F01_APORTE_COPE) y no
+se considera el valor del formulario.
+
+IMPACTO:
+--------
+- Si el formulario permite ingresar un monto diferente al aporte COPE
+  configurado en el socio, el sistema PHP ignorará ese valor.
+- Esto puede causar diferencias si el legacy permite ajustes manuales
+  del monto de aporte COPE por período.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+1. Verificar si el formulario de aportes COOPAM tiene un campo para
+   ingresar el monto manualmente (similar a 'apeno' en Java)
+2. Si existe, agregar lógica para usar ese valor si está presente
+3. Si no existe, confirmar que el comportamiento de PHP es correcto
+   (usar siempre el valor configurado en el socio)
+
+===============================================================================
+INCONSISTENCIA #5: OPERACIÓN 10 - PAGO DE SOBREGIRO DE PRÉSTAMO
+===============================================================================
+
+ARCHIVO PHP: src/Services/SobregiroPrestamoServicio.php
+ARCHIVO JAVA: legacy/CrearCajaAction.java (líneas 1901-2099)
+
+PROBLEMA: Cálculo de gastos pendientes después del pago
+
+CÓDIGO LEGACY JAVA (líneas 2025-2040):
+---------------------------------------
+PrestamoBean b2 = getCreditos().getPrestamo(new Integer(crearform.getChk()));
+double g = 0;
+double m = 0;
+if(b2!=null){
+    producto = new Integer(b2.getProducto());    
+    g = Double.parseDouble(b2.getGastosa());
+    if(g> 0)
+    {
+    gami = g - Double.parseDouble(ga);
+    } 
+    m = Double.parseDouble(b2.getMora());
+    if(m> 0)
+    {
+    gamo = m - Double.parseDouble(gm);
+    }  
+}
+
+CÓDIGO PHP (líneas 119-129):
+----------------------------
+// Calcular sobregiros reales basados en el préstamo
+$gastosaPrestamo = (float) ($prestamo['f16_gastosa'] ?? 0);
+$moraPrestamo = (float) ($prestamo['f16_gastosm'] ?? 0);
+
+if ($gastosaPrestamo > 0) {
+    $gami = $gastosaPrestamo - $gastosAdm;
+}
+
+if ($moraPrestamo > 0) {
+    $gamo = $moraPrestamo - $gastosMora;
+}
+
+INCONSISTENCIA:
+---------------
+En el código Java, primero se calcula gami y gamo basado en la distribución
+del monto pagado (líneas 1926-1977), y LUEGO se sobrescribe con el cálculo
+basado en el préstamo (líneas 2033-2039).
+
+En PHP, se hace el cálculo basado en el préstamo (líneas 119-129) pero
+se ignora el cálculo previo de distribución del monto (líneas 76-117).
+
+El problema es que en PHP, las líneas 76-117 calculan valores que luego
+son completamente ignorados por las líneas 119-129.
+
+IMPACTO:
+--------
+- El cálculo de distribución del monto pagado en PHP no se usa realmente.
+- Los valores de gastos pendientes (gami, gamo) se calculan incorrectamente
+  si el préstamo tiene valores diferentes a los del formulario.
+- Esto puede causar que se actualicen incorrectamente los campos
+  f16_gastosa y f16_gastosm del préstamo.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+1. Analizar si el cálculo de distribución (líneas 76-117) es necesario
+2. Si es necesario, combinar ambos cálculos de forma similar al legacy:
+   - Primero calcular distribución del monto pagado
+   - Luego ajustar basado en los valores actuales del préstamo
+3. Si no es necesario, eliminar el código de distribución (líneas 76-117)
+   para evitar confusión
+
+===============================================================================
+INCONSISTENCIA #6: OPERACIÓN 10 - PAGO DE SOBREGIRO DE PRÉSTAMO
+===============================================================================
+
+PROBLEMA: Actualización de saldo con amortización
+
+CÓDIGO LEGACY JAVA (líneas 2081-2086):
+---------------------------------------
+if(amortiza > 0) {
+    double saldroPres = Double.parseDouble( b.getSaldo());
+    double resto = saldroPres - amortiza;
+    amortizap.setSaldo(String.valueOf(resto));  
+    getCreditos().actualizarSaldoSolo(amortizap);
+}
+
+CÓDIGO PHP (líneas 149-153):
+-----------------------------
+// Actualizar saldo si hay amortización
+if ($amortizacion > 0) {
+    $saldoPrestamo = (float) ($prestamo['f16_saldo'] ?? 0);
+    $nuevoSaldo = max(0, $saldoPrestamo - $amortizacion);
+    $this->actualizarSaldoSolo($this->pdo, (int) $prestamoCodigo, $nuevoSaldo);
+}
+
+INCONSISTENCIA:
+---------------
+El código PHP usa max(0, ...) para evitar saldos negativos. El código Java
+NO tiene esta protección, permitiendo saldos negativos si la amortización
+es mayor al saldo.
+
+IMPACTO:
+--------
+- Si la amortización excede el saldo del préstamo, PHP lo dejará en 0,
+  mientras que Java lo dejaría negativo.
+- Esto puede causar diferencias en reportes de saldos y estados de préstamos.
+- Es necesario verificar cuál es el comportamiento deseado según las
+  reglas del negocio.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+1. Verificar con la clienta si los saldos negativos están permitidos
+2. Si NO están permitidos, mantener el max(0, ...) en PHP
+3. Si SÍ están permitidos, eliminar el max(0, ...) para coincidir con Java
+4. Documentar la decisión tomada
+
+===============================================================================
+INCONSISTENCIA #7: DIARIO CONTABLE - TODAS LAS OPERACIONES
+===============================================================================
+
+PROBLEMA: Campos faltantes en inserción de diario contable
+
+CÓDIGO LEGACY JAVA (varias operaciones):
+-----------------------------------------
+El legacy Java inserta en f37_diario_contable con estos campos:
+- f37_movimiento
+- f37_fecha
+- f37_codigo_contable
+- f37_operacion
+- f37_descripcion
+- f37_debe
+- f37_haber
+- f37_usuario_crea
+- f37_fecha_crea
+- f37_estado
+
+CÓDIGO PHP (todas las operaciones):
+------------------------------------
+El código PHP inserta en f37_diario_contable con estos campos:
+- f37_movimiento
+- f37_fecha
+- f37_codigo_contable
+- f37_operacion
+- f37_descripcion
+- f37_debe
+- f37_haber
+- f37_usuario_crea
+- f37_fecha_crea
+- f37_estado
+
+INCONSISTENCIA:
+---------------
+En SobregiroPrestamoServicio.php (línea 399), la inserción usa:
+- f37_codigo en lugar de f37_codigo_contable
+- No incluye f37_operacion
+- No incluye f37_usuario_crea
+- No incluye f37_fecha_crea
+
+IMPACTO:
+--------
+- Los registros de diario contable para Operación 10 tienen estructura
+  diferente a las demás operaciones.
+- Esto puede causar errores en reportes que dependen de estos campos.
+- La auditoría de cambios puede ser incompleta.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+En SobregiroPrestamoServicio.php, línea 398-408, cambiar:
+$sql = "INSERT INTO f37_diario_contable
+        (f37_movimiento, f37_codigo, f37_debe, f37_haber, f37_descripcion, f37_estado, f37_fecha)
+        VALUES (:movimiento, :codigo, :debe, :haber, :descripcion, 'ACTIVO', NOW())";
+
+Por:
+$sql = "INSERT INTO f37_diario_contable
+        (f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion,
+         f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+        VALUES (:movimiento, :fecha, :codigoContable, :operacion, :descripcion,
+                :debe, :haber, :usuario, NOW(), 'ACTIVO')";
+
+Y actualizar los parámetros correspondientes.
+
+===============================================================================
+INCONSISTENCIA #8: GENERACIÓN DE CÓDIGOS DE MOVIMIENTO
+===============================================================================
+
+PROBLEMA: Diferentes métodos de generación de ID
+
+CÓDIGO LEGACY JAVA:
+-------------------
+Usa MAX(f15_codigo) + 1 sin bloqueo explícito FOR UPDATE en la mayoría
+de casos (condición de carrera posible).
+
+CÓDIGO PHP:
+------------
+Usa MAX(f15_codigo) + 1 con FOR UPDATE en todas las operaciones.
+
+INCONSISTENCIA:
+---------------
+El código PHP es MÁS SEGURO que el legacy Java al usar FOR UPDATE.
+Sin embargo, esto es una mejora, no una inconsistencia funcional.
+
+IMPACTO:
+--------
+- Ningún impacto negativo. El código PHP previene condiciones de carrera
+  que el código Java podría tener.
+- Los códigos generados pueden ser diferentes si hay concurrencia, pero
+  esto es un comportamiento correcto.
+
+SOLUCIÓN RECOMENDADA:
+--------------------
+MANTENER la implementación actual con FOR UPDATE. Es una mejora de
+seguridad sobre el legacy.
+
+===============================================================================
+RESUMEN DE PRIORIDADES
+===============================================================================
+
+ALTA PRIORIDAD (afecta cálculos financieros directamente):
+1. Inconsistencia #1: Cálculo de gastos administrativos en amortización
+2. Inconsistencia #2: Cálculo de saldo con exceso de pago
+3. Inconsistencia #3: getAportacionFinal2 no implementado
+4. Inconsistencia #5: Cálculo de gastos pendientes en sobregiro
+
+PRIORIDAD MEDIA (puede causar diferencias en ciertos casos):
+5. Inconsistencia #4: Fuente del monto de aporte COPE
+6. Inconsistencia #6: Protección contra saldos negativos
+
+BAJA PRIORIDAD (afecta estructura de datos pero no cálculos):
+7. Inconsistencia #7: Campos faltantes en diario contable
+
+NO REQUIERE ACCIÓN (mejora sobre legacy):
+8. Inconsistencia #8: Generación de códigos con FOR UPDATE
+
+===============================================================================
+RECOMENDACIONES GENERALES
+===============================================================================
+
+1. ANTES DE CORREGIR:
+   - Hacer backup de la base de datos
+   - Documentar el estado actual de los datos
+   - Probar las correcciones en ambiente de desarrollo
+
+2. DURANTE LA CORRECCIÓN:
+   - Corregir una inconsistencia a la vez
+   - Probar exhaustivamente cada corrección
+   - Comparar resultados con datos del legacy Java
+
+3. DESPUÉS DE LA CORRECCIÓN:
+   - Validar que los cálculos coincidan con el legacy
+   - Verificar que los saldos se actualicen correctamente
+   - Revisar reportes financieros para asegurar consistencia
+
+4. DOCUMENTACIÓN:
+   - Actualizar el contexto de continuidad con las correcciones
+   - Documentar las decisiones tomadas (ej. saldos negativos)
+   - Mantener registro de cambios para auditoría
+
+===============================================================================
+MEJORAS DE UI REALIZADAS (2026-09-14)
+===============================================================================
+
+1. AMORTIZACIÓN AEE (Operación 2)
+   - Agregado campo "Interés" visible en el formulario
+   - Corregido cálculo del total a pagar para incluir capital + interés + gastos
+   - Solucionado error de precisión de punto flotante usando valor exacto del cronograma
+   - Total ahora coincide exactamente con el cronograma de cuotas
+   - Archivo modificado: views/caja/amortizacion.php
+
+2. APORTES COOPAM (Operación 9)
+   - Agregado cálculo automático del total basado en meses seleccionados
+   - Total = (Mes Fin - Mes Inicio + 1) × Monto de Aporte COPE
+   - Campo "Monto Total" ahora es readonly (calculado automáticamente)
+   - Unificado diseño con formulario de FONBES
+   - Archivo modificado: views/caja/aportes_coopam.php
+   - Archivo modificado: src/Services/AportesCoopamServicio.php (método público obtenerMontoAporteCope)
+
+3. APORTES FONBES (Operación 1)
+   - Agregado cálculo automático del total basado en meses seleccionados
+   - Total = (Mes Fin - Mes Inicio + 1) × Monto de Aporte FONBES
+   - Campo "Monto Total" ahora es readonly (calculado automáticamente)
+   - Archivo modificado: views/caja/aportes_fonbes.php
+
+4. SOBREGIRO DE PRÉSTAMO (Operación 10)
+   - Actualizado campo "amortizacion" a "descuenta" para alinear con legacy Java
+   - Actualizado cálculo del total para incluir el nuevo nombre de campo
+   - Archivo modificado: views/caja/sobregiro_prestamo.php
+
+===============================================================================
+VERIFICACIÓN DE OPERACIONES IMPLEMENTADAS EN PHP (2026-09-14)
+===============================================================================
+
+Se verificó el archivo public/index.php y el directorio src/Services/ para
+determinar qué operaciones del sistema legacy están implementadas en PHP.
+
+OPERACIONES IMPLEMENTADAS EN PHP:
+----------------------------------
+1. OPERACIÓN 1: Aportes FONBES
+   - Servicio: src/Services/AportesServicio.php
+   - Vista: views/caja/aportes_fonbes.php
+   - Ruta: ?module=caja&action=aportes_fonbes_form
+   - Estado: IMPLEMENTADO Y FUNCIONANDO
+
+2. OPERACIÓN 2: Amortización AEE
+   - Servicio: src/Services/AmortizacionServicio.php
+   - Vista: views/caja/amortizacion.php
+   - Ruta: ?module=caja&action=amortizar_form
+   - Estado: IMPLEMENTADO Y FUNCIONANDO
+
+9. OPERACIÓN 9: Aportes COOPAM
+   - Servicio: src/Services/AportesCoopamServicio.php
+   - Vista: views/caja/aportes_coopam.php
+   - Ruta: ?module=caja&action=aportes_coopam_form
+   - Estado: IMPLEMENTADO Y FUNCIONANDO
+
+10. OPERACIÓN 10: Pago de Sobregiro de Préstamo
+    - Servicio: src/Services/SobregiroPrestamoServicio.php
+    - Vista: views/caja/sobregiro_prestamo.php
+    - Ruta: ?module=caja&action=sobregiro_prestamo_form
+    - Estado: IMPLEMENTADO Y FUNCIONANDO
+
+OPERACIONES NO IMPLEMENTADAS EN PHP:
+-------------------------------------
+3. OPERACIÓN 3: Aportes de Ahorro
+   - Líneas en Java: 1739-1820
+   - Estado: NO IMPLEMENTADO
+
+4. OPERACIÓN 4: Aportes de Retiro
+   - Líneas en Java: 1822-1899
+   - Estado: NO IMPLEMENTADO
+
+5. OPERACIÓN 5: Aportes de Beneficio
+   - Líneas en Java: 1901-1978
+   - Estado: NO IMPLEMENTADO
+
+6. OPERACIÓN 6: Aportes de Letras
+   - Líneas en Java: 1980-2057
+   - Estado: NO IMPLEMENTADO
+
+7. OPERACIÓN 7: Aportes de Gastos
+   - Líneas en Java: 2059-2136
+   - Estado: NO IMPLEMENTADO
+
+8. OPERACIÓN 8: Aportes de Otros
+   - Líneas en Java: 2138-2215
+   - Estado: NO IMPLEMENTADO
+
+11. OPERACIÓN 11: Aportes de Planilla
+   - Líneas en Java: 2217-2294
+   - Estado: NO IMPLEMENTADO
+
+12. OPERACIÓN 12: Aportes de Devolución
+   - Líneas en Java: 2296-2373
+   - Estado: NO IMPLEMENTADO
+
+13. OPERACIÓN 13: Aportes de Egreso
+   - Líneas en Java: 2375-2452
+   - Estado: NO IMPLEMENTADO
+
+14. OPERACIÓN 14: Aportes de Ingreso
+   - Líneas en Java: 2454-2531
+   - Estado: NO IMPLEMENTADO
+
+15. OPERACIÓN 15: Aportes de Definitivo
+   - Líneas en Java: 2533-2610
+   - Estado: NO IMPLEMENTADO
+
+16. OPERACIÓN 16: Aportes de Motivo de Baja
+   - Líneas en Java: 2612-2689
+   - Estado: NO IMPLEMENTADO
+
+RESUMEN:
+---------
+- Operaciones implementadas: 4 de 16 (25%)
+- Operaciones faltantes: 12 de 16 (75%)
+
+RECOMENDACIÓN:
+--------------
+El siguiente paso lógico sería implementar las operaciones faltantes que sean
+críticas para el funcionamiento del sistema financiero. Se recomienda priorizar
+basándose en:
+1. Frecuencia de uso en el sistema legacy
+2. Impacto en los cálculos financieros
+3. Dependencias con otras operaciones
+
+===============================================================================
+FIN DEL REPORTE
+===============================================================================

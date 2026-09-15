@@ -92,7 +92,8 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         a { color: inherit; text-decoration: none; }
         .shell { display: grid; grid-template-columns: 254px minmax(0, 1fr); min-height: 100vh; }
         .sidebar { display: flex; flex-direction: column; padding: 28px 18px 20px; background: var(--navy); color: #e7f0ed; }
-        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; color: inherit; text-decoration: none; }
+        .brand:hover { opacity: 0.9; }
         .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid var(--gold); border-radius: 50%; color: var(--gold); font-family: Georgia, serif; font-size: 20px; }
         .brand-name { font-family: Georgia, serif; font-size: 22px; letter-spacing: .02em; }
         .brand-note { display: block; margin-top: 3px; color: #9bb3b7; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
@@ -141,17 +142,22 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 <body>
 <div class="shell">
     <aside class="sidebar">
-        <a class="brand" href="index.php" aria-label="SACS Nuevo, inicio">
-            <span class="brand-mark">S</span>
-            <span><span class="brand-name">SACS</span><span class="brand-note">gestion social</span></span>
+        <a href="index.php" class="brand">
+            <div class="brand-mark">S</div>
+            <div>
+                <div class="brand-name">SACS</div>
+                <div class="brand-note">Sistema de Administración</div>
+            </div>
         </a>
-
-        <div class="nav-label">Espacios de trabajo</div>
+        <div class="nav-label">Caja</div>
         <nav class="nav" aria-label="Navegacion principal">
-            <a class="nav-link" href="index.php"><span class="nav-icon">01</span>Resumen</a>
-            <a class="nav-link" href="index.php?module=caja"><span class="nav-icon">02</span>Caja</a>
-            <a class="nav-link" href="#socios"><span class="nav-icon">03</span>Socios</a>
-            <a class="nav-link" href="#prestamos"><span class="nav-icon">04</span>Prestamos</a>
+            <a class="nav-link" href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>">Perfil Cliente</a>
+            <a class="nav-link" href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes FONBES</a>
+            <a class="nav-link" href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes COOPAM</a>
+            <a class="nav-link" href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Desembolso Préstamo</a>
+            <a class="nav-link" href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>">Sobregiro Préstamo</a>
+            <a class="nav-link active" href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Amortización</a>
+            <a class="nav-link" href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($clienteCodigo) ?>">Multas</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -245,27 +251,34 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     <input type="text" id="amortiza" name="amortiza" step="0.01" placeholder="0.00">
                 </div>
                 <div class="form-group">
-                    <label for="gastosAdm">Gastos Administrativos</label>
-                    <input type="text" id="gastosAdm" name="gastosAdm" step="0.01" value="<?= $money($prestamo['f16_gastosa'] ?? 0) ?>">
+                    <label for="interes">Interés</label>
+                    <input type="text" id="interes" name="interes" step="0.01" placeholder="0.00">
                 </div>
             </div>
 
             <div class="form-row">
+                <div class="form-group">
+                    <label for="gastosAdm">Gastos Administrativos</label>
+                    <input type="text" id="gastosAdm" name="gastosAdm" step="0.01" value="<?= $money($prestamo['f16_gastosa'] ?? 0) ?>">
+                </div>
                 <div class="form-group">
                     <label for="gastosMora">Mora</label>
                     <input type="text" id="gastosMora" name="gastosMora" step="0.01" value="<?= $money($prestamo['f16_gastosm'] ?? 0) ?>">
                 </div>
-                <div class="form-group">
-                    <label for="otros1">Otros 1</label>
-                    <input type="text" id="otros1" name="otros1" step="0.01" value="<?= $money($prestamo['f16_otros'] ?? 0) ?>">
-                </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
+                    <label for="otros1">Otros 1</label>
+                    <input type="text" id="otros1" name="otros1" step="0.01" value="<?= $money($prestamo['f16_otros'] ?? 0) ?>">
+                </div>
+                <div class="form-group">
                     <label for="otros2">Otros 2</label>
                     <input type="text" id="otros2" name="otros2" step="0.01" value="<?= $money($prestamo['f16_otros2'] ?? 0) ?>">
                 </div>
+            </div>
+
+            <div class="form-row">
                 <div class="form-group">
                     <label for="sobregiro">Sobregiro</label>
                     <input type="text" id="sobregiro" name="sobregiro" step="0.01" value="<?= $money($prestamo['f16_sobre'] ?? 0) ?>" readonly>
@@ -331,36 +344,38 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 <textarea id="obs2" name="obs2"></textarea>
             </div>
 
-            <div class="form-row">
-                <button type="submit" class="btn">Grabar Amortización</button>
-                <a href="index.php?module=caja&profile=client&client=<?= $escape($clienteCodigo) ?>" class="btn btn-secondary">Cancelar</a>
+            <div class="form-actions">
+                <button type="submit" class="btn">Registrar Pago</button>
+                <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>
-    </main>
+</main>
 </div>
 
 <script>
-    // Función para calcular el total automáticamente (similar al legacy)
+    // Función para calcular el total automáticamente cuando se editan campos manualmente
     function calcularTotal() {
         const amortiza = parseFloat(document.getElementById('amortiza').value.replace(/,/g, '')) || 0;
+        const interes = parseFloat(document.getElementById('interes').value.replace(/,/g, '')) || 0;
         const gastosAdm = parseFloat(document.getElementById('gastosAdm').value.replace(/,/g, '')) || 0;
         const gastosMora = parseFloat(document.getElementById('gastosMora').value.replace(/,/g, '')) || 0;
         const otros1 = parseFloat(document.getElementById('otros1').value.replace(/,/g, '')) || 0;
         const otros2 = parseFloat(document.getElementById('otros2').value.replace(/,/g, '')) || 0;
-        // Sobregiro NO se suma al total, es un estado del préstamo, no un concepto de pago
 
-        const total = amortiza + gastosAdm + gastosMora + otros1 + otros2;
-        document.getElementById('monto').value = total.toFixed(2);
+        const total = amortiza + interes + gastosAdm + gastosMora + otros1 + otros2;
+        // Redondear correctamente a 2 decimales para evitar errores de punto flotante
+        const totalRedondeado = Math.round((total + Number.EPSILON) * 100) / 100;
+        document.getElementById('monto').value = totalRedondeado.toFixed(2);
     }
-    
-    // Event listeners para cálculo automático
-    ['amortiza', 'gastosAdm', 'gastosMora', 'otros1', 'otros2', 'sobregiro'].forEach(id => {
+
+    // Event listeners para cálculo automático al editar campos
+    ['amortiza', 'interes', 'gastosAdm', 'gastosMora', 'otros1', 'otros2'].forEach(id => {
         document.getElementById(id).addEventListener('input', calcularTotal);
     });
-    
+
     // Calcular total al cargar la página (con valores pre-cargados)
     document.addEventListener('DOMContentLoaded', calcularTotal);
-    
+
     // Mostrar información de la cuota seleccionada
     document.getElementById('cuota').addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
@@ -370,10 +385,16 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             document.getElementById('interes-display').textContent = selectedOption.dataset.interes;
             document.getElementById('total-display').textContent = selectedOption.dataset.total;
             document.getElementById('fecha-display').textContent = selectedOption.dataset.fecha;
-            
+
             // Pre-llenar amortización con el capital de la cuota
             document.getElementById('amortiza').value = selectedOption.dataset.capital.replace(/,/g, '');
-            calcularTotal();
+
+            // Pre-llenar interés de la cuota
+            document.getElementById('interes').value = selectedOption.dataset.interes.replace(/,/g, '');
+
+            // Usar el total exacto de la cuota del cronograma para evitar errores de precisión
+            const cuotaTotal = parseFloat(selectedOption.dataset.total.replace(/,/g, '')) || 0;
+            document.getElementById('monto').value = cuotaTotal.toFixed(2);
         } else {
             document.getElementById('cuota-info').style.display = 'none';
         }

@@ -192,7 +192,8 @@ final class CajaRepository
     {
         $query = <<<'SQL'
             SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
-                   f16_importe AS amount, f16_saldo AS balance, f16_cuotasPend AS pending_installments
+                   f16_importe AS amount, f16_saldo AS aporte, f16_saldo AS balance, f16_cuotasPend AS pending_installments,
+                   f16_aportacion AS sobregiro
             FROM f16_prestamo
             WHERE f16_cliente = :client
             ORDER BY f16_codigo DESC
@@ -202,6 +203,138 @@ final class CajaRepository
         $statement->execute(['client' => trim($clientId)]);
 
         return $statement->fetchAll();
+    }
+
+    public function clientLoansWithOverdraft(string $clientId): array
+    {
+        $query = <<<'SQL'
+            SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
+                   f16_importe AS amount, f16_saldo AS balance, f16_aportacion AS sobregiro,
+                   f16_gastosa AS gastos_adm, f16_gastosm AS mora
+            FROM f16_prestamo
+            WHERE f16_cliente = :client AND f16_estado = '4' AND f16_aportacion > 0
+            ORDER BY f16_codigo DESC
+            LIMIT 20
+        SQL;
+        $statement = Database::connection()->prepare($query);
+        $statement->execute(['client' => trim($clientId)]);
+
+        return $statement->fetchAll();
+    }
+
+    public function clientLoansPendingDisbursement(string $clientId): array
+    {
+        $query = <<<'SQL'
+            SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
+                   f16_importe AS amount, f16_saldo AS balance, f16_gastosa AS gastos_adm
+            FROM f16_prestamo
+            WHERE f16_cliente = :client AND f16_estado = 3
+            ORDER BY f16_codigo DESC
+            LIMIT 20
+        SQL;
+        $statement = Database::connection()->prepare($query);
+        $statement->execute(['client' => trim($clientId)]);
+
+        return $statement->fetchAll();
+    }
+
+    public function accountingEntries(array $filters = []): array
+    {
+        $query = <<<'SQL'
+            SELECT d.f37_codigo AS id, d.f37_movimiento AS movement_id, d.f37_fecha AS date,
+                   d.f37_codigo_contable AS accounting_code, d.f37_operacion AS operation,
+                   d.f37_descripcion AS description, d.f37_debe AS debe, d.f37_haber AS haber,
+                   d.f37_usuario_crea AS user, d.f37_fecha_crea AS created_at, d.f37_estado AS status,
+                   o.f14_nombre AS operation_name, m.f15_cliente AS client_id
+            FROM f37_diario_contable d
+            LEFT JOIN f14_operacion o ON o.f14_codigo = d.f37_operacion
+            LEFT JOIN f15_movimiento m ON m.f15_codigo = d.f37_movimiento
+            WHERE 1=1
+        SQL;
+
+        $params = [];
+
+        if (!empty($filters['date_from'])) {
+            $query .= " AND d.f37_fecha >= :date_from";
+            $params['date_from'] = trim($filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query .= " AND d.f37_fecha <= :date_to";
+            $params['date_to'] = trim($filters['date_to']);
+        }
+
+        if (!empty($filters['operation'])) {
+            $query .= " AND d.f37_operacion = :operation";
+            $params['operation'] = (int) trim($filters['operation']);
+        }
+
+        if (!empty($filters['accounting_code'])) {
+            $query .= " AND d.f37_codigo_contable = :accounting_code";
+            $params['accounting_code'] = trim($filters['accounting_code']);
+        }
+
+        if (!empty($filters['client'])) {
+            $query .= " AND m.f15_cliente = :client";
+            $params['client'] = trim($filters['client']);
+        }
+
+        $query .= " ORDER BY d.f37_fecha DESC, d.f37_codigo DESC";
+
+        if (!empty($filters['per_page'])) {
+            $offset = ((int) ($filters['page'] ?? 1) - 1) * (int) $filters['per_page'];
+            $query .= " LIMIT " . (int) $filters['per_page'] . " OFFSET " . $offset;
+        } else {
+            $query .= " LIMIT 50";
+        }
+
+        $statement = Database::connection()->prepare($query);
+        $statement->execute($params);
+
+        return $statement->fetchAll();
+    }
+
+    public function accountingEntryTotal(array $filters = []): int
+    {
+        $query = <<<'SQL'
+            SELECT COUNT(*) AS total
+            FROM f37_diario_contable d
+            LEFT JOIN f15_movimiento m ON m.f15_codigo = d.f37_movimiento
+            WHERE 1=1
+        SQL;
+
+        $params = [];
+
+        if (!empty($filters['date_from'])) {
+            $query .= " AND d.f37_fecha >= :date_from";
+            $params['date_from'] = trim($filters['date_from']);
+        }
+
+        if (!empty($filters['date_to'])) {
+            $query .= " AND d.f37_fecha <= :date_to";
+            $params['date_to'] = trim($filters['date_to']);
+        }
+
+        if (!empty($filters['operation'])) {
+            $query .= " AND d.f37_operacion = :operation";
+            $params['operation'] = (int) trim($filters['operation']);
+        }
+
+        if (!empty($filters['accounting_code'])) {
+            $query .= " AND d.f37_codigo_contable = :accounting_code";
+            $params['accounting_code'] = trim($filters['accounting_code']);
+        }
+
+        if (!empty($filters['client'])) {
+            $query .= " AND m.f15_cliente = :client";
+            $params['client'] = trim($filters['client']);
+        }
+
+        $statement = Database::connection()->prepare($query);
+        $statement->execute($params);
+        $result = $statement->fetch();
+
+        return (int) ($result['total'] ?? 0);
     }
 
     public function clientInstallments(string $clientId): array
@@ -254,6 +387,25 @@ final class CajaRepository
                    f63_formaPago AS payment_method
             FROM f63_multa
             WHERE CAST(f63_socio AS UNSIGNED) = CAST(:client AS UNSIGNED)
+            ORDER BY f63_periodo DESC
+            LIMIT 20
+        SQL;
+        $statement = Database::connection()->prepare($query);
+        $statement->execute(['client' => trim($clientId)]);
+
+        return $statement->fetchAll();
+    }
+
+    public function clientPendingFines(string $clientId): array
+    {
+        $query = <<<'SQL'
+            SELECT f63_codigo AS id, f63_periodo AS period,
+                   f63_multap AS planned, f63_multad AS paid,
+                   f63_multar AS remaining, f63_fechaPago AS paid_date,
+                   f63_formaPago AS payment_method
+            FROM f63_multa
+            WHERE CAST(f63_socio AS UNSIGNED) = CAST(:client AS UNSIGNED)
+              AND f63_multar > 0
             ORDER BY f63_periodo DESC
             LIMIT 20
         SQL;

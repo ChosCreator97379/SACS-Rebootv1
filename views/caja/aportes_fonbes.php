@@ -75,37 +75,118 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pago de Aportes FONBES - SACS Nuevo</title>
+    <title>Pago de Aportes FONBES | SACS Nuevo</title>
     <style>
-        :root { --ink: #17212b; --muted: #687684; --paper: #f5f7f4; --panel: #fff; --navy: #142b3a; --teal: #1d7a78; --gold: #d69e47; --line: #dce4e1; }
-        * { box-sizing: border-box; } body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", sans-serif; } a { color: inherit; text-decoration: none; }
-        .top { display: flex; align-items: center; justify-content: space-between; padding: 22px clamp(20px, 4vw, 58px); background: var(--navy); color: #fff; } .brand { font-family: Georgia, serif; font-size: 24px; } .brand small { display: block; margin-top: 4px; color: #9bb3b7; font-family: "Trebuchet MS", sans-serif; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; } .back { color: #b9d2d2; font-size: 13px; }
-        main { max-width: 1250px; margin: 0 auto; padding: 38px clamp(20px, 4vw, 58px); } .eyebrow { margin: 0 0 9px; color: var(--teal); font-size: 11px; font-weight: bold; letter-spacing: .16em; text-transform: uppercase; } h1 { margin: 0; font-family: Georgia, serif; font-size: clamp(32px, 4vw, 48px); font-weight: normal; } .subtitle { margin: 10px 0 28px; color: var(--muted); }
-        .summary, .panel { padding: 24px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); } .summary { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); gap: 18px; margin-bottom: 18px; } .name { font-family: Georgia, serif; font-size: 24px; } .label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; } .value { font-weight: bold; }
-        .layout { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; } .panel h2 { margin: 0 0 18px; font-family: Georgia, serif; font-size: 21px; font-weight: normal; } .wide { grid-column: 1 / -1; } table { width: 100%; border-collapse: collapse; font-size: 12px; } th { padding: 10px; background: #edf3f1; color: var(--muted); font-size: 10px; text-align: left; text-transform: uppercase; } td { padding: 11px 10px; border-top: 1px solid var(--line); } .amount { text-align: right; white-space: nowrap; } .state { color: var(--teal); font-weight: bold; } .muted { color: var(--muted); } .empty { color: var(--muted); font-size: 13px; } .actions { display: flex; gap: 10px; margin-bottom: 18px; } .action { padding: 9px 13px; border: 1px solid var(--line); border-radius: 4px; color: var(--teal); font-size: 12px; }
-        .form-group { margin-bottom: 16px; } .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; } label { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); } input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 4px; font-size: 14px; } .form-actions { display: flex; gap: 10px; margin-top: 24px; } .btn { padding: 10px 20px; background: var(--teal); color: #fff; border: none; border-radius: 4px; cursor: pointer; } .btn-secondary { background: var(--muted); } .alert { padding: 12px; border-radius: 4px; margin-bottom: 16px; } .alert-error { background: #fee; color: #c33; }
-        @media (max-width: 850px) { .summary, .layout { grid-template-columns: 1fr 1fr; } .wide { grid-column: 1 / -1; } } @media (max-width: 560px) { .top { align-items: flex-start; flex-direction: column; gap: 12px; } .summary, .layout { grid-template-columns: 1fr; } .wide { grid-column: auto; } }
+        :root {
+            --ink: #17212b;
+            --muted: #697586;
+            --paper: #f5f7f4;
+            --panel: #ffffff;
+            --navy: #142b3a;
+            --navy-soft: #20465a;
+            --teal: #1d7a78;
+            --gold: #d69e47;
+            --line: #dce4e1;
+            --shadow: 0 18px 45px rgba(20, 43, 58, .08);
+        }
+
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", sans-serif; }
+        a { color: inherit; text-decoration: none; }
+        .shell { display: grid; grid-template-columns: 254px minmax(0, 1fr); min-height: 100vh; }
+        .sidebar { display: flex; flex-direction: column; padding: 28px 18px 20px; background: var(--navy); color: #e7f0ed; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; color: inherit; text-decoration: none; }
+        .brand:hover { opacity: 0.9; }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid var(--gold); border-radius: 50%; color: var(--gold); font-family: Georgia, serif; font-size: 20px; }
+        .brand-name { font-family: Georgia, serif; font-size: 22px; letter-spacing: .02em; }
+        .brand-note { display: block; margin-top: 3px; color: #9bb3b7; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+        .nav-label { padding: 0 12px 10px; color: #86a6ad; font-size: 10px; font-weight: bold; letter-spacing: .14em; text-transform: uppercase; }
+        .nav { display: grid; gap: 5px; }
+        .nav-link { padding: 10px 12px; border-radius: 6px; color: #e7f0ed; font-size: 13px; transition: background .15s; }
+        .nav-link:hover { background: var(--navy-soft); }
+        .nav-link.active { background: var(--teal); }
+        .main { padding: 40px 48px; overflow-y: auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
+        .user { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--teal); color: white; display: grid; place-items: center; font-size: 14px; font-weight: bold; }
+        .user-name { font-size: 13px; }
+        .user-profile { font-size: 11px; color: var(--muted); }
+        .panel { background: var(--panel); border-radius: 12px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+        .panel h2 { margin: 0 0 20px; font-size: 18px; font-weight: 400; }
+        .panel h3 { margin: 0 0 16px; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+        .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .summary div { background: var(--panel); padding: 16px; border-radius: 8px; }
+        .summary .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+        .summary .value { font-size: 18px; font-weight: 600; }
+        .summary .name { font-size: 14px; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--teal); }
+        .form-group input[readonly] { background: var(--paper); }
+        .form-actions { display: flex; gap: 12px; margin-top: 24px; }
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+        .btn-primary { background: var(--teal); color: white; }
+        .btn-primary:hover { background: #166664; }
+        .btn-secondary { background: var(--paper); color: var(--ink); }
+        .btn-secondary:hover { background: #e8ebe9; }
+        .empty { color: var(--muted); font-style: italic; padding: 20px 0; text-align: center; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+        td.amount { font-family: monospace; }
+        .alert { padding: 15px; margin-bottom: 20px; border-radius: 6px; }
+        .alert-error { background: #fee; color: #c33; border: 1px solid #fcc; }
     </style>
 </head>
 <body>
-<header class="top"><a class="brand" href="index.php">SACS<small>gestion social</small></a><a class="back" href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>">Volver a Cliente</a></header>
-<main>
-    <p class="eyebrow">Caja / Pagos</p>
-    <h1>Pago de Aportes FONBES</h1>
-    <p class="subtitle">Registro de pagos de aportes FONBES por periodo.</p>
+    <div class="shell">
+        <aside class="sidebar">
+            <a href="index.php" class="brand">
+                <div class="brand-mark">S</div>
+                <div>
+                    <div class="brand-name">SACS</div>
+                    <div class="brand-note">Sistema de Administración</div>
+                </div>
+            </a>
+            <div class="nav-label">Caja</div>
+            <nav class="nav">
+                <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
+                <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Aportes FONBES</a>
+                <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
+                <a href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Desembolso Préstamo</a>
+                <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Sobregiro Préstamo</a>
+                <a href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Amortización</a>
+                <a href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Multas</a>
+            </nav>
+        </aside>
 
-    <?php if (isset($_GET['error'])): ?>
-        <div class="alert alert-error">
-            <?= $escape($_GET['error']) ?>
-        </div>
-    <?php endif; ?>
+        <main class="main">
+            <div class="header">
+                <h1>Pago de Aportes FONBES</h1>
+                <div class="user">
+                    <div class="user-avatar"><?= $displayName[0] ?></div>
+                    <div>
+                        <div class="user-name"><?= $displayName ?></div>
+                        <div class="user-profile"><?= $profile ?></div>
+                    </div>
+                </div>
+            </div>
 
-    <section class="summary">
-        <div><span class="label">Socio</span><div class="name"><?= $escape($cliente['full_name'] ?: 'Sin nombre') ?></div></div>
-        <div><span class="label">Código</span><div class="value"><?= $escape($clienteCodigo) ?></div></div>
-        <div><span class="label">Documento</span><div class="value"><?= $escape($cliente['document'] ?: '-') ?></div></div>
-        <div><span class="label">Aporte FONBES</span><div class="value"><?= $money($cliente['aporte_fonbes']) ?></div></div>
-    </section>
+            <?php if (isset($_GET['error'])): ?>
+                <div class="alert alert-error">
+                    <?= $escape($_GET['error']) ?>
+                </div>
+            <?php endif; ?>
+
+            <section class="summary">
+                <div><span class="label">Socio</span><div class="name"><?= $escape($cliente['full_name'] ?: 'Sin nombre') ?></div></div>
+                <div><span class="label">Código</span><div class="value"><?= $escape($clienteCodigo) ?></div></div>
+                <div><span class="label">Documento</span><div class="value"><?= $escape($cliente['document'] ?: '-') ?></div></div>
+                <div><span class="label">Aporte FONBES</span><div class="value"><?= $money($cliente['aporte_fonbes']) ?></div></div>
+            </section>
 
     <section class="panel">
         <h2>Aportes Pendientes</h2>
@@ -176,7 +257,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             <div class="form-row">
                 <div class="form-group">
                     <label for="monto">Monto Total</label>
-                    <input type="text" id="monto" name="monto" step="0.01" required placeholder="0.00">
+                    <input type="text" id="monto" name="monto" step="0.01" required placeholder="0.00" readonly>
                 </div>
                 <div class="form-group">
                     <label for="formaPago">Forma de Pago</label>
@@ -189,6 +270,8 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     </select>
                 </div>
             </div>
+
+            <input type="hidden" id="montoAporteFonbes" value="<?= $money($cliente['aporte_fonbes']) ?>">
 
             <div class="form-row">
                 <div class="form-group">
@@ -233,5 +316,32 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         </form>
     </section>
 </main>
+
+<script>
+    function calcularTotalAportes() {
+        const mesInicio = parseInt(document.getElementById('periodo').value) || 0;
+        const mesFin = parseInt(document.getElementById('periodo2').value) || 0;
+        const montoAporte = parseFloat(document.getElementById('montoAporteFonbes').value.replace(/,/g, '')) || 0;
+
+        if (mesInicio > 0 && mesFin > 0 && montoAporte > 0) {
+            const numMeses = (mesFin - mesInicio) + 1;
+            if (numMeses > 0) {
+                const total = numMeses * montoAporte;
+                document.getElementById('monto').value = total.toFixed(2);
+            } else {
+                document.getElementById('monto').value = '0.00';
+            }
+        } else {
+            document.getElementById('monto').value = '0.00';
+        }
+    }
+
+    // Event listeners para recalcular total cuando cambian los meses
+    document.getElementById('periodo').addEventListener('change', calcularTotalAportes);
+    document.getElementById('periodo2').addEventListener('change', calcularTotalAportes);
+
+    // Calcular total al cargar la página
+    document.addEventListener('DOMContentLoaded', calcularTotalAportes);
+</script>
 </body>
 </html>

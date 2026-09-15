@@ -44,10 +44,15 @@ final class AmortizacionCalculadora
         $resto = (float) ($cuota['f17_saldo'] ?? 0);
         
         // Valores del formulario
-        $ga = (float) ($formValores['gastosAdm'] ?? 0);
-        $gm = (float) ($formValores['gastosMora'] ?? 0);
-        $o1 = (float) ($formValores['otros1'] ?? 0);
-        $o2 = (float) ($formValores['otros2'] ?? 0);
+        $gaOriginal = (float) ($formValores['gastosAdm'] ?? 0);
+        $gmOriginal = (float) ($formValores['gastosMora'] ?? 0);
+        $o1Original = (float) ($formValores['otros1'] ?? 0);
+        $o2Original = (float) ($formValores['otros2'] ?? 0);
+        
+        $ga = $gaOriginal;
+        $gm = $gmOriginal;
+        $o1 = $o1Original;
+        $o2 = $o2Original;
         
         // Calcular sobregiro del pago (línea 1306 de CrearCajaAction)
         $sobregiro = $cuotaMensual - $montoA;
@@ -179,9 +184,11 @@ final class AmortizacionCalculadora
             if ($sobregiro < 0) {
                 // Cuando hay exceso de pago (sobregiro negativo), el legacy
                 // RESTA el sobregiro negativo del saldo (líneas 1500-1507)
+                // pero NO actualiza el campo de aportación del préstamo
                 $sobregiro = -$sobregiro;
                 $r = ($saldo - $amortizacion) - $sobregiro;
-                $amortizapAportacion = -$sobregiro; // Sobregiro negativo (exceso)
+                // NO actualizar amortizapAportacion cuando hay exceso de pago
+                // (el legacy Java no lo hace en este caso)
             }
         } else {
             // Cuando el saldo es menor o igual a la amortización (préstamo cancelado)
@@ -205,10 +212,10 @@ final class AmortizacionCalculadora
             ],
             'movimiento' => [
                 'monto' => $montoMovimiento,
-                'gastosa' => $ga,
-                'gastosm' => $gm,
-                'gastos1' => $o1,
-                'gastos2' => $o2,
+                'gastosa' => $ga, // Valor ajustado por sobregiro (línea 101)
+                'gastosm' => $gm, // Valor ajustado por sobregiro (línea 116)
+                'gastos1' => $o1, // Valor ajustado por sobregiro (línea 131)
+                'gastos2' => $o2, // Valor ajustado por sobregiro (línea 146)
             ],
             'prestamo_actualizado' => [
                 'codigo' => $prestamo['f16_codigo'],

@@ -176,12 +176,21 @@ final class AportesServicio
 
     /**
      * Obtiene aporte final (equivalente a getAportacionFinal2 del legacy)
+     * Suma los aportes base de los familiares del socio activos
+     * (F01_STDO_PERSN = 1 y tipo de parentesco < 11)
      */
     private function obtenerAporteFinal(PDO $pdo, string $clienteCodigo): float
     {
-        // TODO: Implementar lógica de getAportacionFinal2
-        // Por ahora retorna 0 hasta analizar el DAO correspondiente
-        return 0.0;
+        $sql = "SELECT SUM(p.F01_APORTA_BASE) as total_aportes
+                FROM f01_persona p
+                INNER JOIN f12_familiar f ON f.f12_id_persona = p.f01_id_persona
+                WHERE f.f12_id_cliente = CAST(:cliente AS UNSIGNED)
+                  AND p.F01_STDO_PERSN = 1
+                  AND f.f12_id_tpo_parent < 11";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(['cliente' => trim($clienteCodigo)]);
+        $result = $stmt->fetch();
+        return (float) ($result['total_aportes'] ?? 0);
     }
 
     /**

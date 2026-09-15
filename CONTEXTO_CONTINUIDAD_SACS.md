@@ -635,12 +635,325 @@ Implementado en ambos formularios:
 
 - ✅ Operación 2: Amortización AEE (préstamos)
 - ✅ Operación 1: Pagos de aportes FONBES
+- ✅ Operación 9: Pagos de aportes COOPAM
 
-### 14.8 Operaciones Pendientes
+### 14.8 Operación 9: Pagos de Aportes COOPAM
 
-- Operación 6: Pagos de aportes COOPAM
-- Operación 9: Pagos de aportes COOPAM
-- Operación 10: Pago de sobregiro de préstamo
+**Archivo creado**: `src/Services/AportesCoopamServicio.php`
+
+Servicio para procesar pagos de aportes COOPAM (Operación 9), basado en el código legacy `CrearCajaAction.registrarAportacionCope()`:
+
+- Obtiene monto de aporte COPE del socio desde `F01_APORTE_COPE` en `f01_persona`
+- Calcula distribución por periodos (mes inicio a mes fin)
+- Inserta registros en `f27_aportes_cope` con columnas: `f27_socio`, `f27_periodo`, `f27_aportacionP`, `f27_aportacionD`, `f27_diferencia`, `f27_aportacion`
+- Inserta movimiento en `f15_movimiento` con operación 9
+- Inserta en diario contable `f37_diario_contable` con datos contables proporcionados
+- Logging en `logs/aportes_cope.log` para auditoría
+- Usa transacciones para asegurar integridad de datos
+
+**Archivo creado**: `views/caja/aportes_coopam.php`
+
+Formulario de pago de aportes COOPAM con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de aportes COOPAM pendientes
+- Campos para año, mes inicio, mes fin
+- Campo para monto total
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+
+**Archivos modificados**:
+
+- `views/caja/cliente.php`: Agregado enlace "Pagar Aportes COOPAM" en sección de aportaciones Coopam
+- `public/index.php`: Rutas POST para procesar `aportes_coopam` y GET para mostrar `aportes_coopam_form`
+
+**Columnas de base de datos utilizadas**:
+
+- `f02_cliente.F02_ID_CLIENTE`: Código del cliente
+- `f02_cliente.F02_ID_PERSONA`: FK a persona
+- `f01_persona.F01_APORTE_COPE`: Monto de aporte COPE
+- `f27_aportes_cope`: Tabla de aportes COOPAM
+
+### 14.9 Operación 10: Pago de Sobregiro de Préstamo
+
+**Fecha de implementación**: 2026-09-13
+
+**Archivo creado**: `src/Services/SobregiroPrestamoServicio.php`
+
+Servicio para procesar pagos de sobregiro de préstamos (Operación 10), basado en el código legacy `CrearCajaAction.java` (líneas 1901-2099):
+
+- Distribuye el monto pagado entre: gastos administrativos, mora, otros1, otros2, y sobregiro
+- Actualiza sobregiro del préstamo (f16_aportacion)
+- Actualiza saldo si hay amortización adicional
+- Inserta movimiento en f15_movimiento con operación 10
+- Inserta en diario contable f37_diario_contable si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en logs/sobregiro_prestamo.log para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/sobregiro_prestamo.php`
+
+Formulario de pago de sobregiro de préstamo con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Dropdown para seleccionar préstamo con sobregiro activo
+- Campos para: sobregiro a pagar, amortización adicional, gastos administrativos, mora, otros1, otros2
+- Cálculo automático del monto total via JavaScript
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `sobregiro_prestamo_form` para mostrar el formulario
+  - Ruta POST `sobregiro_prestamo` para procesar el pago
+  - Agregado `$loansWithOverdraft` en perfil de cliente
+- `src/Repositories/CajaRepository.php`:
+  - Modificado `clientLoans()` para incluir `f16_aportacion AS sobregiro`
+  - Agregado `clientLoansWithOverdraft()` para obtener préstamos con sobregiro activo (estado 4, f16_aportacion > 0)
+- `views/caja/cliente.php`:
+  - Agregada sección "Sobregiro de Préstamos" con enlace al formulario
+
+**Correcciones aplicadas durante implementación**:
+
+1. **Columna f16_mora → f16_gastosm**: La tabla f16_prestamo usa f16_gastosm, no f16_mora
+2. **Columnas f15_movimiento**:
+   - f15_monto → f15_maprestamo
+   - f15_otros → f15_gastos1
+   - f15_otros2 → f15_gastos2
+   - Eliminado f15_abonoPrestamo (no existe)
+   - Agregado f15_fecha (requerido)
+3. **Generación de código de movimiento**: Implementada con FOR UPDATE y verificación de duplicados, usando base 122013479
+4. **Tipos de inputs**: Cambiados de text a number en el formulario
+5. **Procesamiento de montos**: Agregado str_replace(',', '', ...) para manejar comas
+6. **Conversión de préstamo**: Convertir código de préstamo a entero correctamente
+
+**Tablas de base de datos utilizadas**:
+
+- `f16_prestamo`: Préstamos (campos: f16_aportacion, f16_gastosa, f16_gastosm, f16_otros, f16_otros2, f16_saldo)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_prestamo, f15_maprestamo, f15_gastosa, f15_gastosm, f15_gastos1, f15_gastos2, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_codigo, f37_debe, f37_haber, f37_descripcion, f37_estado, f37_fecha)
+
+**Rutas**:
+
+- GET: `?module=caja&action=sobregiro_prestamo_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=sobregiro_prestamo`
+
+**Validación de códigos contables**: No hay restricción de unicidad para códigos contables (f37_codigo). Un mismo código contable puede usarse en múltiples asientos, lo cual es correcto en contabilidad estándar.
+
+### 14.10 Mejoras de UX y Navegación en Caja
+
+**Fecha de implementación**: 2026-09-15
+
+**Objetivo**: Implementar una barra lateral (sidebar) consistente con todas las operaciones de caja en todas las vistas, permitiendo navegación fluida entre operaciones y mejorando la UX del sistema.
+
+#### Vistas con Sidebar Actualizado
+
+Todas las vistas de caja ahora tienen el mismo sidebar con las 6 operaciones:
+- Perfil Cliente
+- Aportes FONBES
+- Aportes COOPAM
+- Desembolso Préstamo
+- Sobregiro Préstamo
+- Amortización
+
+**Archivos modificados**:
+- `views/caja/aportes_fonbes.php` - Sidebar con todas las operaciones, enlace al logo al dashboard
+- `views/caja/aportes_coopam.php` - Sidebar con todas las operaciones, enlace al logo al dashboard
+- `views/caja/sobregiro_prestamo.php` - Sidebar con todas las operaciones, diseño mejorado, enlace al logo al dashboard
+- `views/caja/desembolso_prestamo.php` - Sidebar con todas las operaciones, enlace al logo al dashboard
+- `views/caja/amortizacion.php` - Sidebar con todas las operaciones, enlace al logo al dashboard
+- `views/caja/movimientos.php` - Sidebar con todas las operaciones, lógica condicional (links habilitados solo cuando hay cliente seleccionado), enlace al logo al dashboard
+
+#### Vistas Intermedias Creadas
+
+Para facilitar la navegación cuando no hay un préstamo preseleccionado, se crearon vistas intermedias de selección:
+
+**Archivos creados**:
+- `views/caja/seleccionar_desembolso.php` - Vista para seleccionar préstamo pendiente de desembolso (estado 3) antes de acceder al formulario
+- `views/caja/seleccionar_amortizacion.php` - Vista para seleccionar préstamo activo (estado 4) antes de acceder al formulario de amortización
+
+#### Rutas Modificadas
+
+**Archivo modificado**: `public/index.php`
+
+Rutas actualizadas para `desembolso_prestamo_form` y `amortizar_form`:
+- Si tiene `loan` ID → va al formulario directamente
+- Si solo tiene `client` → va a la vista intermedia de selección de préstamo
+
+#### Funcionalidades Implementadas
+
+**Sidebar Consistente**:
+- La página actual se marca como "active" (fondo teal)
+- Preservación de parámetros URL (`client`, `loan`) para mantener contexto
+- Diseño responsive: sidebar se oculta en pantallas pequeñas
+- En movimientos.php, los links del sidebar están deshabilitados si no hay cliente seleccionado
+
+**Navegación Inteligente**:
+- Desde operaciones como aportes_fonbes o aportes_coopam → clic en Desembolso/Amortización → vista de selección de préstamo
+- Desde cliente.php con loan ID específico → va directamente al formulario (comportamiento original preservado)
+
+**Logo como Enlace al Dashboard**:
+- El logo SACS en todas las vistas con sidebar ahora es un enlace a `index.php` (dashboard)
+- Estilos CSS para mantener el diseño original como enlace (sin subrayado, color inherit, hover con opacity)
+
+**Mejoras de Diseño**:
+- sobregiro_prestamo.php: estructura mejorada con layout CSS, mensaje más específico "No hay préstamos con sobregiro", legibilidad mejorada con símbolo # en códigos
+
+#### Estructura del Sidebar
+
+```html
+<aside class="sidebar">
+    <a href="index.php" class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+            <div class="brand-name">SACS</div>
+            <div class="brand-note">Sistema de Administración</div>
+        </div>
+    </a>
+    <div class="nav-label">Caja</div>
+    <nav class="nav">
+        <a href="..." class="nav-link">Perfil Cliente</a>
+        <a href="..." class="nav-link active">Operación Actual</a>
+        <!-- otras operaciones -->
+    </nav>
+</aside>
+```
+
+#### Estilos CSS Clave
+
+- `.shell`: Grid layout con sidebar (254px) y main content
+- `.sidebar`: Fondo navy, color claro
+- `.brand`: Enlace al dashboard con hover opacity
+- `.nav-link`: Links de navegación con hover y active states
+- Responsive: Sidebar oculto en pantallas < 900px
+
+#### Rutas y URLs
+
+- Sidebar links sin loan ID: `index.php?module=caja&action=desembolso_prestamo_form&client=XXX`
+- Sidebar links con loan ID (cuando aplica): `index.php?module=caja&action=amortizar_form&client=XXX&loan=YYY`
+- Logo link: `index.php`
+
+#### Estado: COMPLETADO Y FUNCIONANDO
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.11 Operación 11: Pagos de Multas
+
+**Fecha de implementación**: 2026-09-15
+
+**Archivo creado**: `src/Services/MultasServicio.php`
+
+Servicio para procesar pagos de multas (Operación 11), basado en el código legacy `CrearCajaAction.java` (líneas 221-246 y 1900-2300):
+
+- Actualiza la multa en `f63_multa` (f63_multad, f63_multar, f63_fechaPago, f63_formaPago)
+- Inserta movimiento en `f15_movimiento` con operación 11
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/multas.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/multas.php`
+
+Formulario de pago de multas con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de multas pendientes de pago (f63_multar > 0)
+- Selección de multa específica para pago
+- Campo para monto a pagar (pre-llenado con multa restante)
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `multas_form` para mostrar el formulario
+  - Ruta POST `multas` para procesar el pago
+- `src/Repositories/CajaRepository.php`:
+  - Agregado `clientPendingFines()` para obtener multas pendientes (f63_multar > 0)
+- `views/caja/cliente.php`:
+  - Agregado enlace "Pagar Multas" en sección de multas
+- `views/caja/aportes_fonbes.php`:
+  - Agregado enlace "Multas" en sidebar
+- `views/caja/aportes_coopam.php`:
+  - Agregado enlace "Multas" en sidebar
+- `views/caja/sobregiro_prestamo.php`:
+  - Agregado enlace "Multas" en sidebar
+- `views/caja/desembolso_prestamo.php`:
+  - Agregado enlace "Multas" en sidebar
+- `views/caja/amortizacion.php`:
+  - Agregado enlace "Multas" en sidebar
+- `views/caja/movimientos.php`:
+  - Agregado enlace "Multas" en sidebar (incluyendo estado disabled cuando no hay cliente seleccionado)
+
+**Tablas de base de datos utilizadas**:
+
+- `f63_multa`: Multas (campos: f63_codigo, f63_socio, f63_periodo, f63_multap, f63_multad, f63_multar, f63_fechaPago, f63_formaPago)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mamulta, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_codigo, f37_debe, f37_haber, f37_descripcion, f37_estado, f37_fecha)
+
+**Rutas**:
+
+- GET: `?module=caja&action=multas_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=multas_form&client=CODIGO_CLIENTE&multa=ID_MULTA`
+- POST: `?module=caja&action=multas`
+
+**Correcciones aplicadas durante implementación**:
+
+1. **Método Auth::user()**: Corregido para usar instanciación correcta en lugar de llamada estática
+2. **Función $escape**: Cambiado tipo de parámetro de `string` a `mixed` para manejar enteros
+3. **Campos de cliente**: Actualizados nombres de campos para coincidir con `findClientProfile()` (client_id, full_name, document, condition)
+4. **Diseño CSS**: Actualizado para coincidir con diseño de movimientos.php (colores, espaciados, tipografía)
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.12 Operación 3: Desembolso de Préstamo
+
+**Fecha de implementación**: 2026-09-13 (anterior a mejoras de UX)
+
+**Archivo existente**: `src/Services/DesembolsoPrestamoServicio.php`
+
+Servicio para procesar desembolsos de préstamos (Operación 3), basado en el código legacy `CrearCajaAction.registrar()`:
+
+- Genera código de movimiento de forma segura con FOR UPDATE
+- Inserta movimiento en f15_movimiento con operación 3
+- Actualiza f16_prestamo: estado 4 (activo), f16_desembolso, f16_fechaUP
+- Inserta en diario contable f37_diario_contable si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en logs/desembolso_prestamo.log para auditoría
+
+**Archivo existente**: `views/caja/desembolso_prestamo.php`
+
+Formulario de desembolso de préstamo con diseño consistente del sistema (actualizado hoy con sidebar):
+
+- Información del cliente (código, nombre, documento, condición)
+- Información del préstamo (código, importe, interés, cuotas, producto, gastos de trámite)
+- Campos para: forma de pago, observaciones
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+
+**Rutas**:
+- GET: `?module=caja&action=desembolso_prestamo_form&client=CODIGO_CLIENTE&loan=CODIGO_PRESTAMO`
+- POST: `?module=caja&action=desembolso_prestamo`
+
+**Estado**: COMPLETADO Y FUNCIONANDO
+
+### 14.12 Operaciones Pendientes
+
+- Operación 6: Pagos de aportes COOPAM (duplicado en lista original, verificar si es diferente a Operación 9)
 - Operación 11: Pagos de multas
 - Operación 12: Pagos de rifas
 - Operación 13: Pagos de beneficios
@@ -650,15 +963,41 @@ Implementado en ambos formularios:
 
 ## 15. Siguiente paso recomendado
 
-Los pasos 1-6 del analisis han sido completados. Para implementar el pago real se recomienda:
+Las siguientes operaciones de caja han sido implementadas y están funcionando:
+- ✅ Operación 1: Aportes FONBES
+- ✅ Operación 2: Amortización AEE
+- ✅ Operación 3: Desembolso de Préstamo
+- ✅ Operación 9: Aportes COOPAM
+- ✅ Operación 10: Pago de Sobregiro de Préstamo
 
-1. Resolver el caso pendiente con sobregiro grande (analisis adicional)
-2. Crear interfaz de usuario para capturar datos del formulario
-3. Integrar AmortizacionServicio en el flujo de caja
-4. Pruebas exhaustivas con datos de produccion
-5. Validacion final con usuarios antes de habilitar en produccion
+**Operaciones pendientes**:
+- Operación 4: Devolución FONBES
+- Operación 5: Devolución COOPAM
+- Operación 6: Cancelación AEE
+- Operación 7: Desembolso Beneficios
+- Operación 8: Egresos
+- Operación 11: Pagos de multas
+- Operación 12: Pagos de rifas
+- Operación 13: Pagos de beneficios
+- Operación 14: Pago de sobregiro FONBES
+- Operación 15: Pago de sobregiro COOPAM
+- Operación 16: Otros ingresos
 
-**Nota**: La Operación 1 (Pagos de aportes FONBES) ya ha sido implementada y probada. Se recomienda continuar con las operaciones pendientes en orden.
+**Siguiente paso recomendado**: Operación 11 (Pagos de multas) u Operación 12 (Pagos de rifas)
+
+Estas operaciones son buenas candidatas porque:
+- Probablemente tienen menos complejidad que operaciones de desembolso/cancelación
+- Siguen el patrón ya establecido (servicio + formulario + diario contable)
+- Complementan el ciclo completo de operaciones del sistema
+
+Se recomienda seguir el mismo proceso utilizado para las operaciones anteriores:
+1. Revisar código legacy en `CrearCajaAction.java` para la lógica de la operación seleccionada
+2. Identificar las tablas de base de datos involucradas
+3. Crear el servicio correspondiente
+4. Crear el formulario de pago con diseño consistente
+5. Agregar rutas en `index.php`
+6. Integrar con diario contable
+7. Probar con datos reales
 
 ## 14. Comandos utiles
 

@@ -1,3 +1,8 @@
+<?php
+$message = $message ?? 'Bienvenido al sistema SACS Nuevo';
+$databaseStatus = $databaseStatus ?? 'No verificada';
+$databaseError = $databaseError ?? null;
+?>
 <!doctype html>
 <html lang="es">
 <head>

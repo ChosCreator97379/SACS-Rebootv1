@@ -6,6 +6,7 @@ $money = static function (mixed $value): string {
 $query = $_GET;
 $previousPage = max(1, $movements['page'] - 1);
 $nextPage = min($movements['pages'], $movements['page'] + 1);
+$selectedClient = trim((string) ($filters['client'] ?? ''));
 ?>
 <!doctype html>
 <html lang="es">
@@ -14,17 +15,38 @@ $nextPage = min($movements['pages'], $movements['page'] + 1);
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Movimientos de Caja | SACS Nuevo</title>
     <style>
-        :root { --ink: #17212b; --muted: #687684; --paper: #f5f7f4; --panel: #fff; --navy: #142b3a; --teal: #1d7a78; --gold: #d69e47; --line: #dce4e1; }
+        :root {
+            --ink: #17212b;
+            --muted: #697586;
+            --paper: #f5f7f4;
+            --panel: #ffffff;
+            --navy: #142b3a;
+            --navy-soft: #20465a;
+            --teal: #1d7a78;
+            --gold: #d69e47;
+            --line: #dce4e1;
+            --shadow: 0 18px 45px rgba(20, 43, 58, .08);
+        }
+
         * { box-sizing: border-box; }
         body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", sans-serif; }
         a { color: inherit; text-decoration: none; }
-        .top { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px clamp(20px, 4vw, 58px); background: var(--navy); color: #fff; }
-        .brand { font-family: Georgia, serif; font-size: 24px; }
-        .brand small { display: block; margin-top: 4px; color: #9bb3b7; font-family: "Trebuchet MS", sans-serif; font-size: 10px; letter-spacing: .13em; text-transform: uppercase; }
-        .back { color: #b9d2d2; font-size: 13px; }
-        main { max-width: 1440px; margin: 0 auto; padding: 38px clamp(20px, 4vw, 58px); }
-        .eyebrow { margin: 0 0 9px; color: var(--teal); font-size: 11px; font-weight: bold; letter-spacing: .16em; text-transform: uppercase; }
-        h1 { margin: 0; font-family: Georgia, serif; font-size: clamp(32px, 4vw, 48px); font-weight: normal; }
+        .shell { display: grid; grid-template-columns: 254px minmax(0, 1fr); min-height: 100vh; }
+        .sidebar { display: flex; flex-direction: column; padding: 28px 18px 20px; background: var(--navy); color: #e7f0ed; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; color: inherit; text-decoration: none; }
+        .brand:hover { opacity: 0.9; }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid var(--gold); border-radius: 50%; color: var(--gold); font-family: Georgia, serif; font-size: 20px; }
+        .brand-name { font-family: Georgia, serif; font-size: 22px; letter-spacing: .02em; }
+        .brand-note { display: block; margin-top: 3px; color: #9bb3b7; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
+        .nav-label { padding: 0 12px 10px; color: #86a6ad; font-size: 10px; font-weight: bold; letter-spacing: .14em; text-transform: uppercase; }
+        .nav { display: grid; gap: 5px; }
+        .nav-link { padding: 10px 12px; border-radius: 6px; color: #e7f0ed; font-size: 13px; transition: background .15s; }
+        .nav-link:hover { background: var(--navy-soft); }
+        .nav-link.active { background: var(--teal); }
+        .nav-link.disabled { color: #5a6b7b; pointer-events: none; }
+        .main { padding: 40px 48px; overflow-y: auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
         .intro { max-width: 640px; margin: 12px 0 28px; color: var(--muted); line-height: 1.55; }
         .filters { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; gap: 12px; align-items: end; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
         label { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: .04em; }
@@ -45,44 +67,76 @@ $nextPage = min($movements['pages'], $movements['page'] + 1);
         .page-link { padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--teal); font-size: 12px; }
         .page-link.disabled { color: #a8b4b4; pointer-events: none; }
         .empty { padding: 42px; color: var(--muted); text-align: center; }
-        @media (max-width: 900px) { .filters { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .filters button { width: 100%; } }
-        @media (max-width: 520px) { .top { align-items: flex-start; flex-direction: column; } .filters { grid-template-columns: 1fr; } .summary { align-items: flex-start; flex-direction: column; } }
+        @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } .filters { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .filters button { width: 100%; } }
+        @media (max-width: 520px) { .filters { grid-template-columns: 1fr; } .summary { align-items: flex-start; flex-direction: column; } }
     </style>
 </head>
 <body>
-<header class="top"><a class="brand" href="index.php">SACS<small>gestion social</small></a><a class="back" href="index.php">Volver al resumen</a></header>
-<main>
-    <p class="eyebrow">Caja / Consulta</p>
-    <h1>Movimientos</h1>
-    <p class="intro">Consulta paginada del libro operativo de Caja. Esta pantalla es de solo lectura y no modifica movimientos, saldos ni cuotas.</p>
+    <div class="shell">
+        <aside class="sidebar">
+            <a href="index.php" class="brand">
+                <div class="brand-mark">S</div>
+                <div>
+                    <div class="brand-name">SACS</div>
+                    <div class="brand-note">Sistema de Administración</div>
+                </div>
+            </a>
+            <div class="nav-label">Caja</div>
+            <nav class="nav">
+                <?php if ($selectedClient !== ''): ?>
+                    <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Perfil Cliente</a>
+                    <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes FONBES</a>
+                    <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes COOPAM</a>
+                    <a href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Desembolso Préstamo</a>
+                    <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Sobregiro Préstamo</a>
+                    <a href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Amortización</a>
+                    <a href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Multas</a>
+                <?php else: ?>
+                    <span class="nav-link disabled">Perfil Cliente (seleccione cliente)</span>
+                    <span class="nav-link disabled">Aportes FONBES (seleccione cliente)</span>
+                    <span class="nav-link disabled">Aportes COOPAM (seleccione cliente)</span>
+                    <span class="nav-link disabled">Desembolso Préstamo (seleccione cliente)</span>
+                    <span class="nav-link disabled">Sobregiro Préstamo (seleccione cliente)</span>
+                    <span class="nav-link disabled">Amortización (seleccione cliente)</span>
+                    <span class="nav-link disabled">Multas (seleccione cliente)</span>
+                <?php endif; ?>
+            </nav>
+        </aside>
 
-    <form class="filters" method="get">
-        <input type="hidden" name="module" value="caja">
-        <label>Desde<input type="date" name="date_from" value="<?= $escape($filters['date_from']) ?>"></label>
-        <label>Hasta<input type="date" name="date_to" value="<?= $escape($filters['date_to']) ?>"></label>
-        <label>Operacion<select name="operation"><option value="">Todas</option><?php foreach ($operations as $operation): ?><option value="<?= $escape($operation['id']) ?>" <?= (string) $filters['operation'] === (string) $operation['id'] ? 'selected' : '' ?>><?= $escape($operation['id'] . ' - ' . $operation['name']) ?></option><?php endforeach; ?></select></label>
-        <label>Cliente<input name="client" inputmode="numeric" maxlength="11" required value="<?= $escape($filters['client']) ?>" placeholder="Codigo de socio"></label>
-        <button type="submit">Filtrar</button>
-    </form>
+        <main class="main">
+            <div class="header">
+                <h1>Movimientos</h1>
+            </div>
+            <p class="intro">Consulta paginada del libro operativo de Caja. Esta pantalla es de solo lectura y no modifica movimientos, saldos ni cuotas.</p>
 
-    <div class="summary"><span><?= number_format($movements['total']) ?> movimientos encontrados</span><span>Pagina <?= $movements['page'] ?> de <?= $movements['pages'] ?></span></div>
-    <div class="table-wrap">
-        <?php if (!$movements['searched']): ?>
-            <div class="empty">Ingrese un codigo de cliente para consultar sus movimientos.</div>
-        <?php elseif ($movements['items'] === []): ?>
-            <div class="empty">No se encontraron movimientos para el cliente y filtros indicados.</div>
-        <?php else: ?>
-            <table>
-                <thead><tr><th>Codigo</th><th>Fecha</th><th>Operacion</th><th>Cliente</th><th>Importe principal</th><th>Forma de pago</th><th>Usuario</th><th>Observacion</th></tr></thead>
-                <tbody><?php foreach ($movements['items'] as $movement): ?>
-                    <?php $principal = $movement['loan_payment_amount'] ?? $movement['contribution_amount'] ?? $movement['disbursement_amount'] ?? $movement['benefit_amount'] ?? $movement['fine_amount'] ?? $movement['raffle_amount'] ?? $movement['refund_amount'] ?? $movement['expense_amount'] ?? $movement['income_amount']; ?>
-                    <?php $clientLabel = trim((string) ($movement['client_name'] ?? '')) ?: 'Sin nombre registrado'; ?>
-                    <tr><td class="muted"><a href="?module=caja&amp;movement=<?= $escape($movement['id']) ?>">#<?= $escape($movement['id']) ?></a></td><td class="date"><?= $escape($movement['operation_date']) ?></td><td class="operation"><?= $escape($movement['operation_name']) ?><br><span class="muted">Operacion <?= $escape($movement['operation_id']) ?></span></td><td><a class="client-link" href="?module=caja&amp;profile=client&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td><td class="amount"><?= $money($principal) ?></td><td><?= $escape($movement['payment_method'] ?: '-') ?></td><td><?= $escape($movement['created_by'] ?: '-') ?></td><td class="muted"><?= $escape($movement['observation'] ?: '-') ?></td></tr>
-                <?php endforeach; ?></tbody>
-            </table>
-        <?php endif; ?>
+            <form class="filters" method="get">
+                <input type="hidden" name="module" value="caja">
+                <label>Desde<input type="date" name="date_from" value="<?= $escape($filters['date_from']) ?>"></label>
+                <label>Hasta<input type="date" name="date_to" value="<?= $escape($filters['date_to']) ?>"></label>
+                <label>Operacion<select name="operation"><option value="">Todas</option><?php foreach ($operations as $operation): ?><option value="<?= $escape($operation['id']) ?>" <?= (string) $filters['operation'] === (string) $operation['id'] ? 'selected' : '' ?>><?= $escape($operation['id'] . ' - ' . $operation['name']) ?></option><?php endforeach; ?></select></label>
+                <label>Cliente<input name="client" inputmode="numeric" maxlength="11" required value="<?= $escape($filters['client']) ?>" placeholder="Codigo de socio"></label>
+                <button type="submit">Filtrar</button>
+            </form>
+
+            <div class="summary"><span><?= number_format($movements['total']) ?> movimientos encontrados</span><span>Pagina <?= $movements['page'] ?> de <?= $movements['pages'] ?></span></div>
+            <div class="table-wrap">
+                <?php if (!$movements['searched']): ?>
+                    <div class="empty">Ingrese un codigo de cliente para consultar sus movimientos.</div>
+                <?php elseif ($movements['items'] === []): ?>
+                    <div class="empty">No se encontraron movimientos para el cliente y filtros indicados.</div>
+                <?php else: ?>
+                    <table>
+                        <thead><tr><th>Codigo</th><th>Fecha</th><th>Operacion</th><th>Cliente</th><th>Importe principal</th><th>Forma de pago</th><th>Usuario</th><th>Observacion</th></tr></thead>
+                        <tbody><?php foreach ($movements['items'] as $movement): ?>
+                            <?php $principal = $movement['loan_payment_amount'] ?? $movement['contribution_amount'] ?? $movement['disbursement_amount'] ?? $movement['benefit_amount'] ?? $movement['fine_amount'] ?? $movement['raffle_amount'] ?? $movement['refund_amount'] ?? $movement['expense_amount'] ?? $movement['income_amount']; ?>
+                            <?php $clientLabel = trim((string) ($movement['client_name'] ?? '')) ?: 'Sin nombre registrado'; ?>
+                            <tr><td class="muted"><a href="?module=caja&amp;movement=<?= $escape($movement['id']) ?>">#<?= $escape($movement['id']) ?></a></td><td class="date"><?= $escape($movement['operation_date']) ?></td><td class="operation"><?= $escape($movement['operation_name']) ?><br><span class="muted">Operacion <?= $escape($movement['operation_id']) ?></span></td><td><a class="client-link" href="?module=caja&amp;profile=client&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td><td class="amount"><?= $money($principal) ?></td><td><?= $escape($movement['payment_method'] ?: '-') ?></td><td><?= $escape($movement['created_by'] ?: '-') ?></td><td class="muted"><?= $escape($movement['observation'] ?: '-') ?></td></tr>
+                        <?php endforeach; ?></tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
+            <nav class="pagination" aria-label="Paginacion"><a class="page-link <?= $movements['page'] <= 1 ? 'disabled' : '' ?>" href="?<?= $escape(http_build_query(array_merge($query, ['page' => $previousPage]))) ?>">Anterior</a><a class="page-link <?= $movements['page'] >= $movements['pages'] ? 'disabled' : '' ?>" href="?<?= $escape(http_build_query(array_merge($query, ['page' => $nextPage]))) ?>">Siguiente</a></nav>
+        </main>
     </div>
-    <nav class="pagination" aria-label="Paginacion"><a class="page-link <?= $movements['page'] <= 1 ? 'disabled' : '' ?>" href="?<?= $escape(http_build_query(array_merge($query, ['page' => $previousPage]))) ?>">Anterior</a><a class="page-link <?= $movements['page'] >= $movements['pages'] ? 'disabled' : '' ?>" href="?<?= $escape(http_build_query(array_merge($query, ['page' => $nextPage]))) ?>">Siguiente</a></nav>
-</main>
 </body>
 </html>
