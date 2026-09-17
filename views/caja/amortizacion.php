@@ -158,6 +158,16 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             <a class="nav-link" href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>">Sobregiro Préstamo</a>
             <a class="nav-link active" href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Amortización</a>
             <a class="nav-link" href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($clienteCodigo) ?>">Multas</a>
+            <a class="nav-link" href="index.php?module=caja&action=devolucion_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Devolución FONBES</a>
+            <a class="nav-link" href="index.php?module=caja&action=devolucion_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Devolución COOPAM</a>
+            <a class="nav-link" href="index.php?module=caja&action=cancelacion_aee_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Cancelación AEE</a>
+            <a class="nav-link" href="index.php?module=caja&action=pago_rifa_form&client=<?= rawurlencode($clienteCodigo) ?>">Pago Rifa</a>
+            <a class="nav-link" href="index.php?module=caja&action=pago_sobregiro_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Pago Sobregiro FONBES</a>
+            <a class="nav-link" href="index.php?module=caja&action=pago_sobregiro_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Pago Sobregiro COOPAM</a>
+            <a class="nav-link" href="index.php?module=caja&action=otras_devoluciones_form&client=<?= rawurlencode($clienteCodigo) ?>">Otras Devoluciones</a>
+            <a class="nav-link" href="index.php?module=caja&action=otros_ingresos_form&client=<?= rawurlencode($clienteCodigo) ?>">Otros Ingresos</a>
+            <a class="nav-link" href="index.php?module=caja&action=desembolso_beneficios_form&client=<?= rawurlencode($clienteCodigo) ?>">Desembolso Beneficios</a>
+            <a class="nav-link" href="index.php?module=caja&action=egresos_form&client=<?= rawurlencode($clienteCodigo) ?>">Egresos</a>
         </nav>
 
         <div class="sidebar-footer">

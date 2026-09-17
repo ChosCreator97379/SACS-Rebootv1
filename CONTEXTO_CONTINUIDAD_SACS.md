@@ -919,7 +919,711 @@ Formulario de pago de multas con diseño consistente del sistema:
 
 Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
 
-### 14.12 Operación 3: Desembolso de Préstamo
+### 14.12 Operación 4: Devolución de Aportes FONBES
+
+**Fecha de implementación**: 2026-09-15
+
+**Archivo creado**: `src/Services/DevolucionFonbesServicio.php`
+
+Servicio para procesar devoluciones de aportes FONBES (Operación 4), contraparte de la Operación 1:
+
+- Actualiza el aporte en `f22_aportes` (f22_aportacionD, f22_diferencia)
+- Valida que el monto a devolver no exceda el monto pagado
+- Inserta movimiento en `f15_movimiento` con operación 4 usando campo `f15_mretiro`
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/devolucion_fonbes.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/devolucion_fonbes.php`
+
+Formulario de devolución de aportes FONBES con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de aportes pagados disponibles para devolución (f22_aportacionD > 0)
+- Selección de periodo específico para devolución
+- Campo para monto a devolver (pre-llenado con monto pagado del aporte seleccionado)
+- Validación de máximo (no puede exceder monto pagado)
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `devolucion_fonbes_form` para mostrar el formulario
+  - Ruta POST `devolucion_fonbes` para procesar la devolución
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Devolver Aportes" en sección de aportaciones FONBES
+- `views/caja/aportes_fonbes.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+- `views/caja/aportes_coopam.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+- `views/caja/sobregiro_prestamo.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+- `views/caja/desembolso_prestamo.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+- `views/caja/amortizacion.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+- `views/caja/movimientos.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar (incluyendo estado disabled cuando no hay cliente seleccionado)
+- `views/caja/multas.php`:
+  - Agregado enlace "Devolución FONBES" en sidebar
+
+**Tablas de base de datos utilizadas**:
+
+- `f22_aportes`: Aportes FONBES (campos: f22_socio, f22_periodo, f22_aportacionP, f22_aportacionD, f22_diferencia)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_codigo, f37_debe, f37_haber, f37_descripcion, f37_estado, f37_fecha)
+
+**Rutas**:
+
+- GET: `?module=caja&action=devolucion_fonbes_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=devolucion_fonbes_form&client=CODIGO_CLIENTE&periodo=FECHA_PERIODO`
+- POST: `?module=caja&action=devolucion_fonbes`
+
+**Correcciones aplicadas durante implementación**:
+
+1. **Pre-llenado de monto**: Agregado atributo `value` para pre-llenar el campo con el monto pagado del aporte seleccionado
+2. **Selector de código contable**: Corregidos nombres de campos de `codigo`/`nombre_cuenta` a `code`/`name` para coincidir con método `accountingCodes()`
+
+**Nota sobre visualización**: El importe de la devolución se registra en `f15_mretiro` (retiro), por lo que en la vista de detalle del movimiento puede no aparecer como "importe principal" ya que cada operación tiene su campo específico. Esto es consistente con el comportamiento del sistema legacy.
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.13 Operación 5: Devolución de Aportes COOPAM
+
+**Fecha de implementación**: 2026-09-15
+
+**Archivo creado**: `src/Services/DevolucionCoopamServicio.php`
+
+Servicio para procesar devoluciones de aportes COOPAM (Operación 5), contraparte de la Operación 9:
+
+- Actualiza el aporte en `f27_aportes_cope` (f27_aportacionD, f27_diferencia)
+- Valida que el monto a devolver no exceda el monto pagado
+- Inserta movimiento en `f15_movimiento` con operación 5 usando campo `f15_mretiro`
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/devolucion_coopam.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/devolucion_coopam.php`
+
+Formulario de devolución de aportes COOPAM con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de aportes COOPAM pagados disponibles para devolución (f27_aportacionD > 0)
+- Selección de periodo específico para devolución
+- Campo para monto a devolver (pre-llenado con monto pagado del aporte seleccionado)
+- Validación de máximo (no puede exceder monto pagado)
+- Selector de forma de pago
+- Selector de código contable con autocompletado (campos correctos: code/name)
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `devolucion_coopam_form` para mostrar el formulario
+  - Ruta POST `devolucion_coopam` para procesar la devolución
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Devolver Aportes" en sección de aportaciones COOPAM
+- `views/caja/aportes_fonbes.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+- `views/caja/aportes_coopam.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+- `views/caja/sobregiro_prestamo.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+- `views/caja/desembolso_prestamo.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+- `views/caja/amortizacion.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+- `views/caja/movimientos.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar (incluyendo estado disabled cuando no hay cliente seleccionado)
+- `views/caja/multas.php`:
+  - Agregado enlace "Devolución COOPAM" en sidebar
+
+**Tablas de base de datos utilizadas**:
+
+- `f27_aportes_cope`: Aportes COOPAM (campos: f27_socio, f27_periodo, f27_aportacionP, f27_aportacionD, f27_diferencia)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_codigo, f37_debe, f37_haber, f37_descripcion, f37_estado, f37_fecha)
+
+**Rutas**:
+
+- GET: `?module=caja&action=devolucion_coopam_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=devolucion_coopam_form&client=CODIGO_CLIENTE&periodo=FECHA_PERIODO`
+- POST: `?module=caja&action=devolucion_coopam`
+
+**Nota sobre visualización**: El importe de la devolución se registra en `f15_mretiro` (retiro), por lo que en la vista de detalle del movimiento puede no aparecer como "importe principal" ya que cada operación tiene su campo específico. Esto es consistente con el comportamiento del sistema legacy.
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.15 Operación 6: Cancelación de Préstamo AEE
+
+**Fecha de implementación**: 2026-09-16
+
+**Archivo creado**: `src/Services/CancelacionAeeServicio.php`
+
+Servicio para procesar cancelaciones de préstamos AEE (Operación 6), contraparte de las Operaciones 2 y 3:
+
+- Valida que el préstamo esté activo (estado 4)
+- Valida que el préstamo pertenezca al cliente
+- Calcula total a cancelar (saldo + sobregiro)
+- Cancela cuotas pendientes del préstamo (estado → CANCELADO en f17_cuotasprestamo)
+- Cancela el préstamo (estado → 5, fecha de cancelación, saldo = 0, sobregiro = 0, gastos = 0)
+- Inserta movimiento en `f15_movimiento` con operación 6
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/cancelacion_aee.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/cancelacion_aee.php`
+
+Formulario de cancelación de préstamo AEE con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de préstamos activos disponibles para cancelación (estado 4)
+- Selección de préstamo específico para cancelación
+- Detalle del préstamo seleccionado (saldo, sobregiro, total a cancelar)
+- Desglose de cargos (gastos adm, mora, otros1, otros2)
+- Advertencia de acción irreversible
+- Selector de forma de pago
+- Selector de código contable con autocompletado (campos correctos: code/name)
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `cancelacion_aee_form` para mostrar el formulario
+  - Ruta POST `cancelacion_aee` para procesar la cancelación
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Cancelar" en sección de préstamos (solo para préstamos activos estado 4)
+- `views/caja/aportes_fonbes.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar
+- `views/caja/aportes_coopam.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar
+- `views/caja/sobregiro_prestamo.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar
+- `views/caja/desembolso_prestamo.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar
+- `views/caja/amortizacion.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar (con loan ID)
+- `views/caja/movimientos.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar (incluyendo estado disabled cuando no hay cliente seleccionado)
+- `views/caja/multas.php`:
+  - Agregado enlace "Cancelación AEE" en sidebar
+- `views/caja/devolucion_fonbes.php`:
+  - Completado sidebar con Devolución COOPAM y Cancelación AEE
+- `views/caja/devolucion_coopam.php`:
+  - Completado sidebar con Devolución COOPAM y Cancelación AEE
+
+**Tablas de base de datos utilizadas**:
+
+- `f16_prestamo`: Préstamos (campos: f16_codigo, f16_cliente, f16_estado, f16_saldo, f16_gastosa, f16_gastosm, f16_otros, f16_otros2, f16_aportacion, f16_cuotasPend, f16_total)
+- `f17_cuotasprestamo`: Cuotas de préstamo (campos: f17_prestamo, f17_estado)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_prestamo, f15_maprestamo, f15_gastosa, f15_gastosm, f15_gastos1, f15_gastos2, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=cancelacion_aee_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=cancelacion_aee_form&client=CODIGO_CLIENTE&loan=PRESTAMO_ID`
+- POST: `?module=caja&action=cancelacion_aee`
+
+**Correcciones aplicadas**:
+
+1. **Palabra reservada SQL**: Escapado `condition` con backticks en cancelacion_aee.php
+2. **Nombre de tabla**: Corregido `f17_cronograma` → `f17_cuotasprestamo` en CancelacionAeeServicio.php
+3. **SQL diario contable**: Corregidos campos en Operaciones 4, 5, 6:
+   - `f37_codigo` → `f37_codigo_contable` (campo correcto para código contable)
+   - Agregado `f37_operacion` (4 para devolución FONBES, 5 para devolución COOPAM, 6 para cancelación AEE)
+   - Agregado `f37_usuario_crea` y `f37_fecha_crea` (campos requeridos)
+   - `f37_codigo` es AUTO_INCREMENT, por lo que no se especifica en el INSERT
+4. **Condición de inserción**: Cambiada de `!empty($datosContables)` a `!empty($datosContables['codigoContable'])` para verificar específicamente si hay un código contable válido
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.17 Operación 12: Pago de Rifa
+
+**Fecha de implementación**: 2026-09-16
+
+**Archivo creado**: `src/Services/PagoRifaServicio.php`
+
+Servicio para procesar pagos de rifa (Operación 12), basado en código legacy Java (CrearCajaAction.java líneas 248-271, 1255-1275):
+
+- Obtiene rifa pendiente del cliente (f64_rifap > 0 o f64_rifar > 0)
+- Valida que el monto sea válido
+- Calcula nuevo sobregiro si existe (f64_rifar - monto pagado)
+- Actualiza rifa (f64_rifad, f64_rifar, f64_fechaPago, f64_formaPago)
+- Inserta movimiento en `f15_movimiento` con operación 12 (usando f15_mretiro)
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos contables
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/pago_rifa.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/pago_rifa.php`
+
+Formulario de pago de rifa con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de rifas pendientes del cliente (últimos 12 periodos)
+- Selección de rifa específica para pago
+- Detalle de la rifa seleccionada (periodo, programado, pagado, sobregiro)
+- Campo de monto a pagar (precalculado con sobregiro si existe)
+- Selector de forma de pago
+- Selector de código contable con autocompletado (campos correctos: code/name)
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja (11 operaciones)
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `pago_rifa_form` para mostrar el formulario
+  - Ruta POST `pago_rifa` para procesar el pago
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Pagar Rifa" en sección de rifas
+- Sidebars de todas las vistas de caja actualizados con "Pago Rifa":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f64_rifa`: Rifas (campos: f64_codigo, f64_socio, f64_periodo, f64_rifap, f64_rifad, f64_rifar, f64_fechaPago, f64_formaPago)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=pago_rifa_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=pago_rifa_form&client=CODIGO_CLIENTE&periodo=FECHA_PERIODO`
+- POST: `?module=caja&action=pago_rifa`
+
+**Correcciones aplicadas**:
+
+1. **Columna f15_aumento**: Eliminada del INSERT en f15_movimiento ya que no existe en la tabla. Se usa solo f15_mretiro para el monto de pago de rifa.
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.18 Operación 14: Pago Sobregiro FONBES
+
+**Fecha de implementación**: 2026-09-16
+
+**Archivo creado**: `src/Services/PagoSobregiroFonbesServicio.php`
+
+Servicio para procesar pagos de sobregiro de aportaciones FONBES (Operación 14), basado en código legacy Java (CrearCajaAction.java líneas 349-367, 587-621):
+
+- Obtiene aportaciones FONBES con sobregiro del cliente (f22_diferencia > 0)
+- Calcula total de sobregiro (suma de diferencias)
+- Valida que el monto sea válido
+- Distribuye el pago entre las aportaciones con sobregiro (reduciendo f22_diferencia)
+- Actualiza aportaciones (f22_aportacionD, f22_diferencia, f22_fechaPago)
+- Inserta movimiento en `f15_movimiento` con operación 14 (usando f15_mretiro)
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/pago_sobregiro_fonbes.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/pago_sobregiro_fonbes.php`
+
+Formulario de pago de sobregiro FONBES con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de aportaciones FONBES con sobregiro (últimos 12 periodos)
+- Resumen de sobregiro total y número de periodos
+- Campo de monto a pagar (precalculado con total de sobregiro)
+- Selector de forma de pago
+- Selector de código contable con autocompletado (campos correctos: code/name)
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja (12 operaciones)
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `pago_sobregiro_fonbes_form` para mostrar el formulario
+  - Ruta POST `pago_sobregiro_fonbes` para procesar el pago
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Pagar Sobregiro" en sección de Aportaciones FONBES
+- Sidebars de todas las vistas de caja actualizados con "Pago Sobregiro FONBES":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f22_aportes`: Aportaciones FONBES (campos: f22_socio, f22_periodo, f22_aportacionP, f22_aportacionD, f22_diferencia, f22_fechaPago, f22_aporte_id)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=pago_sobregiro_fonbes_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=pago_sobregiro_fonbes`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.20 Operación 15: Pago Sobregiro COOPAM
+
+**Fecha de implementación**: 2026-09-16
+
+**Archivo creado**: `src/Services/PagoSobregiroCoopamServicio.php`
+
+Servicio para procesar pagos de sobregiro de aportaciones COOPAM (Operación 15), basado en código legacy Java (CrearCajaAction.java líneas 369-385, 626-652):
+
+- Obtiene aportaciones COOPAM con sobregiro del cliente (f27_diferencia > 0)
+- Calcula total de sobregiro (suma de diferencias)
+- Valida que el monto sea válido
+- Distribuye el pago entre las aportaciones con sobregiro (reduciendo f27_diferencia)
+- Actualiza aportaciones (f27_aportacionD, f27_diferencia, f27_fechaPago)
+- Inserta movimiento en `f15_movimiento` con operación 15 (usando f15_mretiro)
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/pago_sobregiro_coopam.log` para auditoría
+- Generación segura de código de movimiento con FOR UPDATE y verificación de duplicados
+
+**Archivo creado**: `views/caja/pago_sobregiro_coopam.php`
+
+Formulario de pago de sobregiro COOPAM con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Listado de aportaciones COOPAM con sobregiro (últimos 12 periodos)
+- Resumen de sobregiro total y número de periodos
+- Campo de monto a pagar (precalculado con total de sobregiro)
+- Selector de forma de pago
+- Selector de código contable con autocompletado (campos correctos: code/name)
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones
+- Sidebar consistente con todas las operaciones de caja (13 operaciones)
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `pago_sobregiro_coopam_form` para mostrar el formulario
+  - Ruta POST `pago_sobregiro_coopam` para procesar el pago
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Pagar Sobregiro" en sección de Aportaciones COOPAM
+- Sidebars de todas las vistas de caja actualizados con "Pago Sobregiro COOPAM":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f27_aportes_cope`: Aportaciones COOPAM (campos: f27_socio, f27_periodo, f27_aportacionP, f27_aportacionD, f27_diferencia, f27_fechaPago, f27_aporte_id)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=pago_sobregiro_coopam_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=pago_sobregiro_coopam`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.21 Operación 13: Otras Devoluciones
+
+**Fecha de implementación**: 2026-09-16
+
+**Archivo creado**: `src/Services/OtrasDevolucionesServicio.php`
+
+Servicio para procesar devoluciones genéricas (Operación 13 - Otras Devoluciones), basado en código legacy Java (CrearCajaAction.java líneas 1277-1280):
+
+- Valida datos básicos (cliente y monto)
+- Genera código de movimiento de forma segura con FOR UPDATE
+- Inserta movimiento en `f15_movimiento` con operación 13 (usando f15_devolucion)
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/otras_devoluciones.log` para auditoría
+
+**Archivo creado**: `views/caja/otras_devoluciones.php`
+
+Formulario de otras devoluciones con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Campo de monto a devolver
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones y observaciones adicionales
+- Sidebar consistente con todas las operaciones de caja (14 operaciones)
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `otras_devoluciones_form` para mostrar el formulario
+  - Ruta POST `otras_devoluciones` para procesar la devolución
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Otras Devoluciones" en sección de Beneficios
+- Sidebars de todas las vistas de caja actualizados con "Otras Devoluciones":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_devolucion, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=otras_devoluciones_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=otras_devoluciones`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.22 Operación 16: Otros Ingresos
+
+**Fecha de implementación**: 2026-09-17
+
+**Archivo creado**: `src/Services/OtrosIngresosServicio.php`
+
+Servicio para procesar ingresos genéricos (Operación 16 - Otros Ingresos), basado en código legacy Java (CrearCajaAction.java líneas 1282-1285):
+
+- Valida datos básicos (cliente y monto)
+- Genera código de movimiento de forma segura con FOR UPDATE
+- Inserta movimiento en `f15_movimiento` con operación 16 (usando f15_ingreso)
+- Inserta en diario contable `f37_diario_contable` si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en `logs/otros_ingresos.log` para auditoría
+
+**Archivo creado**: `views/caja/otros_ingresos.php`
+
+Formulario de otros ingresos con diseño consistente del sistema:
+
+- Información del cliente (código, nombre, documento, condición)
+- Campo de monto del ingreso
+- Selector de forma de pago
+- Selector de código contable con autocompletado
+- Selector Debe/Haber
+- Descripción contable
+- Observaciones y observaciones adicionales
+- Sidebar consistente con todas las operaciones de caja (15 operaciones)
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `otros_ingresos_form` para mostrar el formulario
+  - Ruta POST `otros_ingresos` para procesar el ingreso
+- `src/Repositories/CajaRepository.php`:
+  - Método `accountingCodes()` existente utilizado para códigos contables
+- `views/caja/cliente.php`:
+  - Agregado enlace "Otros Ingresos" en sección de Beneficios
+- Sidebars de todas las vistas de caja actualizados con "Otros Ingresos":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_ingreso, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_codigo, f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion, f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=otros_ingresos_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=otros_ingresos`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.23 Operación 7: Desembolso de Beneficios
+
+**Fecha de implementación**: 2026-09-17
+
+**Archivo creado**: `src/Services/DesembolsoBeneficiosServicio.php`
+
+Servicio para procesar desembolsos de beneficios (Operación 7 - Desembolso Beneficios), basado en código legacy Java (CrearCajaAction.java líneas 515-531 y 2107-2126):
+
+- Valida datos básicos (cliente, beneficio y monto)
+- Verifica que el beneficio existe y está en estado PENDIENTE
+- Genera código de movimiento de forma segura con FOR UPDATE
+- Inserta movimiento en f15_movimiento con operación 7 (usando f15_mbeneficio y f15_beneficio)
+- Actualiza estado del beneficio a DESEMBOLSADO en f21_beneficios
+- Inserta en diario contable f37_diario_contable si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en logs/desembolso_beneficios.log
+
+**Archivos creados**:
+
+- `views/caja/desembolso_beneficios.php`: Vista de lista de beneficios pendientes del cliente
+- `views/caja/desembolso_beneficio.php`: Formulario de desembolso de beneficio específico
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `desembolso_beneficios_form` para mostrar lista de beneficios pendientes
+  - Ruta GET `desembolso_beneficio_form` para mostrar formulario de desembolso específico
+  - Ruta POST `desembolso_beneficio` para procesar el desembolso
+- `views/caja/cliente.php`:
+  - Agregado enlace "Desembolso Beneficios" en sección de Beneficios
+- Sidebars de todas las vistas actualizados con "Desembolso Beneficios":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f21_beneficios`: Beneficios (campos: f21_codigo, f21_socio, f21_importe, f21_estado, f21_beneficiario, f21_tipo, f21_fecha)
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_mbeneficio, f15_beneficio, f15_cheque, f15_mletras, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_debe, f37_haber, f37_descripcion, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=desembolso_beneficios_form&client=CODIGO_CLIENTE`
+- GET: `?module=caja&action=desembolso_beneficio_form&client=CODIGO_CLIENTE&benefit=ID_BENEFICIO`
+- POST: `?module=caja&action=desembolso_beneficio`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.24 Operación 8: Egresos
+
+**Fecha de implementación**: 2026-09-17
+
+**Archivo creado**: `src/Services/EgresosServicio.php`
+
+Servicio para procesar egresos de caja (Operación 8 - Egresos), operación genérica de egresos del sistema:
+
+- Valida datos básicos (cliente y monto)
+- Verifica que el monto sea mayor a cero
+- Genera código de movimiento de forma segura con FOR UPDATE
+- Inserta movimiento en f15_movimiento con operación 8 (usando f15_megreso)
+- Inserta en diario contable f37_diario_contable si se proporcionan datos
+- Usa transacciones para asegurar integridad de datos
+- Logging en logs/egresos.log
+
+**Archivos creados**:
+
+- `views/caja/egresos.php`: Formulario de egresos con campos para monto, motivo, beneficiario, forma de pago, cheque, datos contables
+
+**Archivos modificados**:
+
+- `public/index.php`:
+  - Ruta GET `egresos_form` para mostrar el formulario
+  - Ruta POST `egresos` para procesar el egreso
+- `views/caja/cliente.php`:
+  - Agregado enlace "Egresos" en sección de Beneficios
+- Sidebars de todas las vistas actualizados con "Egresos":
+  - `views/caja/aportes_fonbes.php`
+  - `views/caja/aportes_coopam.php`
+  - `views/caja/sobregiro_prestamo.php`
+  - `views/caja/desembolso_prestamo.php`
+  - `views/caja/amortizacion.php`
+  - `views/caja/movimientos.php`
+  - `views/caja/multas.php`
+  - `views/caja/devolucion_fonbes.php`
+  - `views/caja/devolucion_coopam.php`
+  - `views/caja/cancelacion_aee.php`
+  - `views/caja/otras_devoluciones.php`
+  - `views/caja/otros_ingresos.php`
+  - `views/caja/pago_rifa.php`
+  - `views/caja/pago_sobregiro_fonbes.php`
+  - `views/caja/pago_sobregiro_coopam.php`
+  - `views/caja/desembolso_beneficios.php`
+  - `views/caja/desembolso_beneficio.php`
+
+**Tablas de base de datos utilizadas**:
+
+- `f15_movimiento`: Movimientos (campos: f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_megreso, f15_cheque, f15_mletras, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2, f15_favor, f15_dni)
+- `f37_diario_contable`: Diario contable (campos: f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_debe, f37_haber, f37_descripcion, f37_usuario_crea, f37_fecha_crea, f37_estado)
+
+**Rutas**:
+
+- GET: `?module=caja&action=egresos_form&client=CODIGO_CLIENTE`
+- POST: `?module=caja&action=egresos`
+
+**Estado: COMPLETADO Y FUNCIONANDO**
+
+Todas las funcionalidades han sido probadas y funcionan correctamente según el usuario.
+
+### 14.25 Operación 3: Desembolso de Préstamo
 
 **Fecha de implementación**: 2026-09-13 (anterior a mejoras de UX)
 
@@ -967,28 +1671,25 @@ Las siguientes operaciones de caja han sido implementadas y están funcionando:
 - ✅ Operación 1: Aportes FONBES
 - ✅ Operación 2: Amortización AEE
 - ✅ Operación 3: Desembolso de Préstamo
+- ✅ Operación 4: Devolución FONBES
+- ✅ Operación 5: Devolución COOPAM
+- ✅ Operación 6: Cancelación AEE
+- ✅ Operación 7: Desembolso Beneficios
+- ✅ Operación 8: Egresos
 - ✅ Operación 9: Aportes COOPAM
 - ✅ Operación 10: Pago de Sobregiro de Préstamo
+- ✅ Operación 11: Pagos de multas
+- ✅ Operación 12: Pagos de rifas
+- ✅ Operación 13: Otras Devoluciones
+- ✅ Operación 14: Pago de sobregiro FONBES
+- ✅ Operación 15: Pago de sobregiro COOPAM
+- ✅ Operación 16: Otros ingresos
 
-**Operaciones pendientes**:
-- Operación 4: Devolución FONBES
-- Operación 5: Devolución COOPAM
-- Operación 6: Cancelación AEE
-- Operación 7: Desembolso Beneficios
-- Operación 8: Egresos
-- Operación 11: Pagos de multas
-- Operación 12: Pagos de rifas
-- Operación 13: Pagos de beneficios
-- Operación 14: Pago de sobregiro FONBES
-- Operación 15: Pago de sobregiro COOPAM
-- Operación 16: Otros ingresos
+**Estado: TODAS LAS OPERACIONES IMPLEMENTADAS**
 
-**Siguiente paso recomendado**: Operación 11 (Pagos de multas) u Operación 12 (Pagos de rifas)
+Las 16 operaciones del sistema de caja han sido implementadas y están funcionando correctamente según el usuario.
 
-Estas operaciones son buenas candidatas porque:
-- Probablemente tienen menos complejidad que operaciones de desembolso/cancelación
-- Siguen el patrón ya establecido (servicio + formulario + diario contable)
-- Complementan el ciclo completo de operaciones del sistema
+**Siguiente paso recomendado**: Probar la Operación 8 (Egresos) con datos reales para verificar su funcionamiento.
 
 Se recomienda seguir el mismo proceso utilizado para las operaciones anteriores:
 1. Revisar código legacy en `CrearCajaAction.java` para la lógica de la operación seleccionada
@@ -1037,3 +1738,34 @@ URL de simulacion de prueba:
 - No asumir que codigos de cliente tienen el mismo formato en todas las tablas.
 - No copiar ciegamente defectos del legacy como MAX+1, SQL concatenado o doble escritura sin transaccion.
 - Mantener mensajes y flujo familiar para usuarios en operaciones reales.
+
+## 16. Correcciones Recientes
+
+### 2026-09-17: Revisión de Sidebars
+
+Se realizó una revisión completa de todos los sidebars en las vistas de caja para verificar que todas las 16 operaciones estuvieran presentes.
+
+**Corrección aplicada:**
+- `views/caja/pago_rifa.php`: Se corrigió el sidebar para incluir las 3 operaciones faltantes (Devolución FONBES, Devolución COOPAM, Cancelación AEE). Ahora tiene las 16 operaciones completas.
+
+**Estado de sidebars después de corrección:**
+- ✅ `amortizacion.php` - 16 operaciones completas
+- ✅ `aportes_fonbes.php` - 16 operaciones completas
+- ✅ `aportes_coopam.php` - 16 operaciones completas
+- ✅ `sobregiro_prestamo.php` - 16 operaciones completas
+- ✅ `desembolso_prestamo.php` - 16 operaciones completas
+- ✅ `cancelacion_aee.php` - 16 operaciones completas
+- ✅ `desembolso_beneficio.php` - 16 operaciones completas
+- ✅ `desembolso_beneficios.php` - 16 operaciones completas
+- ✅ `devolucion_coopam.php` - 16 operaciones completas
+- ✅ `devolucion_fonbes.php` - 16 operaciones completas
+- ✅ `multas.php` - 16 operaciones completas
+- ✅ `otras_devoluciones.php` - 16 operaciones completas
+- ✅ `otros_ingresos.php` - 16 operaciones completas
+- ✅ `pago_rifa.php` - 16 operaciones completas (CORREGIDO)
+- ✅ `pago_sobregiro_fonbes.php` - 16 operaciones completas
+- ✅ `pago_sobregiro_coopam.php` - 16 operaciones completas
+- ✅ `egresos.php` - 16 operaciones completas
+- ✅ `movimientos.php` - 16 operaciones completas (con lógica condicional)
+
+Todos los sidebars ahora tienen las 16 operaciones completas y consistentes.

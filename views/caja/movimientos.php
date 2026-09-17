@@ -91,6 +91,16 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                     <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Sobregiro Préstamo</a>
                     <a href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Amortización</a>
                     <a href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Multas</a>
+                    <a href="index.php?module=caja&action=devolucion_fonbes_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Devolución FONBES</a>
+                    <a href="index.php?module=caja&action=devolucion_coopam_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Devolución COOPAM</a>
+                    <a href="index.php?module=caja&action=cancelacion_aee_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Cancelación AEE</a>
+                    <a href="index.php?module=caja&action=pago_rifa_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Pago Rifa</a>
+                    <a href="index.php?module=caja&action=pago_sobregiro_fonbes_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Pago Sobregiro FONBES</a>
+                    <a href="index.php?module=caja&action=pago_sobregiro_coopam_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Pago Sobregiro COOPAM</a>
+                    <a href="index.php?module=caja&action=otras_devoluciones_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Otras Devoluciones</a>
+                    <a href="index.php?module=caja&action=otros_ingresos_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Otros Ingresos</a>
+                    <a href="index.php?module=caja&action=desembolso_beneficios_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Desembolso Beneficios</a>
+                    <a href="index.php?module=caja&action=egresos_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Egresos</a>
                 <?php else: ?>
                     <span class="nav-link disabled">Perfil Cliente (seleccione cliente)</span>
                     <span class="nav-link disabled">Aportes FONBES (seleccione cliente)</span>
@@ -99,6 +109,13 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                     <span class="nav-link disabled">Sobregiro Préstamo (seleccione cliente)</span>
                     <span class="nav-link disabled">Amortización (seleccione cliente)</span>
                     <span class="nav-link disabled">Multas (seleccione cliente)</span>
+                    <span class="nav-link disabled">Devolución FONBES (seleccione cliente)</span>
+                    <span class="nav-link disabled">Devolución COOPAM (seleccione cliente)</span>
+                    <span class="nav-link disabled">Cancelación AEE (seleccione cliente)</span>
+                    <span class="nav-link disabled">Pago Rifa (seleccione cliente)</span>
+                    <span class="nav-link disabled">Pago Sobregiro FONBES (seleccione cliente)</span>
+                    <span class="nav-link disabled">Pago Sobregiro COOPAM (seleccione cliente)</span>
+                    <span class="nav-link disabled">Otras Devoluciones (seleccione cliente)</span>
                 <?php endif; ?>
             </nav>
         </aside>

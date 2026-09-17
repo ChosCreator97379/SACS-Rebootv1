@@ -291,6 +291,551 @@ if ($auth->check()) {
         exit;
     }
 
+    // Procesar POST de devolución FONBES (Operación 4)
+    if (($_POST['action'] ?? '') === 'devolucion_fonbes' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'monto' => (float) str_replace(',', '', $_POST['monto'] ?? '0'),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['periodo'] === '') {
+                    $error = 'Cliente y periodo son requeridos';
+                } elseif ($datos['monto'] <= 0) {
+                    $error = 'El monto debe ser mayor a cero';
+                } else {
+                    // Llamar al servicio de devolución FONBES
+                    require __DIR__ . '/../src/Services/DevolucionFonbesServicio.php';
+                    $servicio = new \Sacs\Services\DevolucionFonbesServicio(Database::connection());
+                    $resultado = $servicio->ejecutarDevolucionFonbes($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar la devolución';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'devolucion_fonbes_form', 'client' => $datos['cliente'], 'periodo' => $datos['periodo'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de devolución COOPAM (Operación 5)
+    if (($_POST['action'] ?? '') === 'devolucion_coopam' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'monto' => (float) str_replace(',', '', $_POST['monto'] ?? '0'),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['periodo'] === '') {
+                    $error = 'Cliente y periodo son requeridos';
+                } elseif ($datos['monto'] <= 0) {
+                    $error = 'El monto debe ser mayor a cero';
+                } else {
+                    // Llamar al servicio de devolución COOPAM
+                    require __DIR__ . '/../src/Services/DevolucionCoopamServicio.php';
+                    $servicio = new \Sacs\Services\DevolucionCoopamServicio(Database::connection());
+                    $resultado = $servicio->ejecutarDevolucionCoopam($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar la devolución';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'devolucion_coopam_form', 'client' => $datos['cliente'], 'periodo' => $datos['periodo'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de cancelación AEE (Operación 6)
+    if (($_POST['action'] ?? '') === 'cancelacion_aee' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'prestamo' => trim((string) ($_POST['prestamo'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['prestamo'] === '') {
+                    $error = 'Cliente y préstamo son requeridos';
+                } else {
+                    // Llamar al servicio de cancelación AEE
+                    require __DIR__ . '/../src/Services/CancelacionAeeServicio.php';
+                    $servicio = new \Sacs\Services\CancelacionAeeServicio(Database::connection());
+                    $resultado = $servicio->ejecutarCancelacionAee($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar la cancelación';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'cancelacion_aee_form', 'client' => $datos['cliente'], 'loan' => $datos['prestamo'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de pago de rifa (Operación 12)
+    if (($_POST['action'] ?? '') === 'pago_rifa' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de pago de rifa
+                    require __DIR__ . '/../src/Services/PagoRifaServicio.php';
+                    $servicio = new \Sacs\Services\PagoRifaServicio(Database::connection());
+                    $resultado = $servicio->ejecutarPagoRifa($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el pago de rifa';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'pago_rifa_form', 'client' => $datos['cliente'], 'periodo' => $datos['periodo'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de pago de sobregiro FONBES (Operación 14)
+    if (($_POST['action'] ?? '') === 'pago_sobregiro_fonbes' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de pago de sobregiro FONBES
+                    require __DIR__ . '/../src/Services/PagoSobregiroFonbesServicio.php';
+                    $servicio = new \Sacs\Services\PagoSobregiroFonbesServicio(Database::connection());
+                    $resultado = $servicio->ejecutarPagoSobregiroFonbes($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el pago de sobregiro FONBES';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'pago_sobregiro_fonbes_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de pago de sobregiro COOPAM (Operación 15)
+    if (($_POST['action'] ?? '') === 'pago_sobregiro_coopam' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de pago de sobregiro COOPAM
+                    require __DIR__ . '/../src/Services/PagoSobregiroCoopamServicio.php';
+                    $servicio = new \Sacs\Services\PagoSobregiroCoopamServicio(Database::connection());
+                    $resultado = $servicio->ejecutarPagoSobregiroCoopam($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el pago de sobregiro COOPAM';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'pago_sobregiro_coopam_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de otras devoluciones (Operación 13)
+    if (($_POST['action'] ?? '') === 'otras_devoluciones' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de otras devoluciones
+                    require __DIR__ . '/../src/Services/OtrasDevolucionesServicio.php';
+                    $servicio = new \Sacs\Services\OtrasDevolucionesServicio(Database::connection());
+                    $resultado = $servicio->ejecutarOtraDevolucion($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar la otra devolución';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'otras_devoluciones_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de otros ingresos (Operación 16)
+    if (($_POST['action'] ?? '') === 'otros_ingresos' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de otros ingresos
+                    require __DIR__ . '/../src/Services/OtrosIngresosServicio.php';
+                    $servicio = new \Sacs\Services\OtrosIngresosServicio(Database::connection());
+                    $resultado = $servicio->ejecutarOtroIngreso($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el otro ingreso';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'otros_ingresos_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de desembolso de beneficio (Operación 7)
+    if (($_POST['action'] ?? '') === 'desembolso_beneficio' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'beneficioId' => trim((string) ($_POST['beneficioId'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'cheque' => trim((string) ($_POST['cheque'] ?? '')),
+                    'montoLetras' => trim((string) ($_POST['montoLetras'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['beneficioId'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente, beneficio y monto son requeridos';
+                } else {
+                    // Llamar al servicio de desembolso de beneficios
+                    require __DIR__ . '/../src/Services/DesembolsoBeneficiosServicio.php';
+                    $servicio = new \Sacs\Services\DesembolsoBeneficiosServicio(Database::connection());
+                    $resultado = $servicio->ejecutarDesembolsoBeneficio($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el desembolso de beneficio';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'desembolso_beneficio_form', 'client' => $datos['cliente'], 'benefit' => $datos['beneficioId'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // Procesar POST de egresos (Operación 8)
+    if (($_POST['action'] ?? '') === 'egresos' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'motivo' => trim((string) ($_POST['motivo'] ?? '')),
+                    'favor' => trim((string) ($_POST['favor'] ?? '')),
+                    'dni' => trim((string) ($_POST['dni'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'cheque' => trim((string) ($_POST['cheque'] ?? '')),
+                    'montoLetras' => trim((string) ($_POST['montoLetras'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                ];
+
+                $datosContables = [
+                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
+                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
+                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['monto'] === '') {
+                    $error = 'Cliente y monto son requeridos';
+                } else {
+                    // Llamar al servicio de egresos
+                    require __DIR__ . '/../src/Services/EgresosServicio.php';
+                    $servicio = new \Sacs\Services\EgresosServicio(Database::connection());
+                    $resultado = $servicio->ejecutarEgreso($datos, $datosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del movimiento creado
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el egreso';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'egresos_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
     // Procesar POST de amortización (independiente de parámetros GET)
     if (($_POST['action'] ?? '') === 'amortizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Procesar amortización AEE
@@ -496,6 +1041,128 @@ if ($auth->check()) {
             }
             http_response_code(400);
             $error = 'Datos inválidos para el formulario de multas';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'devolucion_fonbes_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/devolucion_fonbes.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de devolución FONBES';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'devolucion_coopam_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/devolucion_coopam.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de devolución COOPAM';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'cancelacion_aee_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/cancelacion_aee.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de cancelación AEE';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'pago_rifa_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/pago_rifa.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de pago de rifa';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'pago_sobregiro_fonbes_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/pago_sobregiro_fonbes.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de pago de sobregiro FONBES';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'pago_sobregiro_coopam_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/pago_sobregiro_coopam.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de pago de sobregiro COOPAM';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'otras_devoluciones_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/otras_devoluciones.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de otras devoluciones';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'otros_ingresos_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/otros_ingresos.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de otros ingresos';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'desembolso_beneficios_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/desembolso_beneficios.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de desembolso de beneficios';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'desembolso_beneficio_form') {
+            $benefitId = filter_var($_GET['benefit'] ?? null, FILTER_VALIDATE_INT);
+            if ($clientId !== '' && $benefitId !== false && $benefitId !== null) {
+                require dirname(__DIR__) . '/views/caja/desembolso_beneficio.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de desembolso de beneficio';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'egresos_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/egresos.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de egresos';
             require dirname(__DIR__) . '/views/home.php';
             exit;
         }

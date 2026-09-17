@@ -125,6 +125,16 @@ $money = fn(float $amount): string => number_format($amount, 2, '.', ',');
                 <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Sobregiro Préstamo</a>
                 <a href="index.php?module=caja&action=amortizar_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Amortización</a>
                 <a href="index.php?module=caja&action=multas_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link active">Multas</a>
+                <a href="index.php?module=caja&action=devolucion_fonbes_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Devolución FONBES</a>
+                <a href="index.php?module=caja&action=devolucion_coopam_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Devolución COOPAM</a>
+                <a href="index.php?module=caja&action=cancelacion_aee_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Cancelación AEE</a>
+                <a href="index.php?module=caja&action=pago_rifa_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Pago Rifa</a>
+                <a href="index.php?module=caja&action=pago_sobregiro_fonbes_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Pago Sobregiro FONBES</a>
+                <a href="index.php?module=caja&action=pago_sobregiro_coopam_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Pago Sobregiro COOPAM</a>
+                <a href="index.php?module=caja&action=otras_devoluciones_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Otras Devoluciones</a>
+                <a href="index.php?module=caja&action=otros_ingresos_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Otros Ingresos</a>
+                <a href="index.php?module=caja&action=desembolso_beneficios_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Desembolso Beneficios</a>
+                <a href="index.php?module=caja&action=egresos_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Egresos</a>
             </nav>
         </aside>
 
