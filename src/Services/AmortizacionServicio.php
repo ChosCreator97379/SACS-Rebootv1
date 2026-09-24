@@ -1,48 +1,44 @@
 <?php
 
-declare(strict_types=1);
-
 namespace Sacs\Services;
 
 use PDO;
 use PDOException;
 use RuntimeException;
 use Sacs\Core\Database;
-use Sacs\Services\AmortizacionCalculadora;
 
 /**
- * Servicio de amortización AEE basado en CrearCajaAction.registrar()
- * 
- * Implementa el mismo flujo legacy pero con mejoras de seguridad:
- * - Transacción simple
- * - Consultas parametrizadas
- * - Generación de ID segura (no MAX+1)
- * - Mismo resultado funcional que el legacy
+ * Servicio de Amortización AEE (Amortización de Préstamos con Gestión Especial)
+ * Sigue el flujo legacy del sistema original para compatibilidad
  */
-final class AmortizacionServicio
+class AmortizacionServicio
 {
-    public function __construct(
-        private readonly PDO $pdo
-    ) {
+    private PDO $pdo;
+
+    public function __construct(PDO $pdo)
+    {
+        $this->pdo = $pdo;
     }
 
     /**
      * Ejecuta una amortización AEE siguiendo el flujo legacy
      * 
      * @param array $datos Datos del formulario
+     * @param array $datosContables Datos contables generales
+     * @param array $codigosContables Códigos contables por componente
      * @return array Resultado de la operación
      * @throws RuntimeException Si hay error en la operación
      */
-    public function ejecutarAmortizacionAEE(array $datos, array $datosContables = []): array
+    public function ejecutarAmortizacionAEE(array $datos, array $datosContables = [], array $codigosContables = []): array
     {
         $pdo = $this->pdo;
         $logFile = dirname(__DIR__, 2) . '/logs/amortizacion.log';
-        
+
         // Asegurar que el directorio de logs existe
         if (!is_dir(dirname($logFile))) {
             mkdir(dirname($logFile), 0755, true);
         }
-        
+
         try {
             // Registrar inicio de operación
             $logMessage = sprintf(
@@ -54,6 +50,12 @@ final class AmortizacionServicio
                 $datos['monto']
             );
             file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+            // Registrar códigos contables si se proporcionaron
+            if (!empty($codigosContables)) {
+                $logMessage = sprintf("[%s] CODIGOS CONTABLES: %s\n", date('Y-m-d H:i:s'), json_encode($codigosContables));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
+            }
             // Iniciar transacción simple (como lo haría el legacy de forma correcta)
             $pdo->beginTransaction();
             
@@ -88,16 +90,27 @@ final class AmortizacionServicio
             // 4. Generar código de movimiento (forma segura, no MAX+1)
             $codigoMovimiento = $this->generarCodigoMovimiento($pdo);
 
-            // 5. Insertar movimiento (f15_movimiento)
-            $this->insertarMovimiento($pdo, $codigoMovimiento, $datos, $calculo);
-
-            // 6. Actualizar préstamo (f16_prestamo)
-            $this->actualizarPrestamo($pdo, $prestamo, $calculo);
-
-            // 7. Insertar en diario contable si se proporcionaron datos
-            if (!empty($datosContables)) {
+            // 5. Insertar en diario contable (múltiples filas por componente) - ANTES del movimiento
+            if (!empty($codigosContables)) {
+                $logMessage = sprintf("[%s] INSERTANDO DIARIO CONTABLE MÚLTIPLE\n", date('Y-m-d H:i:s'));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
+                $this->insertarDiarioContableMultiple($pdo, $codigoMovimiento, $datos, $codigosContables);
+            } elseif (!empty($datosContables)) {
+                // Mantener compatibilidad con el método anterior
+                $logMessage = sprintf("[%s] INSERTANDO DIARIO CONTABLE SIMPLE\n", date('Y-m-d H:i:s'));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
                 $this->insertarDiarioContable($pdo, $codigoMovimiento, $datos, $datosContables);
             }
+
+            // 6. Insertar movimiento (f15_movimiento) - una sola fila con el total
+            $logMessage = sprintf("[%s] INSERTANDO MOVIMIENTO\n", date('Y-m-d H:i:s'));
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
+            $this->insertarMovimiento($pdo, $codigoMovimiento, $datos, $calculo);
+
+            // 7. Actualizar préstamo (f16_prestamo)
+            $logMessage = sprintf("[%s] ACTUALIZANDO PRÉSTAMO\n", date('Y-m-d H:i:s'));
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
+            $this->actualizarPrestamo($pdo, $prestamo, $calculo);
 
             $pdo->commit();
             
@@ -115,14 +128,15 @@ final class AmortizacionServicio
                 'exito' => true,
                 'codigo_movimiento' => $codigoMovimiento,
                 'calculo' => $calculo,
-                'mensaje' => 'Amortización procesada correctamente',
+                'cuota' => $cuota,
             ];
             
         } catch (RuntimeException $e) {
-            // Rollback ante error
+            // Rollback ante error lógico
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            
             // Registrar error
             $logMessage = sprintf(
                 "[%s] ERROR RUNTIME - Cliente: %s, Préstamo: %d, Error: %s\n",
@@ -152,63 +166,40 @@ final class AmortizacionServicio
                 $e->getMessage()
             );
             file_put_contents($logFile, $logMessage, FILE_APPEND);
-            
+
             return [
                 'exito' => false,
-                'error' => 'Error de base de datos: ' . $e->getMessage(),
-                'mensaje' => 'Error de base de datos al procesar amortización',
-            ];
-        } catch (Throwable $e) {
-            // Rollback ante cualquier otro error
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            // Registrar error inesperado
-            $logMessage = sprintf(
-                "[%s] ERROR INESPERADO - Cliente: %s, Préstamo: %d, Error: %s\n",
-                date('Y-m-d H:i:s'),
-                $datos['cliente'],
-                $datos['prestamo'],
-                $e->getMessage()
-            );
-            file_put_contents($logFile, $logMessage, FILE_APPEND);
-            
-            return [
-                'exito' => false,
-                'error' => 'Error inesperado: ' . $e->getMessage(),
-                'mensaje' => 'Error inesperado al procesar amortización',
+                'error' => $e->getMessage(),
+                'mensaje' => 'Error en amortización: ' . $e->getMessage(),
             ];
         }
     }
-    
+
     /**
-     * Obtiene datos del préstamo
+     * Obtiene datos de un préstamo
      */
-    private function obtenerPrestamo(PDO $pdo, int $codigo): ?array
+    private function obtenerPrestamo(PDO $pdo, int $prestamoId): ?array
     {
-        $sql = "SELECT * FROM f16_prestamo WHERE f16_codigo = ? AND f16_estado <> 0";
+        $sql = "SELECT * FROM f16_prestamo WHERE f16_codigo = ?";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$codigo]);
-        $result = $stmt->fetch();
-        return $result === false ? null : $result;
+        $stmt->execute([$prestamoId]);
+        return $stmt->fetch() ?: null;
     }
-    
+
     /**
-     * Obtiene datos de la cuota
+     * Obtiene datos de una cuota específica
      */
-    private function obtenerCuota(PDO $pdo, int $prestamo, int $cuota): ?array
+    private function obtenerCuota(PDO $pdo, int $prestamoId, int $cuota): ?array
     {
         $sql = "SELECT * FROM f17_cuotasprestamo 
-                WHERE f17_prestamo = ? AND f17_ncuota = ? AND f17_estado = 'VIGENTE'";
+                WHERE f17_prestamo = ? AND f17_ncuota = ?";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$prestamo, $cuota]);
-        $result = $stmt->fetch();
-        return $result === false ? null : $result;
+        $stmt->execute([$prestamoId, $cuota]);
+        return $stmt->fetch() ?: null;
     }
-    
+
     /**
-     * Genera código de movimiento de forma segura
-     * Usa AUTO_INCREMENT o similar en lugar de MAX+1
+     * Genera código de movimiento
      */
     private function generarCodigoMovimiento(PDO $pdo): int
     {
@@ -230,26 +221,47 @@ final class AmortizacionServicio
     {
         $sql = "INSERT INTO f15_movimiento
                 (f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_prestamo, f15_maprestamo,
-                 f15_gastosa, f15_gastosm, f15_gastos1, f15_gastos2, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2, f15_std)
-                VALUES (:codigo, :fecha, :operacion, :cliente, :prestamo, :maprestamo,
-                        :gastosa, :gastosm, :gastos1, :gastos2, :formaPago, :usuario, NOW(), :obs, :obs2, :cuota)";
+                 f15_gastosa, f15_gastosm, f15_gastos1, f15_gastos2, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2, f15_cheque)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            'codigo' => $codigoMovimiento,
-            'fecha' => $datos['fecha'] ?? date('Y-m-d'),
-            'operacion' => 2,
-            'cliente' => trim($datos['cliente']),
-            'prestamo' => $datos['prestamo'],
-            'maprestamo' => $calculo['movimiento']['monto'],
-            'gastosa' => $calculo['movimiento']['gastosa'],
-            'gastosm' => $calculo['movimiento']['gastosm'],
-            'gastos1' => $calculo['movimiento']['gastos1'],
-            'gastos2' => $calculo['movimiento']['gastos2'],
-            'formaPago' => trim($datos['formaPago'] ?? ''),
-            'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
-            'obs' => trim($datos['obs'] ?? ''),
-            'obs2' => trim($datos['obs2'] ?? ''),
-            'cuota' => $datos['cuota'],
+            $codigoMovimiento,
+            $datos['fecha'] ?? date('Y-m-d'),
+            2,
+            trim($datos['cliente']),
+            $datos['prestamo'],
+            $datos['amortiza'] ?? 0,  // Amortización directamente del formulario
+            $datos['gastosAdm'] ?? 0,  // Gastos administrativos directamente del formulario
+            $datos['gastosMora'] ?? 0,  // Gastos mora directamente del formulario
+            $datos['otros1'] ?? 0,  // Otros 1 directamente del formulario
+            $datos['otros2'] ?? 0,  // Otros 2 directamente del formulario
+            trim($datos['formaPago'] ?? ''),
+            trim($datos['usuario'] ?? 'SISTEMA'),
+            date('Y-m-d H:i:s'),
+            trim($datos['obs'] ?? ''),
+            trim($datos['obs2'] ?? ''),
+            $datos['cheque'] ?? null,
+        ]);
+    }
+
+    /**
+     * Actualiza préstamo en f16_prestamo
+     */
+    private function actualizarPrestamo(PDO $pdo, array $prestamo, array $calculo): void
+    {
+        $sql = "UPDATE f16_prestamo 
+                SET f16_mov = ?, 
+                    f16_am = ?,
+                    f16_acuotasp = ?,
+                    f16_aimportep = ?
+                WHERE f16_codigo = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $calculo['movimiento']['monto'],
+            $calculo['movimiento']['gastosa'],
+            $calculo['movimiento']['gastosm'],
+            $calculo['movimiento']['gastos1'],
+            $prestamo['f16_codigo'],
         ]);
     }
 
@@ -263,71 +275,55 @@ final class AmortizacionServicio
                  f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
                 VALUES (:movimiento, :fecha, :codigoContable, :operacion, :descripcion,
                         :debe, :haber, :usuario, NOW(), 'ACTIVO')";
+
         $stmt = $pdo->prepare($sql);
-
-        $tipoAsiento = $datosContables['tipoAsiento'] ?? 'haber';
-        $monto = (float) $datos['monto'];
-
-        $debe = $tipoAsiento === 'debe' ? $monto : 0.00;
-        $haber = $tipoAsiento === 'haber' ? $monto : 0.00;
-
         $stmt->execute([
             'movimiento' => $codigoMovimiento,
             'fecha' => $datos['fecha'] ?? date('Y-m-d'),
-            'codigoContable' => trim($datosContables['codigoContable'] ?? '1651'),
+            'codigoContable' => trim($datosContables['codigoContable'] ?? ''),
             'operacion' => 2,
             'descripcion' => trim($datosContables['descripcionContable'] ?? 'AMORTIZACION AEE'),
-            'debe' => $debe,
-            'haber' => $haber,
+            'debe' => $datosContables['tipoAsiento'] === 'debe' ? $datos['monto'] : 0.00,
+            'haber' => $datosContables['tipoAsiento'] === 'haber' ? $datos['monto'] : 0.00,
             'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
         ]);
     }
 
     /**
-     * Actualiza préstamo en f16_prestamo
-     * Basado en actualizarSaldo4()
+     * Inserta múltiples registros en diario contable (uno por cada componente)
      */
-    private function actualizarPrestamo(PDO $pdo, array $prestamo, array $calculo): void
+    private function insertarDiarioContableMultiple(PDO $pdo, int $codigoMovimiento, array $datos, array $codigosContables): void
     {
-        $sql = "UPDATE f16_prestamo SET
-            f16_cuotasPend = ?,
-            f16_saldo = ?,
-            f16_gastosa = ?,
-            f16_gastosm = ?,
-            f16_otros = ?,
-            f16_otros2 = ?,
-            f16_solicitado = ?,
-            f16_cuotaMe = ?,
-            f16_fechaUP = ?,
-            f16_sobre = ?
-        WHERE f16_codigo = ?";
-        
-        $prestamoActualizado = $calculo['prestamo_actualizado'];
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            $prestamoActualizado['cuotas_pendientes'],
-            $prestamoActualizado['saldo'],
-            $prestamoActualizado['gastosa'],
-            $prestamoActualizado['gastosm'],
-            $prestamoActualizado['otros1'],
-            $prestamoActualizado['otros2'],
-            $prestamo['f16_solicitado'] ?? $prestamo['f16_cuotas'],
-            $prestamo['f16_cuotaMe'],
-            $prestamoActualizado['fechaUP'],
-            $prestamoActualizado['sobre'],
-            $prestamo['f16_codigo'],
-        ]);
-    }
+        $sql = "INSERT INTO f37_diario_contable
+                (f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion,
+                 f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+                VALUES (:movimiento, :fecha, :codigoContable, :operacion, :descripcion,
+                        :debe, :haber, :usuario, NOW(), 'ACTIVO')";
 
-    /**
-     * Convierte monto a letras (simplificado)
-     * En el legacy usa n2t.class
-     */
-    private function convertirALetras(float $monto): string
-    {
-        // Implementación simplificada - el legacy usa una clase completa
-        // Por ahora retornamos el monto numérico
-        return number_format($monto, 2) . ' SOLES';
+        $stmt = $pdo->prepare($sql);
+
+        foreach ($codigosContables as $componente => $config) {
+            // Solo insertar si hay monto mayor a 0 y tiene código contable
+            if ($config['monto'] > 0 && !empty($config['codigo']) && !empty($config['tipo'])) {
+                $tipo = $config['tipo'];
+                $monto = $config['monto'];
+
+                $debe = $tipo === 'debe' ? $monto : 0.00;
+                $haber = $tipo === 'haber' ? $monto : 0.00;
+
+                $descripcion = 'AMORTIZACION AEE - ' . strtoupper($componente);
+
+                $stmt->execute([
+                    'movimiento' => $codigoMovimiento,
+                    'fecha' => $datos['fecha'] ?? date('Y-m-d'),
+                    'codigoContable' => trim($config['codigo']),
+                    'operacion' => 2,
+                    'descripcion' => $descripcion,
+                    'debe' => $debe,
+                    'haber' => $haber,
+                    'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
+                ]);
+            }
+        }
     }
 }

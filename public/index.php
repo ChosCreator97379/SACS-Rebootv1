@@ -8,6 +8,7 @@ use Sacs\Core\Database;
 use Sacs\Repositories\CajaRepository;
 use Sacs\Repositories\UserRepository;
 use Sacs\Security\Auth;
+use Sacs\Services\SociosServicio;
 
 session_set_cookie_params([
     'httponly' => true,
@@ -198,10 +199,43 @@ if ($auth->check()) {
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
                 ];
 
-                $datosContables = [
-                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
-                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
-                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                // Códigos contables por componente
+                $codigosContables = [
+                    'sobregiro' => [
+                        'codigo' => trim((string) ($_POST['sobregiro_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['sobregiro_tipo'] ?? '')),
+                        'monto' => $datos['sobregiro']
+                    ],
+                    'descuenta' => [
+                        'codigo' => trim((string) ($_POST['descuenta_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['descuenta_tipo'] ?? '')),
+                        'monto' => $datos['descuenta']
+                    ],
+                    'gastosAdm' => [
+                        'codigo' => trim((string) ($_POST['gastosAdm_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['gastosAdm_tipo'] ?? '')),
+                        'monto' => $datos['gastosAdm']
+                    ],
+                    'gastosMora' => [
+                        'codigo' => trim((string) ($_POST['gastosMora_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['gastosMora_tipo'] ?? '')),
+                        'monto' => $datos['gastosMora']
+                    ],
+                    'otros1' => [
+                        'codigo' => trim((string) ($_POST['otros1_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['otros1_tipo'] ?? '')),
+                        'monto' => $datos['otros1']
+                    ],
+                    'otros2' => [
+                        'codigo' => trim((string) ($_POST['otros2_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['otros2_tipo'] ?? '')),
+                        'monto' => $datos['otros2']
+                    ],
+                    'monto' => [
+                        'codigo' => trim((string) ($_POST['monto_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['monto_tipo'] ?? '')),
+                        'monto' => $datos['monto']
+                    ]
                 ];
 
                 // Validaciones básicas
@@ -213,7 +247,7 @@ if ($auth->check()) {
                     // Llamar al servicio de sobregiro de préstamo
                     require __DIR__ . '/../src/Services/SobregiroPrestamoServicio.php';
                     $servicio = new \Sacs\Services\SobregiroPrestamoServicio(Database::connection());
-                    $resultado = $servicio->ejecutarPagoSobregiroPrestamo($datos, $datosContables);
+                    $resultado = $servicio->ejecutarPagoSobregiroPrestamo($datos, $codigosContables);
 
                     if ($resultado['exito']) {
                         // Redirigir al detalle del movimiento creado
@@ -840,6 +874,7 @@ if ($auth->check()) {
     if (($_POST['action'] ?? '') === 'amortizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Procesar amortización AEE
         $error = null;
+        $formData = $_POST; // Guardar datos del formulario
 
         // Validar CSRF
         $csrfToken = (string) ($_POST['csrf_token'] ?? '');
@@ -866,6 +901,53 @@ if ($auth->check()) {
                     'cheque' => null,
                 ];
 
+                // Validar si el préstamo tiene sobregiro positivo (debe pagarse primero)
+                $stmt = Database::connection()->prepare('SELECT f16_sobre FROM f16_prestamo WHERE f16_codigo = ?');
+                $stmt->execute([$datos['prestamo']]);
+                $prestamoData = $stmt->fetch();
+                if ($prestamoData && ($prestamoData['f16_sobre'] ?? 0) > 0) {
+                    $error = 'El socio tiene sobregiro pendiente de pago. Debe pagar el sobregiro antes de continuar con la amortización.';
+                }
+
+                // Códigos contables por componente
+                $codigosContables = [
+                    'amortiza' => [
+                        'codigo' => trim((string) ($_POST['amortiza_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['amortiza_tipo'] ?? '')),
+                        'monto' => $datos['amortiza']
+                    ],
+                    'gastosAdm' => [
+                        'codigo' => trim((string) ($_POST['gastosAdm_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['gastosAdm_tipo'] ?? '')),
+                        'monto' => $datos['gastosAdm']
+                    ],
+                    'gastosMora' => [
+                        'codigo' => trim((string) ($_POST['gastosMora_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['gastosMora_tipo'] ?? '')),
+                        'monto' => $datos['gastosMora']
+                    ],
+                    'otros1' => [
+                        'codigo' => trim((string) ($_POST['otros1_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['otros1_tipo'] ?? '')),
+                        'monto' => $datos['otros1']
+                    ],
+                    'otros2' => [
+                        'codigo' => trim((string) ($_POST['otros2_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['otros2_tipo'] ?? '')),
+                        'monto' => $datos['otros2']
+                    ],
+                    'sobregiro' => [
+                        'codigo' => trim((string) ($_POST['sobregiro_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['sobregiro_tipo'] ?? '')),
+                        'monto' => $datos['sobregiro']
+                    ],
+                    'monto' => [
+                        'codigo' => trim((string) ($_POST['monto_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['monto_tipo'] ?? '')),
+                        'monto' => $datos['monto']
+                    ]
+                ];
+
                 $datosContables = [
                     'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
                     'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
@@ -878,17 +960,70 @@ if ($auth->check()) {
                 } elseif ($datos['monto'] <= 0) {
                     $error = 'El monto debe ser mayor a cero';
                 } else {
+                    // Validar que montos > 0 tengan código contable
+                    foreach ($codigosContables as $nombre => $config) {
+                        if ($config['monto'] > 0) {
+                            if (empty($config['codigo'])) {
+                                $error = "El campo {$nombre} con monto mayor a 0 debe tener un código contable";
+                                break;
+                            }
+                            if (empty($config['tipo'])) {
+                                $error = "El campo {$nombre} con monto mayor a 0 debe tener un tipo de asiento (debe/haber)";
+                                break;
+                            }
+                        }
+                    }
+
+                    // Validar equilibrio contable: suma de debe = suma de haber
+                    if (empty($error)) {
+                        $sumaDebe = 0;
+                        $sumaHaber = 0;
+                        foreach ($codigosContables as $config) {
+                            if ($config['monto'] > 0 && !empty($config['tipo'])) {
+                                if ($config['tipo'] === 'debe') {
+                                    $sumaDebe += $config['monto'];
+                                } elseif ($config['tipo'] === 'haber') {
+                                    $sumaHaber += $config['monto'];
+                                }
+                            }
+                        }
+
+                        // Tolerancia pequeña para errores de punto flotante
+                        if (abs($sumaDebe - $sumaHaber) > 0.01) {
+                            $error = sprintf('El equilibrio contable no es correcto. Suma Debe: %.2f, Suma Haber: %.2f', $sumaDebe, $sumaHaber);
+                        }
+                    }
+                }
+
+                if (empty($error)) {
                     // Llamar al servicio de amortización
                     require __DIR__ . '/../src/Services/AmortizacionServicio.php';
                     $servicio = new \Sacs\Services\AmortizacionServicio(Database::connection());
-                    $resultado = $servicio->ejecutarAmortizacionAEE($datos, $datosContables);
+                    $resultado = $servicio->ejecutarAmortizacionAEE($datos, $datosContables, $codigosContables);
 
                     if ($resultado['exito']) {
                         // Redirigir al detalle del movimiento creado
                         header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento']);
                         exit;
                     } else {
-                        $error = $resultado['mensaje'] ?? 'No fue posible procesar la amortización';
+                        // Verificar si el error es específico de cuenta no pagable
+                        $mensajeError = $resultado['mensaje'] ?? 'No fue posible procesar la amortización';
+                        if (strpos($mensajeError, 'Préstamo no encontrado') !== false || 
+                            strpos($mensajeError, 'Cuota no encontrada') !== false ||
+                            strpos($mensajeError, 'no está activo') !== false) {
+                            // Redirigir a página específica de cuenta no pagable
+                            $query = http_build_query([
+                                'module' => 'caja',
+                                'action' => 'cuenta_no_pagable',
+                                'client' => $datos['cliente'],
+                                'loan' => $datos['prestamo'],
+                                'reason' => $mensajeError
+                            ]);
+                            header('Location: index.php?' . $query);
+                            exit;
+                        } else {
+                            $error = $mensajeError;
+                        }
                     }
                 }
             } catch (Throwable $exception) {
@@ -896,10 +1031,14 @@ if ($auth->check()) {
             }
         }
 
-        // Redirigir al formulario con error
-        $query = http_build_query(['module' => 'caja', 'action' => 'amortizar_form', 'client' => $datos['cliente'], 'loan' => $datos['prestamo'], 'error' => $error]);
-        header('Location: index.php?' . $query);
-        exit;
+        // Si hay error, mostrar el formulario con los datos conservados
+        if ($error !== null) {
+            $_SESSION['form_error'] = $error;
+            $_SESSION['form_data'] = $formData;
+            $query = http_build_query(['module' => 'caja', 'action' => 'amortizar_form', 'client' => $datos['cliente'], 'loan' => $datos['prestamo']]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
     }
 
     // Procesar POST de desembolso de préstamo (Operación 3)
@@ -1199,16 +1338,22 @@ if ($auth->check()) {
             exit;
         }
 
+        if (($_GET['action'] ?? '') === 'cuenta_no_pagable') {
+            require dirname(__DIR__) . '/views/caja/cuenta_no_pagable.php';
+            exit;
+        }
+
         $movementId = filter_var($_GET['movement'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($movementId !== false && $movementId !== null) {
             $movement = (new CajaRepository())->findMovement($movementId);
             if ($movement === null) {
                 http_response_code(404);
                 $error = 'Movimiento no encontrado.';
-                require dirname(__DIR__) . '/views/home.php';
+                require dirname(__DIR__) . '/views/caja/diario_contable.php';
                 exit;
             }
-            require dirname(__DIR__) . '/views/caja/movimiento.php';
+
+            require dirname(__DIR__) . '/views/caja/detalle_movimiento.php';
             exit;
         }
 
@@ -1255,6 +1400,7 @@ if ($auth->check()) {
             'date_to' => trim((string) ($_GET['date_to'] ?? '')),
             'operation' => trim((string) ($_GET['operation'] ?? '')),
             'client' => trim((string) ($_GET['client'] ?? '')),
+            'movement_code' => trim((string) ($_GET['movement_code'] ?? '')),
             'page' => max(1, (int) ($_GET['page'] ?? 1)),
             'per_page' => 25,
         ];
@@ -1263,6 +1409,119 @@ if ($auth->check()) {
         $movements = $repository->listMovements($filters);
         require dirname(__DIR__) . '/views/caja/movimientos.php';
         exit;
+    }
+
+    // Módulo Socios
+    if (($_GET['module'] ?? '') === 'socios') {
+        $sociosServicio = new SociosServicio();
+        $action = $_GET['action'] ?? '';
+
+        // GET: Listado de socios
+        if ($action === 'listado') {
+            $filtros = [
+                'criterio' => trim((string) ($_GET['criterio'] ?? ''))
+            ];
+            $socios = $sociosServicio->listarSocios($filtros);
+            require dirname(__DIR__) . '/views/socios/listado.php';
+            exit;
+        }
+
+        // GET: Formulario de registro
+        if ($action === 'registro') {
+            $listas = $sociosServicio->obtenerListasReferencia();
+            $profesiones = $listas['profesiones'] ?? [];
+            $instrucciones = $listas['instrucciones'] ?? [];
+            require dirname(__DIR__) . '/views/socios/registro_socio.php';
+            exit;
+        }
+
+        // POST: Procesar registro
+        if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'registro', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                // Datos de persona
+                $datosPersona = [
+                    'ape_pat' => trim((string) ($_POST['ape_pat'] ?? '')),
+                    'ape_mat' => trim((string) ($_POST['ape_mat'] ?? '')),
+                    'nomb_pri' => trim((string) ($_POST['nomb_pri'] ?? '')),
+                    'nomb_seg' => trim((string) ($_POST['nomb_seg'] ?? '')),
+                    'tpo_doc' => !empty($_POST['tpo_doc']) ? (int) $_POST['tpo_doc'] : null,
+                    'num_doc' => trim((string) ($_POST['num_doc'] ?? '')),
+                    'sexo' => !empty($_POST['sexo']) ? (int) $_POST['sexo'] : null,
+                    'fe_nac' => trim((string) ($_POST['fe_nac'] ?? '')) ?: null,
+                    'stdo_civil' => !empty($_POST['stdo_civil']) ? (int) $_POST['stdo_civil'] : null,
+                    'edad' => !empty($_POST['edad']) ? (int) $_POST['edad'] : null,
+                    'cta_correo' => trim((string) ($_POST['cta_correo'] ?? '')),
+                    'id_nacionalidad' => !empty($_POST['id_nacionalidad']) ? (int) $_POST['id_nacionalidad'] : null,
+                    'id_instruccion' => !empty($_POST['id_instruccion']) ? (int) $_POST['id_instruccion'] : null,
+                    'id_profesion' => !empty($_POST['id_profesion']) ? (int) $_POST['id_profesion'] : null,
+                    'dpto_nac' => trim((string) ($_POST['dpto_nac'] ?? '')),
+                    'prov_nac' => trim((string) ($_POST['prov_nac'] ?? '')),
+                    'distri_nac' => trim((string) ($_POST['distri_nac'] ?? '')),
+                    'telf_fijo' => trim((string) ($_POST['telf_fijo'] ?? '')),
+                    'telf_cel' => trim((string) ($_POST['telf_cel'] ?? '')),
+                    'desc_coment' => trim((string) ($_POST['desc_coment'] ?? '')),
+                    'zona' => trim((string) ($_POST['zona'] ?? '')),
+                    'via' => trim((string) ($_POST['via'] ?? '')),
+                    'int' => trim((string) ($_POST['int'] ?? '')),
+                    'ext' => trim((string) ($_POST['ext'] ?? '')),
+                    'piso' => trim((string) ($_POST['piso'] ?? '')),
+                    'departamento' => trim((string) ($_POST['departamento'] ?? '')),
+                    'provincia' => trim((string) ($_POST['provincia'] ?? '')),
+                    'distrito' => trim((string) ($_POST['distrito'] ?? '')),
+                    'observacion' => trim((string) ($_POST['observacion'] ?? '')),
+                    'desc_coment' => trim((string) ($_POST['desc_coment'] ?? '')),
+                    'centro' => !empty($_POST['centro']) ? (int) $_POST['centro'] : null,
+                    'condicion' => trim((string) ($_POST['condicion'] ?? '')),
+                    'cuenta' => trim((string) ($_POST['cuenta'] ?? '')),
+                    'ingreso' => !empty($_POST['ingreso']) ? (float) $_POST['ingreso'] : null,
+                    'aportacion' => !empty($_POST['aportacion']) ? (float) $_POST['aportacion'] : null,
+                    'saldo' => !empty($_POST['saldo']) ? (float) $_POST['saldo'] : null,
+                    'documento' => trim((string) ($_POST['documento'] ?? '')),
+                    'situacion' => trim((string) ($_POST['situacion'] ?? '')),
+                    'fecha_retiro' => trim((string) ($_POST['fecha_retiro'] ?? '')) ?: null,
+                    'fecha_falle' => trim((string) ($_POST['fecha_falle'] ?? '')) ?: null,
+                    'aporta_base' => !empty($_POST['aporta_base']) ? (int) $_POST['aporta_base'] : null,
+                    'aporta_sobre' => !empty($_POST['aporta_sobre']) ? (float) $_POST['aporta_sobre'] : null,
+                    'sobrevi' => trim((string) ($_POST['sobrevi'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'fec_reingreso' => trim((string) ($_POST['fec_reingreso'] ?? '')) ?: null,
+                    'aporte_cope' => !empty($_POST['aporte_cope']) ? (int) $_POST['aporte_cope'] : null,
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'titulo' => trim((string) ($_POST['titulo'] ?? '')),
+                    'firma' => trim((string) ($_POST['firma'] ?? '')),
+                    'carta' => trim((string) ($_POST['carta'] ?? '')),
+                    'id_usua_crea' => $_SESSION['user']['username'] ?? null
+                ];
+
+                // Datos de cliente
+                $datosCliente = [
+                    'stdo' => 1,
+                    'id_usua_crea' => $_SESSION['user']['username'] ?? null,
+                    'clave' => trim((string) ($_POST['clave'] ?? '')) ?: null
+                ];
+
+                $resultado = $sociosServicio->registrarSocio($datosPersona, $datosCliente);
+
+                $query = http_build_query(['module' => 'socios', 'action' => 'registro', 'success' => $resultado['id_cliente']]);
+                header('Location: index.php?' . $query);
+                exit;
+
+            } catch (Exception $e) {
+                $error = 'Error al registrar socio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'registro', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
     }
 
     require dirname(__DIR__) . '/views/dashboard.php';

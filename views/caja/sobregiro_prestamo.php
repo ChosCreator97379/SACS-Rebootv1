@@ -40,7 +40,7 @@ if ($cliente === null) {
 // Obtener préstamos del cliente (estado 4 = VIGENTE)
 $stmt = $database->prepare("
     SELECT f16_codigo AS id, f16_producto AS product, f16_importe AS amount,
-           f16_saldo AS balance, f16_aportacion AS sobregiro, f16_gastosa AS gastos_adm,
+           f16_saldo AS balance, f16_sobre AS sobregiro, f16_gastosa AS gastos_adm,
            f16_gastosm AS mora, f16_otros AS otros1, f16_otros2 AS otros2
     FROM f16_prestamo
     WHERE f16_cliente = :client AND f16_estado = '4'
@@ -188,6 +188,11 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 <div><span class="label">Documento</span><div class="value"><?= $escape($cliente['document'] ?? '-') ?></div></div>
                 <div><span class="label">Condicion</span><div class="value"><?= $escape($cliente['condition'] ?? '-') ?></div></div>
             </section>
+            
+            <!-- Script con datos del cliente para usar en JavaScript -->
+            <script>
+                const clienteCondicion = '<?= $escape($cliente['condition'] ?? '') ?>';
+            </script>
 
             <div class="layout">
                 <section class="panel">
@@ -254,8 +259,49 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 <input type="number" id="sobregiro" name="sobregiro" step="0.01" required placeholder="0.00">
                             </div>
                             <div class="form-group">
+                                <label for="sobregiro_codigo">Código</label>
+                                <input type="text" id="sobregiro_codigo" name="sobregiro_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="sobregiro_tipo">Tipo</label>
+                                <select id="sobregiro_tipo" name="sobregiro_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="descuenta">Amortización Adicional (opcional)</label>
                                 <input type="number" id="descuenta" name="descuenta" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="descuenta_codigo">Código</label>
+                                <input type="text" id="descuenta_codigo" name="descuenta_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="descuenta_tipo">Tipo</label>
+                                <select id="descuenta_tipo" name="descuenta_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
                             </div>
                         </div>
 
@@ -265,8 +311,49 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 <input type="number" id="gastosAdm" name="gastosAdm" step="0.01" placeholder="0.00">
                             </div>
                             <div class="form-group">
+                                <label for="gastosAdm_codigo">Código</label>
+                                <input type="text" id="gastosAdm_codigo" name="gastosAdm_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="gastosAdm_tipo">Tipo</label>
+                                <select id="gastosAdm_tipo" name="gastosAdm_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="gastosMora">Gastos de Mora</label>
                                 <input type="number" id="gastosMora" name="gastosMora" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="gastosMora_codigo">Código</label>
+                                <input type="text" id="gastosMora_codigo" name="gastosMora_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="gastosMora_tipo">Tipo</label>
+                                <select id="gastosMora_tipo" name="gastosMora_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
                             </div>
                         </div>
 
@@ -276,16 +363,79 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 <input type="number" id="otros1" name="otros1" step="0.01" placeholder="0.00">
                             </div>
                             <div class="form-group">
+                                <label for="otros1_codigo">Código</label>
+                                <input type="text" id="otros1_codigo" name="otros1_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="otros1_tipo">Tipo</label>
+                                <select id="otros1_tipo" name="otros1_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
                                 <label for="otros2">Otros 2</label>
                                 <input type="number" id="otros2" name="otros2" step="0.01" placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label for="otros2_codigo">Código</label>
+                                <input type="text" id="otros2_codigo" name="otros2_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="otros2_tipo">Tipo</label>
+                                <select id="otros2_tipo" name="otros2_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="monto">Monto Total</label>
-                                <input type="text" id="monto" name="monto" step="0.01" required placeholder="0.00">
+                                <input type="number" id="monto" name="monto" step="0.01" required placeholder="0.00">
                             </div>
+                            <div class="form-group">
+                                <label for="monto_codigo">Código</label>
+                                <input type="text" id="monto_codigo" name="monto_codigo" list="listaCodigosContables" placeholder="Código">
+                                <datalist id="listaCodigosContables">
+                                    <?php foreach ($codigoContable as $codigo): ?>
+                                        <option value="<?= $escape($codigo['code']) ?>">
+                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </datalist>
+                            </div>
+                            <div class="form-group">
+                                <label for="monto_tipo">Tipo</label>
+                                <select id="monto_tipo" name="monto_tipo">
+                                    <option value="">-</option>
+                                    <option value="debe">Debe</option>
+                                    <option value="haber">Haber</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="formaPago">Forma de Pago</label>
                                 <select id="formaPago" name="formaPago" required>
@@ -297,31 +447,6 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 </select>
                             </div>
                         </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="codigoContable">Código Contable</label>
-                                <input type="text" id="codigoContable" name="codigoContable" list="listaCodigosContables" value="1651" placeholder="Escriba o seleccione código">
-                                <datalist id="listaCodigosContables">
-                                    <?php foreach ($codigoContable as $codigo): ?>
-                                        <option value="<?= $escape($codigo['code']) ?>">
-                                            <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </datalist>
-                            </div>
-                            <div class="form-group">
-                                <label for="tipoAsiento">Tipo de Asiento</label>
-                                <select id="tipoAsiento" name="tipoAsiento">
-                                    <option value="haber">Haber (Ingreso)</option>
-                                    <option value="debe">Debe (Egreso)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="descripcionContable">Descripción Contable</label>
-                            <input type="text" id="descripcionContable" name="descripcionContable" value="PAGO SOBREGIRO PRESTAMO">
                         </div>
 
                         <div class="form-group">
@@ -356,6 +481,9 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 
                 // Calcular monto total
                 calcularMontoTotal();
+                
+                // Cargar códigos contables automáticamente
+                cargarCodigosContables();
             }
         }
 
@@ -371,10 +499,205 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             document.getElementById('monto').value = total.toFixed(2);
         }
 
+        // Función para obtener el nombre completo del código contable del datalist
+        function obtenerNombreCodigoContable(codigoBuscado) {
+            const datalist = document.getElementById('listaCodigosContables');
+            const options = datalist.options;
+            
+            for (let i = 0; i < options.length; i++) {
+                const optionValue = options[i].value;
+                if (optionValue === codigoBuscado || optionValue.startsWith(codigoBuscado + ' - ')) {
+                    return optionValue;
+                }
+            }
+            return codigoBuscado;
+        }
+
+        // Función para obtener el nombre completo del código contable del datalist
+    function obtenerNombreCodigoContable(codigo) {
+        const datalist = document.getElementById('listaCodigosContables');
+        if (!datalist) {
+            console.error('Datalist listaCodigosContables no encontrado');
+            return codigo;
+        }
+        for (const option of datalist.options) {
+            // Buscar si el código está al inicio del valor del datalist
+            if (option.value.startsWith(codigo) || option.value === codigo) {
+                return option.value;
+            }
+        }
+        // Si no se encuentra exactamente, buscar el código base sin el último dígito
+        if (codigo.length > 1) {
+            const codigoBase = codigo.slice(0, -1);
+            for (const option of datalist.options) {
+                if (option.value.startsWith(codigoBase)) {
+                    return option.value; // Retornar el código completo del datalist
+                }
+            }
+        }
+        return codigo; // Si no se encuentra, retorna solo el código
+    }
+
+    // Función para actualizar el código contable con formato completo "código - nombre"
+    function actualizarCodigoCompleto(codigoInputId) {
+        const codigoInput = document.getElementById(codigoInputId);
+        const codigo = codigoInput.value.trim();
+
+        if (!codigo) {
+            return;
+        }
+
+        // Si el código ya está en formato completo, no hacer nada
+        if (codigo.includes(' - ')) {
+            return;
+        }
+
+        // Buscar el nombre en el datalist
+        const datalist = document.getElementById('listaCodigosContables');
+        let nombreEncontrado = '';
+
+        for (const option of datalist.options) {
+            if (option.value === codigo) {
+                nombreEncontrado = option.textContent.split(' - ')[1] || '';
+                break;
+            }
+        }
+
+        // Si se encontró el nombre, actualizar el valor
+        if (nombreEncontrado) {
+            codigoInput.value = codigo + ' - ' + nombreEncontrado;
+        }
+    }
+
+    // Función para obtener el código contable según la condición del cliente
+    function obtenerCodigoSegunCondicion(codigoBase) {
+        // Si la condición es "SOCIO", no agregar el último dígito
+        if (clienteCondicion === 'SOCIO') {
+            return codigoBase.slice(0, -1); // Eliminar el último dígito (ej: 1651 → 165)
+        }
+        // Si la condición es "ACTIVO", mantener el código completo (termina en 1)
+        if (clienteCondicion === 'ACTIVO') {
+            return codigoBase; // Mantener (ej: 1651 → 1651)
+        }
+        // Si la condición es "PENSIONISTA", cambiar último dígito a 2
+        if (clienteCondicion === 'PENSIONISTA') {
+            return codigoBase.slice(0, -1) + '2'; // (ej: 1651 → 1652)
+        }
+        // Si la condición es "FEBAN", cambiar último dígito a 3
+        if (clienteCondicion === 'FEBAN') {
+            return codigoBase.slice(0, -1) + '3'; // (ej: 1651 → 1653)
+        }
+        // Si la condición es "OTROS SOCIOS", cambiar último dígito a 4
+        if (clienteCondicion === 'OTROS SOCIOS') {
+            return codigoBase.slice(0, -1) + '4'; // (ej: 1651 → 1654)
+        }
+        // Por defecto, mantener el código completo
+        return codigoBase;
+    }
+
+        // Función para cargar códigos contables automáticamente
+        function cargarCodigosContables() {
+            const sobregiro = parseFloat(document.getElementById('sobregiro').value) || 0;
+            const descuenta = parseFloat(document.getElementById('descuenta').value) || 0;
+            const gastosAdm = parseFloat(document.getElementById('gastosAdm').value) || 0;
+            const gastosMora = parseFloat(document.getElementById('gastosMora').value) || 0;
+            const otros1 = parseFloat(document.getElementById('otros1').value) || 0;
+            const otros2 = parseFloat(document.getElementById('otros2').value) || 0;
+            const formaPago = document.getElementById('formaPago').value;
+
+            // Sobregiro - Código 1651 si monto > 0
+            if (sobregiro > 0) {
+                const codigoBase = '1651';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('sobregiro_codigo').value = codigoCompleto;
+                document.getElementById('sobregiro_tipo').value = 'haber';
+                actualizarCodigoCompleto('sobregiro_codigo'); // Mostrar nombre completo
+                console.log('Sobregiro código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Amortización/Descuenta - Código 1651 si monto > 0
+            if (descuenta > 0) {
+                const codigoBase = '1651';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('descuenta_codigo').value = codigoCompleto;
+                document.getElementById('descuenta_tipo').value = 'haber';
+                actualizarCodigoCompleto('descuenta_codigo'); // Mostrar nombre completo
+                console.log('Descuenta código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Gastos Administrativos - Código 7021 si monto > 0
+            if (gastosAdm > 0) {
+                const codigoBase = '7021';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('gastosAdm_codigo').value = codigoCompleto;
+                document.getElementById('gastosAdm_tipo').value = 'haber';
+                actualizarCodigoCompleto('gastosAdm_codigo'); // Mostrar nombre completo
+                console.log('Gastos Adm código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Mora - Código 7041 si monto > 0
+            if (gastosMora > 0) {
+                const codigoBase = '7041';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('gastosMora_codigo').value = codigoCompleto;
+                document.getElementById('gastosMora_tipo').value = 'haber';
+                actualizarCodigoCompleto('gastosMora_codigo'); // Mostrar nombre completo
+                console.log('Mora código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Otros 1 - Código 46951 si monto > 0
+            if (otros1 > 0) {
+                const codigoBase = '46951';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('otros1_codigo').value = codigoCompleto;
+                document.getElementById('otros1_tipo').value = 'haber';
+                actualizarCodigoCompleto('otros1_codigo'); // Mostrar nombre completo
+                console.log('Otros1 código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Otros 2 - Código 46951 si monto > 0
+            if (otros2 > 0) {
+                const codigoBase = '46951';
+                const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
+                const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
+                document.getElementById('otros2_codigo').value = codigoCompleto;
+                document.getElementById('otros2_tipo').value = 'haber';
+                actualizarCodigoCompleto('otros2_codigo'); // Mostrar nombre completo
+                console.log('Otros2 código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+            }
+
+            // Total - Según forma de pago
+            const total = parseFloat(document.getElementById('monto').value) || 0;
+            if (total > 0) {
+                let codigoTotal = '';
+                if (formaPago === 'EFECTIVO') {
+                    codigoTotal = '1011';
+                } else if (formaPago === 'DEPOSITO' || formaPago === 'TRANSFERENCIA' || formaPago === 'CHEQUE' || formaPago === 'PLANILLA') {
+                    codigoTotal = '10612';
+                }
+                
+                if (codigoTotal) {
+                    const codigoCompleto = obtenerNombreCodigoContable(codigoTotal);
+                    document.getElementById('monto_codigo').value = codigoCompleto;
+                    document.getElementById('monto_tipo').value = 'debe';
+                    actualizarCodigoCompleto('monto_codigo'); // Mostrar nombre completo
+                    console.log('Total código cargado:', codigoCompleto);
+                }
+            }
+        }
+
         // Agregar event listeners para recalcular monto
         ['sobregiro', 'descuenta', 'gastosAdm', 'gastosMora', 'otros1', 'otros2'].forEach(id => {
             document.getElementById(id).addEventListener('input', calcularMontoTotal);
         });
+
+        // Event listener para recargar códigos contables cuando cambia la forma de pago
+        document.getElementById('formaPago').addEventListener('change', cargarCodigosContables);
     </script>
         </main>
     </div>

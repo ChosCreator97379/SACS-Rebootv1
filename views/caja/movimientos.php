@@ -131,7 +131,8 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                 <label>Desde<input type="date" name="date_from" value="<?= $escape($filters['date_from']) ?>"></label>
                 <label>Hasta<input type="date" name="date_to" value="<?= $escape($filters['date_to']) ?>"></label>
                 <label>Operacion<select name="operation"><option value="">Todas</option><?php foreach ($operations as $operation): ?><option value="<?= $escape($operation['id']) ?>" <?= (string) $filters['operation'] === (string) $operation['id'] ? 'selected' : '' ?>><?= $escape($operation['id'] . ' - ' . $operation['name']) ?></option><?php endforeach; ?></select></label>
-                <label>Cliente<input name="client" inputmode="numeric" maxlength="11" required value="<?= $escape($filters['client']) ?>" placeholder="Codigo de socio"></label>
+                <label>Cliente<input name="client" inputmode="numeric" maxlength="11" value="<?= $escape($filters['client']) ?>" placeholder="Codigo de socio (opcional si busca por código)"></label>
+                <label>Código Movimiento<input name="movement_code" inputmode="numeric" maxlength="11" value="<?= $escape($filters['movement_code'] ?? '') ?>" placeholder="Opcional"></label>
                 <button type="submit">Filtrar</button>
             </form>
 
@@ -143,11 +144,45 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                     <div class="empty">No se encontraron movimientos para el cliente y filtros indicados.</div>
                 <?php else: ?>
                     <table>
-                        <thead><tr><th>Codigo</th><th>Fecha</th><th>Operacion</th><th>Cliente</th><th>Importe principal</th><th>Forma de pago</th><th>Usuario</th><th>Observacion</th></tr></thead>
+                        <thead><tr><th>Codigo</th><th>Fecha</th><th>Operacion</th><th>Cliente</th><th>Amortización</th><th>Gastos Admin</th><th>Gastos Mora</th><th>Otros</th><th>Total</th><th>Forma de pago</th><th>Usuario</th><th>Observacion</th></tr></thead>
                         <tbody><?php foreach ($movements['items'] as $movement): ?>
-                            <?php $principal = $movement['loan_payment_amount'] ?? $movement['contribution_amount'] ?? $movement['disbursement_amount'] ?? $movement['benefit_amount'] ?? $movement['fine_amount'] ?? $movement['raffle_amount'] ?? $movement['refund_amount'] ?? $movement['expense_amount'] ?? $movement['income_amount']; ?>
+                            <?php
+                            // Calcular total sumando todos los componentes
+                            $total = 0;
+                            if (isset($movement['loan_payment_amount'])) $total += (float)$movement['loan_payment_amount'];
+                            if (isset($movement['contribution_amount'])) $total += (float)$movement['contribution_amount'];
+                            if (isset($movement['disbursement_amount'])) $total += (float)$movement['disbursement_amount'];
+                            if (isset($movement['benefit_amount'])) $total += (float)$movement['benefit_amount'];
+                            if (isset($movement['fine_amount'])) $total += (float)$movement['fine_amount'];
+                            if (isset($movement['raffle_amount'])) $total += (float)$movement['raffle_amount'];
+                            if (isset($movement['refund_amount'])) $total += (float)$movement['refund_amount'];
+                            if (isset($movement['expense_amount'])) $total += (float)$movement['expense_amount'];
+                            if (isset($movement['income_amount'])) $total += (float)$movement['income_amount'];
+                            if (isset($movement['admin_expense'])) $total += (float)$movement['admin_expense'];
+                            if (isset($movement['late_fee'])) $total += (float)$movement['late_fee'];
+                            if (isset($movement['other_one'])) $total += (float)$movement['other_one'];
+                            if (isset($movement['other_two'])) $total += (float)$movement['other_two'];
+
+                            // Otros (suma de otros1 y otros2)
+                            $otros = 0;
+                            if (isset($movement['other_one'])) $otros += (float)$movement['other_one'];
+                            if (isset($movement['other_two'])) $otros += (float)$movement['other_two'];
+                            ?>
                             <?php $clientLabel = trim((string) ($movement['client_name'] ?? '')) ?: 'Sin nombre registrado'; ?>
-                            <tr><td class="muted"><a href="?module=caja&amp;movement=<?= $escape($movement['id']) ?>">#<?= $escape($movement['id']) ?></a></td><td class="date"><?= $escape($movement['operation_date']) ?></td><td class="operation"><?= $escape($movement['operation_name']) ?><br><span class="muted">Operacion <?= $escape($movement['operation_id']) ?></span></td><td><a class="client-link" href="?module=caja&amp;profile=client&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td><td class="amount"><?= $money($principal) ?></td><td><?= $escape($movement['payment_method'] ?: '-') ?></td><td><?= $escape($movement['created_by'] ?: '-') ?></td><td class="muted"><?= $escape($movement['observation'] ?: '-') ?></td></tr>
+                            <tr>
+                                <td class="muted"><a href="?module=caja&amp;movement=<?= $escape($movement['id']) ?>">#<?= $escape($movement['id']) ?></a></td>
+                                <td class="date"><?= $escape($movement['operation_date']) ?></td>
+                                <td class="operation"><?= $escape($movement['operation_name']) ?><br><span class="muted">Operacion <?= $escape($movement['operation_id']) ?></span></td>
+                                <td><a class="client-link" href="?module=caja&amp;profile=client&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td>
+                                <td class="amount"><?= $money($movement['loan_payment_amount'] ?? 0) ?></td>
+                                <td class="amount"><?= $money($movement['admin_expense'] ?? 0) ?></td>
+                                <td class="amount"><?= $money($movement['late_fee'] ?? 0) ?></td>
+                                <td class="amount"><?= $money($otros) ?></td>
+                                <td class="amount" style="font-weight: bold;"><?= $money($total) ?></td>
+                                <td><?= $escape($movement['payment_method'] ?: '-') ?></td>
+                                <td><?= $escape($movement['created_by'] ?: '-') ?></td>
+                                <td class="muted"><?= $escape($movement['observation'] ?: '-') ?></td>
+                            </tr>
                         <?php endforeach; ?></tbody>
                     </table>
                 <?php endif; ?>

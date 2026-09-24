@@ -14,7 +14,8 @@ final class CajaRepository
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(100, max(10, (int) ($filters['per_page'] ?? 25)));
 
-        if (trim((string) ($filters['client'] ?? '')) === '') {
+        // Permitir búsqueda si hay código de movimiento o si hay cliente
+        if (trim((string) ($filters['client'] ?? '')) === '' && trim((string) ($filters['movement_code'] ?? '')) === '') {
             return [
                 'items' => [],
                 'page' => $page,
@@ -45,6 +46,10 @@ final class CajaRepository
             $conditions[] = 'm.f15_cliente = :client';
             $parameters['client'] = trim($filters['client']);
         }
+        if (($filters['movement_code'] ?? '') !== '') {
+            $conditions[] = 'm.f15_codigo = :movement_code';
+            $parameters['movement_code'] = trim($filters['movement_code']);
+        }
 
         $where = $conditions === [] ? '' : 'WHERE ' . implode(' AND ', $conditions);
         $database = Database::connection();
@@ -71,6 +76,10 @@ final class CajaRepository
                 m.f15_devolucion AS refund_amount,
                 m.f15_megreso AS expense_amount,
                 m.f15_ingreso AS income_amount,
+                m.f15_gastosa AS admin_expense,
+                m.f15_gastosm AS late_fee,
+                m.f15_gastos1 AS other_one,
+                m.f15_gastos2 AS other_two,
                 m.f15_formaPago AS payment_method,
                 m.f15_usuaCrea AS created_by,
                 m.f15_obs AS observation
@@ -193,7 +202,7 @@ final class CajaRepository
         $query = <<<'SQL'
             SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
                    f16_importe AS amount, f16_saldo AS aporte, f16_saldo AS balance, f16_cuotasPend AS pending_installments,
-                   f16_aportacion AS sobregiro
+                   f16_sobre AS sobregiro
             FROM f16_prestamo
             WHERE f16_cliente = :client
             ORDER BY f16_codigo DESC
@@ -209,10 +218,10 @@ final class CajaRepository
     {
         $query = <<<'SQL'
             SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
-                   f16_importe AS amount, f16_saldo AS balance, f16_aportacion AS sobregiro,
+                   f16_importe AS amount, f16_saldo AS balance, f16_sobre AS sobregiro,
                    f16_gastosa AS gastos_adm, f16_gastosm AS mora
             FROM f16_prestamo
-            WHERE f16_cliente = :client AND f16_estado = '4' AND f16_aportacion > 0
+            WHERE f16_cliente = :client AND f16_estado = '4' AND f16_sobre > 0
             ORDER BY f16_codigo DESC
             LIMIT 20
         SQL;
