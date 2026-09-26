@@ -190,6 +190,86 @@ if ($auth->check()) {
         exit;
     }
 
+    // Procesar POST de aportes combinados FONBES + COOPAM
+    if (($_POST['action'] ?? '') === 'aportes_combinados' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'anio' => trim((string) ($_POST['anio'] ?? '')),
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'montoFonbes' => (float) str_replace(',', '', $_POST['montoFonbes'] ?? '0'),
+                    'montoCoopam' => (float) str_replace(',', '', $_POST['montoCoopam'] ?? '0'),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
+                ];
+
+                // Códigos contables FONBES por componente
+                $codigosContablesFonbes = [
+                    'aporte' => [
+                        'codigo' => trim((string) ($_POST['aporteFonbesCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['aporteFonbesTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['montoFonbes'] ?? '0'),
+                    ],
+                    'total' => [
+                        'codigo' => trim((string) ($_POST['totalFonbesCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['totalFonbesTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['montoFonbes'] ?? '0'),
+                    ],
+                ];
+
+                // Códigos contables COOPAM por componente
+                $codigosContablesCoopam = [
+                    'aporte' => [
+                        'codigo' => trim((string) ($_POST['aporteCoopamCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['aporteCoopamTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['montoCoopam'] ?? '0'),
+                    ],
+                    'total' => [
+                        'codigo' => trim((string) ($_POST['totalCoopamCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['totalCoopamTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['montoCoopam'] ?? '0'),
+                    ],
+                ];
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || $datos['anio'] === '' || $datos['periodo'] === '') {
+                    $error = 'Datos incompletos';
+                } elseif ($datos['montoFonbes'] <= 0 && $datos['montoCoopam'] <= 0) {
+                    $error = 'Debe pagar al menos un aporte (FONBES o COOPAM)';
+                } else {
+                    // Llamar al servicio de aportes combinados
+                    require __DIR__ . '/../src/Services/AportesCombinadosServicio.php';
+                    $servicio = new \Sacs\Services\AportesCombinadosServicio(Database::connection());
+                    $resultado = $servicio->ejecutarPagoCombinado($datos, $codigosContablesFonbes, $codigosContablesCoopam);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al detalle del primer movimiento (FONBES)
+                        header('Location: index.php?module=caja&movement=' . $resultado['codigo_movimiento_fonbes']);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el pago combinado';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $query = http_build_query(['module' => 'caja', 'action' => 'aportes_combinados_form', 'client' => $datos['cliente'], 'error' => $error]);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
     // Procesar POST de sobregiro de préstamo (Operación 10)
     if (($_POST['action'] ?? '') === 'sobregiro_prestamo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = null;
@@ -1174,6 +1254,17 @@ if ($auth->check()) {
             }
             http_response_code(400);
             $error = 'Datos inválidos para el formulario de aportes COOPAM';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'aportes_combinados_form') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/aportes_combinados.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de aportes combinados';
             require dirname(__DIR__) . '/views/home.php';
             exit;
         }

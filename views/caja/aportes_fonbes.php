@@ -167,6 +167,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
                 <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Aportes FONBES</a>
                 <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
+                <a href="index.php?module=caja&action=aportes_combinados_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Pago FONBES + COOPAM</a>
                 <a href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Desembolso Préstamo</a>
                 <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Sobregiro Préstamo</a>
                 <a href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Amortización</a>
@@ -391,20 +392,17 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         const condicionUpper = condicion.toUpperCase().trim();
 
         if (condicionUpper === 'SOCIO') {
-            // Eliminar el último dígito
-            return codigoBase.slice(0, -1);
+            return '46933';
         } else if (condicionUpper === 'ACTIVO') {
-            // Mantener el código completo (termina en 1)
-            return codigoBase;
+            return '469331';
         } else if (condicionUpper === 'PENSIONISTA') {
-            // Cambiar último dígito a 2
-            return codigoBase.slice(0, -1) + '2';
+            return '469332';
         } else if (condicionUpper === 'FEBAN') {
-            // Cambiar último dígito a 3
-            return codigoBase.slice(0, -1) + '3';
+            return '469333';
         } else if (condicionUpper === 'OTROS SOCIOS') {
-            // Cambiar último dígito a 4
-            return codigoBase.slice(0, -1) + '4';
+            return '469334';
+        } else {
+            return '46933'; // Default
         }
 
         return codigoBase;

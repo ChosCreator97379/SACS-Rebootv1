@@ -87,6 +87,7 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                     <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Perfil Cliente</a>
                     <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes FONBES</a>
                     <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes COOPAM</a>
+                    <a href="index.php?module=caja&action=aportes_combinados_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Pago FONBES + COOPAM</a>
                     <a href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Desembolso Préstamo</a>
                     <a href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Sobregiro Préstamo</a>
                     <a href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Amortización</a>
@@ -105,6 +106,7 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                     <span class="nav-link disabled">Perfil Cliente (seleccione cliente)</span>
                     <span class="nav-link disabled">Aportes FONBES (seleccione cliente)</span>
                     <span class="nav-link disabled">Aportes COOPAM (seleccione cliente)</span>
+                    <span class="nav-link disabled">Pago FONBES + COOPAM (seleccione cliente)</span>
                     <span class="nav-link disabled">Desembolso Préstamo (seleccione cliente)</span>
                     <span class="nav-link disabled">Sobregiro Préstamo (seleccione cliente)</span>
                     <span class="nav-link disabled">Amortización (seleccione cliente)</span>

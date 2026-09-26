@@ -209,6 +209,7 @@ $codigoContablePorFormaPago = [
             <a class="nav-link" href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>">Perfil Cliente</a>
             <a class="nav-link" href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes FONBES</a>
             <a class="nav-link" href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes COOPAM</a>
+            <a class="nav-link" href="index.php?module=caja&action=aportes_combinados_form&client=<?= rawurlencode($clienteCodigo) ?>">Pago FONBES + COOPAM</a>
             <a class="nav-link" href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Desembolso Préstamo</a>
             <a class="nav-link" href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>">Sobregiro Préstamo</a>
             <a class="nav-link active" href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Amortización</a>

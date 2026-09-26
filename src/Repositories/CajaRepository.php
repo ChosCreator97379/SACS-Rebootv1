@@ -388,6 +388,36 @@ final class CajaRepository
         return $statement->fetchAll();
     }
 
+    /**
+     * Obtiene aportes combinados de FONBES y COOPAM para un cliente
+     */
+    public function clientCombinedContributions(string $clientId, string $filter = 'todos'): array
+    {
+        // No aplicamos filtro SQL, filtramos en PHP después de obtener los datos
+        $query = "SELECT 'FONBES' as tipo, f22_periodo as period, f22_aportacionP as planned, f22_aportacionD as paid, f22_fechaPago as paid_date
+                  FROM f22_aportes
+                  WHERE f22_socio = CAST(:client_fonbes AS UNSIGNED)
+                  UNION ALL
+                  SELECT 'COOPAM' as tipo, f27_periodo as period, f27_aportacionP as planned, f27_aportacionD as paid, f27_fechaPago as paid_date
+                  FROM f27_aportes_cope
+                  WHERE f27_socio = CAST(:client_coopam AS UNSIGNED)
+                  ORDER BY period DESC
+                  LIMIT 24";
+        $statement = Database::connection()->prepare($query);
+        $statement->execute(['client_fonbes' => trim($clientId), 'client_coopam' => trim($clientId)]);
+
+        $aportes = $statement->fetchAll();
+
+        // Filtrar en PHP según el filtro solicitado
+        if ($filter === 'pagados') {
+            return array_filter($aportes, fn($aporte) => (float) $aporte['paid'] > 0 && (float) $aporte['paid'] >= (float) $aporte['planned']);
+        } elseif ($filter === 'pendientes') {
+            return array_filter($aportes, fn($aporte) => (float) $aporte['paid'] === 0 || (float) $aporte['paid'] < (float) $aporte['planned']);
+        }
+
+        return $aportes;
+    }
+
     public function clientFines(string $clientId): array
     {
         $query = <<<'SQL'

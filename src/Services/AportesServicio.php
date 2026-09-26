@@ -245,6 +245,18 @@ final class AportesServicio
     }
 
     /**
+     * Obtiene el monto de aporte FONBES del socio (método público para uso en vistas)
+     */
+    public function obtenerMontoAporteFonbes(string $clienteCodigo): ?float
+    {
+        $socio = $this->obtenerSocio($this->pdo, $clienteCodigo);
+        if ($socio === null) {
+            return null;
+        }
+        return (float) ($socio['F01_APORTACION'] ?? 0);
+    }
+
+    /**
      * Verifica si ya existe un aporte para un socio y periodo específico
      * No verifica si está completamente pagado, solo si existe el registro
      */
