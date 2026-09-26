@@ -20,6 +20,7 @@ $database = Database::connection();
 $codigoContable = $repository->accountingCodes();
 
 $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+$filtroAportes = trim((string) ($_GET['filtro'] ?? 'todos')); // todos, pagados, pendientes
 
 if ($clienteCodigo === '') {
     http_response_code(400);
@@ -34,7 +35,8 @@ $stmt = $database->prepare("
         CAST(c.F02_ID_CLIENTE AS UNSIGNED) AS client_id,
         TRIM(CONCAT_WS(' ', p.F01_APE_PAT, p.F01_APE_MAT, p.F01_NOMB_PRI, p.F01_NOMB_SEG)) AS full_name,
         p.F01_NUM_DOC AS document,
-        p.F01_APORTACION AS aporte_fonbes
+        p.F01_APORTACION AS aporte_fonbes,
+        p.F01_CONDICION AS condicion
     FROM f02_cliente c
     INNER JOIN f01_persona p ON p.F01_ID_PERSONA = c.F02_ID_PERSONA
     WHERE CAST(c.F02_ID_CLIENTE AS UNSIGNED) = CAST(:client AS UNSIGNED)
@@ -50,15 +52,24 @@ if ($cliente === false) {
     exit;
 }
 
-// Obtener aportes pendientes
+// Obtener aportes según filtro
+$whereClause = "WHERE f22_socio = :client";
+$params = ['client' => $clienteCodigo];
+
+if ($filtroAportes === 'pagados') {
+    $whereClause .= " AND f22_aportacionD > 0 AND f22_aportacionD >= f22_aportacionP";
+} elseif ($filtroAportes === 'pendientes') {
+    $whereClause .= " AND (f22_aportacionD = 0 OR f22_aportacionD < f22_aportacionP)";
+}
+
 $stmt = $database->prepare("
     SELECT f22_periodo AS period, f22_aportacionP AS planned, f22_aportacionD AS paid, f22_fechaPago AS paid_date
     FROM f22_aportes
-    WHERE f22_socio = :client
+    $whereClause
     ORDER BY f22_periodo DESC
     LIMIT 12
 ");
-$stmt->execute(['client' => $clienteCodigo]);
+$stmt->execute($params);
 $aportes = $stmt->fetchAll();
 
 $displayName = htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8');
@@ -199,9 +210,19 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </section>
 
     <section class="panel">
-        <h2>Aportes Pendientes</h2>
+        <h2>Aportes</h2>
+        <div class="form-row" style="margin-bottom: 16px;">
+            <div class="form-group">
+                <label for="filtro">Filtrar por:</label>
+                <select id="filtro" name="filtro" onchange="aplicarFiltro()">
+                    <option value="todos" <?= $filtroAportes === 'todos' ? 'selected' : '' ?>>Todos</option>
+                    <option value="pagados" <?= $filtroAportes === 'pagados' ? 'selected' : '' ?>>Pagados (completos)</option>
+                    <option value="pendientes" <?= $filtroAportes === 'pendientes' ? 'selected' : '' ?>>Pendientes (incompletos)</option>
+                </select>
+            </div>
+        </div>
         <?php if (empty($aportes)): ?>
-            <p class="empty">No hay aportes registrados</p>
+            <p class="empty">No hay aportes registrados con este filtro</p>
         <?php else: ?>
             <table>
                 <thead>
@@ -282,11 +303,13 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </div>
 
             <input type="hidden" id="montoAporteFonbes" value="<?= $money($cliente['aporte_fonbes']) ?>">
+            <input type="hidden" id="clienteCondicion" value="<?= $escape($cliente['condicion'] ?? '') ?>">
 
+            <h3>Códigos Contables</h3>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="codigoContable">Código Contable</label>
-                    <input type="text" id="codigoContable" name="codigoContable" list="listaCodigosContables" value="1651" placeholder="Escriba o seleccione código">
+                    <label for="aporte_codigo">Aporte FONBES - Código</label>
+                    <input type="text" id="aporte_codigo" name="aporte_codigo" list="listaCodigosContables" placeholder="Código automático">
                     <datalist id="listaCodigosContables">
                         <?php foreach ($codigoContable as $codigo): ?>
                             <option value="<?= $escape($codigo['code']) ?>">
@@ -296,17 +319,26 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     </datalist>
                 </div>
                 <div class="form-group">
-                    <label for="tipoAsiento">Tipo de Asiento</label>
-                    <select id="tipoAsiento" name="tipoAsiento">
-                        <option value="haber">Haber (Ingreso)</option>
-                        <option value="debe">Debe (Egreso)</option>
+                    <label for="aporte_tipo">Aporte FONBES - Tipo</label>
+                    <select id="aporte_tipo" name="aporte_tipo">
+                        <option value="haber">Haber</option>
+                        <option value="debe">Debe</option>
                     </select>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label for="descripcionContable">Descripción Contable</label>
-                <input type="text" id="descripcionContable" name="descripcionContable" value="PAGO APORTES FONBES">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="total_codigo">Total - Código</label>
+                    <input type="text" id="total_codigo" name="total_codigo" list="listaCodigosContables" placeholder="Código automático">
+                </div>
+                <div class="form-group">
+                    <label for="total_tipo">Total - Tipo</label>
+                    <select id="total_tipo" name="total_tipo">
+                        <option value="debe">Debe</option>
+                        <option value="haber">Haber</option>
+                    </select>
+                </div>
             </div>
 
             <div class="form-group">
@@ -328,6 +360,13 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 </main>
 
 <script>
+    function aplicarFiltro() {
+        const filtro = document.getElementById('filtro').value;
+        const url = new URL(window.location.href);
+        url.searchParams.set('filtro', filtro);
+        window.location.href = url.toString();
+    }
+
     function calcularTotalAportes() {
         const mesInicio = parseInt(document.getElementById('periodo').value) || 0;
         const mesFin = parseInt(document.getElementById('periodo2').value) || 0;
@@ -346,12 +385,110 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         }
     }
 
+    function obtenerCodigoSegunCondicion(codigoBase, condicion) {
+        if (!condicion) return codigoBase;
+
+        const condicionUpper = condicion.toUpperCase().trim();
+
+        if (condicionUpper === 'SOCIO') {
+            // Eliminar el último dígito
+            return codigoBase.slice(0, -1);
+        } else if (condicionUpper === 'ACTIVO') {
+            // Mantener el código completo (termina en 1)
+            return codigoBase;
+        } else if (condicionUpper === 'PENSIONISTA') {
+            // Cambiar último dígito a 2
+            return codigoBase.slice(0, -1) + '2';
+        } else if (condicionUpper === 'FEBAN') {
+            // Cambiar último dígito a 3
+            return codigoBase.slice(0, -1) + '3';
+        } else if (condicionUpper === 'OTROS SOCIOS') {
+            // Cambiar último dígito a 4
+            return codigoBase.slice(0, -1) + '4';
+        }
+
+        return codigoBase;
+    }
+
+    function obtenerNombreCodigoContable(codigo) {
+        const datalist = document.getElementById('listaCodigosContables');
+        if (!datalist) return '';
+
+        for (const option of datalist.options) {
+            const optionValue = option.value.trim();
+            if (optionValue.startsWith(codigo) || optionValue.startsWith(codigo + ' ')) {
+                return optionValue;
+            }
+        }
+
+        // Si no encuentra exactamente, buscar el código base sin el último dígito
+        if (codigo.length > 1) {
+            const codigoBase = codigo.slice(0, -1);
+            for (const option of datalist.options) {
+                const optionValue = option.value.trim();
+                if (optionValue.startsWith(codigoBase) || optionValue.startsWith(codigoBase + ' ')) {
+                    return optionValue;
+                }
+            }
+        }
+
+        return codigo;
+    }
+
+    function actualizarCodigoCompleto(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+
+        const codigo = input.value.trim();
+        if (codigo) {
+            const nombreCompleto = obtenerNombreCodigoContable(codigo);
+            if (nombreCompleto !== codigo) {
+                input.value = nombreCompleto;
+            }
+        }
+    }
+
+    function cargarCodigosContablesAutomaticos() {
+        const clienteCondicion = document.getElementById('clienteCondicion').value;
+        const formaPago = document.getElementById('formaPago').value;
+        const monto = parseFloat(document.getElementById('monto').value.replace(/,/g, '')) || 0;
+
+        console.log('Cargando códigos contables. Forma de pago:', formaPago, 'Condición:', clienteCondicion);
+
+        // Aporte FONBES - Código 46933 según condición
+        const codigoAporte = obtenerCodigoSegunCondicion('46933', clienteCondicion);
+        document.getElementById('aporte_codigo').value = codigoAporte;
+        document.getElementById('aporte_tipo').value = 'haber';
+        actualizarCodigoCompleto('aporte_codigo');
+
+        // Total - Según forma de pago
+        let codigoTotal;
+        if (formaPago === 'EFECTIVO') {
+            codigoTotal = '1011';
+        } else {
+            codigoTotal = '10612';
+        }
+
+        document.getElementById('total_codigo').value = codigoTotal;
+        document.getElementById('total_tipo').value = 'debe';
+        actualizarCodigoCompleto('total_codigo');
+
+        console.log('Código aporte determinado:', codigoAporte);
+        console.log('Código total determinado:', codigoTotal);
+    }
+
     // Event listeners para recalcular total cuando cambian los meses
     document.getElementById('periodo').addEventListener('change', calcularTotalAportes);
     document.getElementById('periodo2').addEventListener('change', calcularTotalAportes);
 
-    // Calcular total al cargar la página
-    document.addEventListener('DOMContentLoaded', calcularTotalAportes);
+    // Event listener para cargar códigos contables cuando cambia la forma de pago
+    document.getElementById('formaPago').addEventListener('change', cargarCodigosContablesAutomaticos);
+
+    // Calcular total y cargar códigos contables al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+        calcularTotalAportes();
+        cargarCodigosContablesAutomaticos();
+    });
 </script>
 </body>
 </html>

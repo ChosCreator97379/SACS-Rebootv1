@@ -73,9 +73,37 @@ final class AportesCoopamServicio
             $numMeses = $periodoFin - $periodoInicio;
             $montoPorMes = $numMeses > 0 ? $montoTotal / ($numMeses + 1) : $montoTotal;
 
+            $periodosNuevos = [];
+            $periodosYaPagados = [];
+            $montoTotalNuevo = 0;
+
             for ($mes = $periodoInicio; $mes <= $periodoFin; $mes++) {
                 $mesStr = str_pad((string) $mes, 2, '0', STR_PAD_LEFT);
                 $periodo = "{$anio}-{$mesStr}-01";
+
+                // Validar si el periodo ya existe
+                $yaExiste = $this->validarAporteExistente($this->pdo, trim($datos['cliente']), $periodo);
+
+                if ($yaExiste) {
+                    // Verificar si está completamente pagado
+                    if ($this->validarAporteCompletamentePagado($this->pdo, trim($datos['cliente']), $periodo)) {
+                        $periodosYaPagados[] = $periodo;
+                        continue; // Saltar este periodo
+                    } else {
+                        // Existe pero no está completamente pagado, actualizar el existente
+                        $montoPagado = $numMeses > 0 ? $montoPorMes : $montoTotal;
+                        $this->actualizarAporteCoopam(
+                            $this->pdo,
+                            trim($datos['cliente']),
+                            $periodo,
+                            $montoPagado
+                        );
+                        // Agregar a periodos procesados y al monto total
+                        $periodosNuevos[] = $periodo;
+                        $montoTotalNuevo += $montoPagado;
+                        continue;
+                    }
+                }
 
                 $montoPagado = $numMeses > 0 ? $montoPorMes : $montoTotal;
                 $diferencia = $montoAporteCope - $montoPagado;
@@ -89,19 +117,29 @@ final class AportesCoopamServicio
                     $montoPagado,
                     $diferencia
                 );
+
+                $periodosNuevos[] = $periodo;
+                $montoTotalNuevo += $montoPagado;
             }
 
-            // 5. Insertar movimiento
+            // Si no se procesó ningún periodo nuevo, retornar error
+            if (empty($periodosNuevos)) {
+                throw new RuntimeException('Todos los periodos seleccionados ya están pagados. Periodos: ' . implode(', ', $periodosYaPagados));
+            }
+
+            // 5. Insertar movimiento (con monto de periodos nuevos)
             $this->insertarMovimientoAporteCoopam(
                 $this->pdo,
                 $codigoMovimiento,
                 $datos,
-                $montoTotal
+                $montoTotalNuevo
             );
 
-            // 6. Insertar en diario contable si se proporcionaron datos
+            // 6. Insertar en diario contable (múltiples filas por componente)
             if (!empty($datosContables)) {
-                $this->insertarDiarioContable($this->pdo, $codigoMovimiento, $datos, $datosContables);
+                $numPeriodosNuevos = count($periodosNuevos);
+                $montoPorMesNuevo = $numPeriodosNuevos > 0 ? $montoTotalNuevo / $numPeriodosNuevos : $montoTotalNuevo;
+                $this->insertarDiarioContableMultiple($this->pdo, $codigoMovimiento, $datos, $datosContables, $montoPorMesNuevo, $numPeriodosNuevos - 1);
             }
 
             $this->pdo->commit();
@@ -197,6 +235,84 @@ final class AportesCoopamServicio
     }
 
     /**
+     * Valida si existe un aporte para un socio y periodo específico
+     */
+    private function validarAporteExistente(PDO $pdo, string $clienteCodigo, string $periodo): bool
+    {
+        $sql = "SELECT COUNT(*) as total FROM f27_aportes_cope
+                WHERE f27_socio = CAST(:cliente AS UNSIGNED)
+                  AND f27_periodo = :periodo";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'cliente' => trim($clienteCodigo),
+            'periodo' => $periodo
+        ]);
+        $result = $stmt->fetch();
+
+        return (int) ($result['total'] ?? 0) > 0;
+    }
+
+    /**
+     * Valida si un aporte está completamente pagado
+     */
+    private function validarAporteCompletamentePagado(PDO $pdo, string $clienteCodigo, string $periodo): bool
+    {
+        $sql = "SELECT COUNT(*) as total FROM f27_aportes_cope
+                WHERE f27_socio = CAST(:cliente AS UNSIGNED)
+                  AND f27_periodo = :periodo
+                  AND f27_aportacionD >= f27_aportacionP";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'cliente' => trim($clienteCodigo),
+            'periodo' => $periodo
+        ]);
+        $result = $stmt->fetch();
+
+        return (int) ($result['total'] ?? 0) > 0;
+    }
+
+    /**
+     * Actualiza un aporte existente reemplazando el valor del pago (según legacy)
+     */
+    private function actualizarAporteCoopam(PDO $pdo, string $clienteCodigo, string $periodo, float $nuevoPago): void
+    {
+        // Primero obtener el monto planificado para calcular la diferencia
+        $sql = "SELECT f27_aportacionP FROM f27_aportes_cope
+                WHERE f27_socio = CAST(:cliente AS UNSIGNED)
+                  AND f27_periodo = :periodo
+                LIMIT 1";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'cliente' => trim($clienteCodigo),
+            'periodo' => $periodo
+        ]);
+        $result = $stmt->fetch();
+
+        if (!$result) {
+            throw new RuntimeException('No se encontró el aporte para actualizar');
+        }
+
+        $aporteP = (float) $result['f27_aportacionP'];
+        $diferencia = $aporteP - $nuevoPago;
+
+        // Actualizar el registro
+        $sql = "UPDATE f27_aportes_cope
+                SET f27_aportacionD = :aportacionD,
+                    f27_diferencia = :diferencia,
+                    f27_fechaPago = :fechaPago
+                WHERE f27_socio = CAST(:cliente AS UNSIGNED)
+                  AND f27_periodo = :periodo";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            'cliente' => trim($clienteCodigo),
+            'periodo' => $periodo,
+            'aportacionD' => $nuevoPago,
+            'diferencia' => $diferencia,
+            'fechaPago' => date('Y-m-d')
+        ]);
+    }
+
+    /**
      * Inserta aporte en f27_aportes_cope
      */
     private function insertarAporteCoopam(
@@ -208,8 +324,8 @@ final class AportesCoopamServicio
         float $diferencia
     ): void {
         $sql = "INSERT INTO f27_aportes_cope
-                (f27_socio, f27_periodo, f27_aportacionP, f27_aportacionD, f27_diferencia, f27_aportacion)
-                VALUES (:socio, :periodo, :aportacionP, :aportacionD, :diferencia, :aportacion)";
+                (f27_socio, f27_periodo, f27_aportacionP, f27_aportacionD, f27_diferencia, f27_aportacion, f27_fechaPago)
+                VALUES (:socio, :periodo, :aportacionP, :aportacionD, :diferencia, :aportacion, :fechaPago)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             'socio' => trim($clienteCodigo),
@@ -218,6 +334,7 @@ final class AportesCoopamServicio
             'aportacionD' => $aporteD,
             'diferencia' => $diferencia,
             'aportacion' => $aporteP,
+            'fechaPago' => date('Y-m-d')
         ]);
     }
 
@@ -247,7 +364,70 @@ final class AportesCoopamServicio
     }
 
     /**
-     * Inserta registro en diario contable
+     * Inserta múltiples registros en diario contable (por componente y por mes)
+     */
+    private function insertarDiarioContableMultiple(PDO $pdo, int $codigoMovimiento, array $datos, array $datosContables, float $montoPorMes, int $numMeses): void
+    {
+        $sql = "INSERT INTO f37_diario_contable
+                (f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion,
+                 f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+                VALUES (:movimiento, :fecha, :codigoContable, :operacion, :descripcion,
+                        :debe, :haber, :usuario, NOW(), 'ACTIVO')";
+
+        $stmt = $pdo->prepare($sql);
+
+        // Asumimos que datosContables tiene la estructura:
+        // ['aporte' => ['codigo' => '...', 'tipo' => '...', 'monto' => ...],
+        //  'total' => ['codigo' => '...', 'tipo' => '...', 'monto' => ...]]
+        foreach ($datosContables as $componente => $config) {
+            // Solo insertar si hay monto mayor a 0 y tiene código contable
+            if ($config['monto'] > 0 && !empty($config['codigo']) && !empty($config['tipo'])) {
+                $tipo = $config['tipo'];
+                $monto = $config['monto'];
+
+                if ($componente === 'aporte' && $numMeses > 0) {
+                    // Insertar una fila por cada mes para el componente aporte
+                    for ($i = 0; $i <= $numMeses; $i++) {
+                        $debe = $tipo === 'debe' ? $montoPorMes : 0.00;
+                        $haber = $tipo === 'haber' ? $montoPorMes : 0.00;
+
+                        $descripcion = 'PAGO APORTES COOPAM - MES ' . ($i + 1);
+
+                        $stmt->execute([
+                            'movimiento' => $codigoMovimiento,
+                            'fecha' => date('Y-m-d'),
+                            'codigoContable' => trim($config['codigo']),
+                            'operacion' => 9,
+                            'descripcion' => $descripcion,
+                            'debe' => $debe,
+                            'haber' => $haber,
+                            'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
+                        ]);
+                    }
+                } else {
+                    // Para el total u otros componentes, insertar una sola fila
+                    $debe = $tipo === 'debe' ? $monto : 0.00;
+                    $haber = $tipo === 'haber' ? $monto : 0.00;
+
+                    $descripcion = $componente === 'total' ? 'PAGO APORTES COOPAM - TOTAL' : 'PAGO APORTES COOPAM';
+
+                    $stmt->execute([
+                        'movimiento' => $codigoMovimiento,
+                        'fecha' => date('Y-m-d'),
+                        'codigoContable' => trim($config['codigo']),
+                        'operacion' => 9,
+                        'descripcion' => $descripcion,
+                        'debe' => $debe,
+                        'haber' => $haber,
+                        'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Inserta registro en diario contable (método antiguo, por compatibilidad)
      */
     private function insertarDiarioContable(PDO $pdo, int $codigoMovimiento, array $datos, array $datosContables): void
     {

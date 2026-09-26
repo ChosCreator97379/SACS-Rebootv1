@@ -20,6 +20,7 @@ $database = Database::connection();
 $codigoContable = $repository->accountingCodes();
 
 $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+$filtroAportes = trim((string) ($_GET['filtro'] ?? 'todos'));
 
 if ($clienteCodigo === '') {
     http_response_code(400);
@@ -37,13 +38,29 @@ if ($cliente === null) {
     exit;
 }
 
-// Obtener aportes COPE pendientes
-$aportesCope = $repository->clientContributions($clienteCodigo, 'f27_aportes_cope');
+// Obtener aportes COPE pendientes con filtro
+$filtroSql = match($filtroAportes) {
+    'pagados' => 'AND f27_aportacionD > 0 AND f27_aportacionD >= f27_aportacionP',
+    'pendientes' => 'AND (f27_aportacionD = 0 OR f27_aportacionD < f27_aportacionP)',
+    default => '' // 'todos'
+};
+$aportesCope = $repository->clientContributions($clienteCodigo, 'f27_aportes_cope', $filtroSql);
 
 // Obtener monto de aporte COPE del socio
 require_once dirname(__DIR__) . '/../src/Services/AportesCoopamServicio.php';
 $aportesCoopamServicio = new \Sacs\Services\AportesCoopamServicio($database);
 $montoAporteCope = $aportesCoopamServicio->obtenerMontoAporteCope($clienteCodigo);
+
+// Datos del socio para códigos contables automáticos
+$condicion = strtoupper(trim($cliente['condition'] ?? ''));
+$aporteCoopamCodigo = match($condicion) {
+    'SOCIO' => '46932',
+    'ACTIVO' => '469321',
+    'PENSIONISTA' => '469322',
+    'FEBAN' => '469323',
+    'OTROS SOCIOS' => '469324',
+    default => '469321'
+};
 
 $displayName = htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8');
 $profile = htmlspecialchars((string) $user['profile'], ENT_QUOTES, 'UTF-8');
@@ -183,7 +200,13 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </section>
 
     <section class="panel">
-        <h2>Aportes Pendientes</h2>
+        <h2>Aportes
+            <select onchange="aplicarFiltro()" style="margin-left: 10px; padding: 5px; border-radius: 4px; border: 1px solid var(--line);">
+                <option value="todos" <?= $filtroAportes === 'todos' ? 'selected' : '' ?>>Todos</option>
+                <option value="pagados" <?= $filtroAportes === 'pagados' ? 'selected' : '' ?>>Pagados (completos)</option>
+                <option value="pendientes" <?= $filtroAportes === 'pendientes' ? 'selected' : '' ?>>Pendientes (incompletos)</option>
+            </select>
+        </h2>
         <?php if (empty($aportesCope)): ?>
             <p class="empty">No hay aportes COOPAM registrados para este cliente.</p>
         <?php else: ?>
@@ -266,31 +289,34 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </div>
 
             <input type="hidden" id="montoAporteCope" value="<?= $money($montoAporteCope) ?>">
+            <input type="hidden" id="condicionSocio" value="<?= $escape($condicion) ?>">
 
+            <h3>Códigos Contables</h3>
             <div class="form-row">
                 <div class="form-group">
-                    <label for="codigoContable">Código Contable</label>
-                    <input type="text" id="codigoContable" name="codigoContable" list="listaCodigosContables" value="1651" placeholder="Escriba o seleccione código">
-                    <datalist id="listaCodigosContables">
-                        <?php foreach ($codigoContable as $codigo): ?>
-                            <option value="<?= $escape($codigo['code']) ?>">
-                                <?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </datalist>
+                    <label for="aporteCoopamCodigo">Aporte COOPAM - Código</label>
+                    <input type="text" id="aporteCoopamCodigo" name="aporteCoopamCodigo" value="<?= $escape($aporteCoopamCodigo) ?>" readonly>
                 </div>
                 <div class="form-group">
-                    <label for="tipoAsiento">Tipo de Asiento</label>
-                    <select id="tipoAsiento" name="tipoAsiento">
-                        <option value="haber">Haber (Ingreso)</option>
+                    <label for="aporteCoopamTipo">Aporte COOPAM - Tipo</label>
+                    <select id="aporteCoopamTipo" name="aporteCoopamTipo">
+                        <option value="haber" selected>Haber (Ingreso)</option>
                         <option value="debe">Debe (Egreso)</option>
                     </select>
                 </div>
             </div>
-
-            <div class="form-group">
-                <label for="descripcionContable">Descripción Contable</label>
-                <input type="text" id="descripcionContable" name="descripcionContable" value="PAGO APORTES COOPAM">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="totalCodigo">Total - Código</label>
+                    <input type="text" id="totalCodigo" name="totalCodigo" value="1011" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="totalTipo">Total - Tipo</label>
+                    <select id="totalTipo" name="totalTipo">
+                        <option value="debe" selected>Debe (Egreso)</option>
+                        <option value="haber">Haber (Ingreso)</option>
+                    </select>
+                </div>
             </div>
 
             <div class="form-group">
@@ -312,6 +338,20 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 </main>
 
 <script>
+    function aplicarFiltro() {
+        const filtro = document.querySelector('select[onchange="aplicarFiltro()"]').value;
+        const url = new URL(window.location.href);
+        url.searchParams.set('filtro', filtro);
+        window.location.href = url.toString();
+    }
+
+    function actualizarCodigoTotal() {
+        const formaPago = document.getElementById('formaPago').value;
+        const totalCodigo = document.getElementById('totalCodigo');
+        // 1011 para EFECTIVO, 10612 para otros métodos
+        totalCodigo.value = formaPago === 'EFECTIVO' ? '1011' : '10612';
+    }
+
     function calcularTotalAportes() {
         const mesInicio = parseInt(document.getElementById('periodo').value) || 0;
         const mesFin = parseInt(document.getElementById('periodo2').value) || 0;
@@ -333,6 +373,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
     // Event listeners para recalcular total cuando cambian los meses
     document.getElementById('periodo').addEventListener('change', calcularTotalAportes);
     document.getElementById('periodo2').addEventListener('change', calcularTotalAportes);
+    document.getElementById('formaPago').addEventListener('change', actualizarCodigoTotal);
 
     // Calcular total al cargar la página
     document.addEventListener('DOMContentLoaded', calcularTotalAportes);

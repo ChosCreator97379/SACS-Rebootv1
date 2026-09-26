@@ -275,7 +275,7 @@ $codigoContablePorFormaPago = [
             <p><strong>Sobregiro:</strong> <?= $money($prestamo['f16_sobre'] ?? 0) ?></p>
         </div>
 
-        <?php if (($prestamo['f16_sobre'] ?? 0) > 0): ?>
+        <?php if (round($prestamo['f16_sobre'] ?? 0, 2) > 0): ?>
         <div class="alert-box" style="background: #fff3cd; border: 2px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
             <h3 style="color: #856404; margin: 0 0 10px 0;">⚠️ ALERTA: Socio con Sobregiro</h3>
             <p style="color: #856404; margin: 0;">El socio tiene un sobregiro pendiente de pago de <?= $money($prestamo['f16_sobre']) ?>. Debe pagar el sobregiro antes de continuar con la amortización.</p>

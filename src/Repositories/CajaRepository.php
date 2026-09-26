@@ -364,7 +364,7 @@ final class CajaRepository
         return $statement->fetchAll();
     }
 
-    public function clientContributions(string $clientId, string $table): array
+    public function clientContributions(string $clientId, string $table, string $additionalFilter = ''): array
     {
         $allowedTables = ['f22_aportes', 'f27_aportes_cope'];
         if (!in_array($table, $allowedTables, true)) {
@@ -379,6 +379,7 @@ final class CajaRepository
         $query = "SELECT {$period} AS period, {$planned} AS planned, {$paid} AS paid, {$paidDate} AS paid_date
                   FROM {$table}
                   WHERE " . ($isCope ? 'f27_socio' : 'f22_socio') . " = :client
+                  {$additionalFilter}
                   ORDER BY {$period} DESC
                   LIMIT 12";
         $statement = Database::connection()->prepare($query);

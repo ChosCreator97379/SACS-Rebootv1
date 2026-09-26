@@ -79,10 +79,18 @@ if ($auth->check()) {
                     'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
-                $datosContables = [
-                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
-                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
-                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                // Códigos contables por componente
+                $codigosContables = [
+                    'aporte' => [
+                        'codigo' => trim((string) ($_POST['aporte_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['aporte_tipo'] ?? '')),
+                        'monto' => $datos['monto']
+                    ],
+                    'total' => [
+                        'codigo' => trim((string) ($_POST['total_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['total_tipo'] ?? '')),
+                        'monto' => $datos['monto']
+                    ],
                 ];
 
                 // Validaciones básicas
@@ -94,7 +102,7 @@ if ($auth->check()) {
                     // Llamar al servicio de aportes
                     require __DIR__ . '/../src/Services/AportesServicio.php';
                     $servicio = new \Sacs\Services\AportesServicio(Database::connection());
-                    $resultado = $servicio->ejecutarPagoAportesFonbes($datos, $datosContables);
+                    $resultado = $servicio->ejecutarPagoAportesFonbes($datos, $codigosContables);
 
                     if ($resultado['exito']) {
                         // Redirigir al detalle del movimiento creado
@@ -138,10 +146,18 @@ if ($auth->check()) {
                     'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
-                $datosContables = [
-                    'codigoContable' => trim((string) ($_POST['codigoContable'] ?? '')),
-                    'tipoAsiento' => trim((string) ($_POST['tipoAsiento'] ?? '')),
-                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                // Códigos contables por componente
+                $codigosContables = [
+                    'aporte' => [
+                        'codigo' => trim((string) ($_POST['aporteCoopamCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['aporteCoopamTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['monto'] ?? '0'),
+                    ],
+                    'total' => [
+                        'codigo' => trim((string) ($_POST['totalCodigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['totalTipo'] ?? '')),
+                        'monto' => (float) str_replace(',', '', $_POST['monto'] ?? '0'),
+                    ],
                 ];
 
                 // Validaciones básicas
@@ -153,7 +169,7 @@ if ($auth->check()) {
                     // Llamar al servicio de aportes COOPAM
                     require __DIR__ . '/../src/Services/AportesCoopamServicio.php';
                     $servicio = new \Sacs\Services\AportesCoopamServicio(Database::connection());
-                    $resultado = $servicio->ejecutarPagoAportesCoopam($datos, $datosContables);
+                    $resultado = $servicio->ejecutarPagoAportesCoopam($datos, $codigosContables);
 
                     if ($resultado['exito']) {
                         // Redirigir al detalle del movimiento creado
@@ -905,7 +921,7 @@ if ($auth->check()) {
                 $stmt = Database::connection()->prepare('SELECT f16_sobre FROM f16_prestamo WHERE f16_codigo = ?');
                 $stmt->execute([$datos['prestamo']]);
                 $prestamoData = $stmt->fetch();
-                if ($prestamoData && ($prestamoData['f16_sobre'] ?? 0) > 0) {
+                if ($prestamoData && round($prestamoData['f16_sobre'] ?? 0, 2) > 0) {
                     $error = 'El socio tiene sobregiro pendiente de pago. Debe pagar el sobregiro antes de continuar con la amortización.';
                 }
 
