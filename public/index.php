@@ -1526,10 +1526,235 @@ if ($auth->check()) {
         // GET: Listado de socios
         if ($action === 'listado') {
             $filtros = [
-                'criterio' => trim((string) ($_GET['criterio'] ?? ''))
+                'criterio' => trim((string) ($_GET['criterio'] ?? '')),
+                'departamento' => trim((string) ($_GET['departamento'] ?? '')),
+                'provincia' => trim((string) ($_GET['provincia'] ?? '')),
+                'distrito' => trim((string) ($_GET['distrito'] ?? '')),
+                'condicion' => trim((string) ($_GET['condicion'] ?? '')),
+                'situacion' => trim((string) ($_GET['situacion'] ?? '')),
+                'estado' => trim((string) ($_GET['estado'] ?? '')),
+                'edad_min' => trim((string) ($_GET['edad_min'] ?? '')),
+                'edad_max' => trim((string) ($_GET['edad_max'] ?? '')),
             ];
-            $socios = $sociosServicio->listarSocios($filtros);
+            
+            // Paginación
+            $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
+            $porPagina = 10;
+            $offset = ($pagina - 1) * $porPagina;
+            
+            $socios = $sociosServicio->listarSocios($filtros, $offset, $porPagina);
+            $totalSocios = $sociosServicio->contarSocios($filtros);
+            $totalPaginas = (int) ceil($totalSocios / $porPagina);
+            
+            // Cargar datos para filtros (cargar todos al inicio)
+            $departamentos = $sociosServicio->obtenerDepartamentos();
+            $provincias = $sociosServicio->obtenerTodasProvincias();
+            $distritos = $sociosServicio->obtenerTodosDistritos();
+            $condiciones = $sociosServicio->obtenerCondiciones();
+            $situaciones = $sociosServicio->obtenerSituaciones();
+            
             require dirname(__DIR__) . '/views/socios/listado.php';
+            exit;
+        }
+
+        // GET: Información personal del socio
+        if ($action === 'info') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+            
+            if (empty($socio)) {
+                http_response_code(404);
+                $error = 'Cliente no encontrado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/info.php';
+            exit;
+        }
+
+        // GET: Editar socio
+        if ($action === 'editar') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+            
+            if (empty($socio)) {
+                http_response_code(404);
+                $error = 'Cliente no encontrado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/editar.php';
+            exit;
+        }
+
+        // POST: Actualizar socio
+        if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            try {
+                $idPersona = (int) ($_POST['id_persona'] ?? 0);
+                $clienteCodigo = trim((string) ($_POST['cliente_codigo'] ?? ''));
+                
+                $datosPersona = [
+                    'ape_pat' => trim((string) ($_POST['ape_pat'] ?? '')),
+                    'ape_mat' => trim((string) ($_POST['ape_mat'] ?? '')),
+                    'nomb_pri' => trim((string) ($_POST['nomb_pri'] ?? '')),
+                    'nomb_seg' => trim((string) ($_POST['nomb_seg'] ?? '')),
+                    'tpo_doc' => trim((string) ($_POST['tpo_doc'] ?? '')),
+                    'num_doc' => trim((string) ($_POST['num_doc'] ?? '')),
+                    'sexo' => trim((string) ($_POST['sexo'] ?? '')),
+                    'fe_nac' => trim((string) ($_POST['fe_nac'] ?? '')) ?: null,
+                    'stdo_civil' => trim((string) ($_POST['stdo_civil'] ?? '')),
+                    'stdo_persn' => trim((string) ($_POST['stdo_persn'] ?? '')),
+                    'cta_correo' => trim((string) ($_POST['cta_correo'] ?? '')),
+                    'telf_fijo' => trim((string) ($_POST['telf_fijo'] ?? '')),
+                    'telf_cel' => trim((string) ($_POST['telf_cel'] ?? '')),
+                    'departamento' => trim((string) ($_POST['departamento'] ?? '')),
+                    'provincia' => trim((string) ($_POST['provincia'] ?? '')),
+                    'distrito' => trim((string) ($_POST['distrito'] ?? '')),
+                    'zona' => trim((string) ($_POST['zona'] ?? '')),
+                    'via' => trim((string) ($_POST['via'] ?? '')),
+                    'int' => trim((string) ($_POST['int'] ?? '')),
+                    'ext' => trim((string) ($_POST['ext'] ?? '')),
+                    'piso' => trim((string) ($_POST['piso'] ?? '')),
+                    'condicion' => trim((string) ($_POST['condicion'] ?? '')),
+                    'situacion' => trim((string) ($_POST['situacion'] ?? '')),
+                    'centro' => trim((string) ($_POST['centro'] ?? '')),
+                    'cuenta' => trim((string) ($_POST['cuenta'] ?? '')),
+                    'ingreso' => trim((string) ($_POST['ingreso'] ?? '')),
+                    'aportacion' => trim((string) ($_POST['aportacion'] ?? '')),
+                    'saldo' => trim((string) ($_POST['saldo'] ?? '')),
+                    'edad' => trim((string) ($_POST['edad'] ?? '')),
+                    'observacion' => trim((string) ($_POST['observacion'] ?? '')),
+                ];
+
+                $resultado = $sociosServicio->actualizarSocio($idPersona, $datosPersona, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => 'Socio actualizado correctamente']);
+                header('Location: index.php?' . $query);
+                exit;
+
+            } catch (Exception $e) {
+                $error = 'Error al actualizar socio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'editar', 'client' => $clienteCodigo, 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Historial de cambios del socio
+        if ($action === 'auditoria') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $historial = $sociosServicio->obtenerHistorialCambios($clienteCodigo);
+            $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+            
+            if (empty($socio)) {
+                http_response_code(404);
+                $error = 'Cliente no encontrado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/auditoria.php';
+            exit;
+        }
+
+        // GET: Lista completa de todos los cambios de auditoría
+        if ($action === 'auditoria_general') {
+            $historial = $sociosServicio->obtenerTodosLosCambios(100);
+            require dirname(__DIR__) . '/views/socios/auditoria_general.php';
+            exit;
+        }
+
+        // AJAX: Obtener provincias por departamento
+        if ($action === 'obtener_provincias') {
+            header('Content-Type: application/json');
+            $departamento = trim((string) ($_GET['departamento'] ?? ''));
+            $provincias = $sociosServicio->obtenerProvincias($departamento);
+            echo json_encode($provincias);
+            exit;
+        }
+
+        // AJAX: Obtener distritos por departamento y provincia
+        if ($action === 'obtener_distritos') {
+            header('Content-Type: application/json');
+            $departamento = trim((string) ($_GET['departamento'] ?? ''));
+            $provincia = trim((string) ($_GET['provincia'] ?? ''));
+            $distritos = $sociosServicio->obtenerDistritos($departamento, $provincia);
+            echo json_encode($distritos);
+            exit;
+        }
+
+        // AJAX: Obtener todas las provincias
+        if ($action === 'obtener_todas_provincias') {
+            header('Content-Type: application/json');
+            $sql = "SELECT DISTINCT 
+                        SUBSTRING(ubigeo_codigo, 3, 2) as codigo,
+                        ubigeo_provincia as nombre
+                    FROM f05_ubigeo 
+                    WHERE ubigeo_provincia IS NOT NULL
+                    ORDER BY ubigeo_provincia ASC";
+            $stmt = Database::connection()->query($sql);
+            $provincias = $stmt->fetchAll();
+            echo json_encode($provincias);
+            exit;
+        }
+
+        // AJAX: Obtener todos los distritos
+        if ($action === 'obtener_todos_distritos') {
+            header('Content-Type: application/json');
+            $sql = "SELECT DISTINCT 
+                        SUBSTRING(ubigeo_codigo, 5, 2) as codigo,
+                        ubigeo_distrito as nombre
+                    FROM f05_ubigeo 
+                    WHERE ubigeo_distrito IS NOT NULL
+                    ORDER BY ubigeo_distrito ASC";
+            $stmt = Database::connection()->query($sql);
+            $distritos = $stmt->fetchAll();
+            echo json_encode($distritos);
+            exit;
+        }
+
+        // AJAX: Obtener departamentos
+        if ($action === 'obtener_departamentos') {
+            header('Content-Type: application/json');
+            try {
+                $departamentos = $sociosServicio->obtenerDepartamentos();
+                echo json_encode($departamentos);
+            } catch (Exception $e) {
+                echo json_encode(['error' => $e->getMessage()]);
+            }
             exit;
         }
 
@@ -1616,7 +1841,7 @@ if ($auth->check()) {
                     'clave' => trim((string) ($_POST['clave'] ?? '')) ?: null
                 ];
 
-                $resultado = $sociosServicio->registrarSocio($datosPersona, $datosCliente);
+                $resultado = $sociosServicio->registrarSocio($datosPersona, $datosCliente, $_SESSION['user']['username'] ?? 'SISTEMA');
 
                 $query = http_build_query(['module' => 'socios', 'action' => 'registro', 'success' => $resultado['id_cliente']]);
                 header('Location: index.php?' . $query);

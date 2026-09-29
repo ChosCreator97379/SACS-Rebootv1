@@ -19,7 +19,7 @@ class SociosServicio
     /**
      * Registrar un nuevo socio
      */
-    public function registrarSocio(array $datosPersona, array $datosCliente): array
+    public function registrarSocio(array $datosPersona, array $datosCliente, string $usuario = 'SISTEMA'): array
     {
         $this->log('Iniciando registro de socio', $datosPersona);
 
@@ -112,7 +112,7 @@ class SociosServicio
                 ':titulo' => $datosPersona['titulo'] ?? null,
                 ':firma' => $datosPersona['firma'] ?? null,
                 ':carta' => $datosPersona['carta'] ?? null,
-                ':id_usua_crea' => $datosPersona['id_usua_crea'] ?? null
+                ':id_usua_crea' => $usuario
             ]);
 
             $this->log('Persona insertada correctamente: ' . $idPersona);
@@ -133,7 +133,7 @@ class SociosServicio
                 ':id_cliente' => $idCliente,
                 ':id_persona' => $idPersona,
                 ':stdo' => $datosCliente['stdo'] ?? 1,
-                ':id_usua_crea' => $datosCliente['id_usua_crea'] ?? null,
+                ':id_usua_crea' => $usuario,
                 ':clave' => $datosCliente['clave'] ?? null
             ]);
 
@@ -156,7 +156,7 @@ class SociosServicio
     /**
      * Actualizar un socio existente
      */
-    public function actualizarSocio(int $idPersona, array $datosPersona): array
+    public function actualizarSocio(int $idPersona, array $datosPersona, string $usuario = 'SISTEMA'): array
     {
         $this->log('Iniciando actualización de socio: ' . $idPersona, $datosPersona);
 
@@ -248,7 +248,7 @@ class SociosServicio
                 ':saldo' => $datosPersona['saldo'] ?? null,
                 ':documento' => $datosPersona['documento'] ?? null,
                 ':situacion' => $datosPersona['situacion'] ?? null,
-                ':id_usua_modi' => $datosPersona['id_usua_modi'] ?? null
+                ':id_usua_modi' => $usuario
             ]);
 
             $this->db->commit();
@@ -342,16 +342,222 @@ class SociosServicio
     }
 
     /**
-     * Listar socios con filtros
+     * Obtener información detallada de un socio
      */
-    public function listarSocios(array $filtros = []): array
+    public function obtenerSocioDetalle(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    c.F02_ID_CLIENTE,
+                    c.F02_STDO as cliente_estado,
+                    p.F01_ID_PERSONA,
+                    p.F01_TPO_DOC,
+                    p.F01_NUM_DOC,
+                    p.F01_APE_PAT,
+                    p.F01_APE_MAT,
+                    p.F01_NOMB_PRI,
+                    p.F01_NOMB_SEG,
+                    p.F01_SEXO,
+                    p.F01_FE_NAC,
+                    p.F01_STDO_CIVIL,
+                    p.F01_STDO_PERSN,
+                    p.F01_CTA_CORREO,
+                    p.F01_TELF_FIJO,
+                    p.F01_TELF_CEL,
+                    p.F01_ZONA,
+                    p.F01_VIA,
+                    p.F01_INT,
+                    p.F01_EXT,
+                    p.F01_PISO,
+                    p.F01_DEPARTAMENTO,
+                    p.F01_PROVINCIA,
+                    p.F01_DISTRITO,
+                    p.F01_OBSERVACION,
+                    p.F01_EDAD,
+                    p.F01_CENTRO,
+                    p.F01_CONDICION,
+                    p.F01_CUENTA,
+                    p.F01_INGRESO,
+                    p.F01_APORTACION,
+                    p.F01_SALDO,
+                    p.F01_DOCUMENTO,
+                    p.F01_SITUACION,
+                    p.F01_FECHA_RETIRO,
+                    p.F01_FECHA_FALLE,
+                    p.F01_ID_NACIONALIDAD,
+                    p.F01_ID_INSTRUCCION,
+                    p.F01_ID_PROFESION,
+                    p.F01_DPTO_NAC,
+                    p.F01_PROV_NAC,
+                    p.F01_DISTRI_NAC,
+                    nac.F11_DESC_NACIONALD as nacionalidad_nombre,
+                    ins.F10_DESC_INSTRUCC as instruccion_nombre,
+                    prof.F09_DESC_PROF as profesion_nombre
+                FROM f02_cliente c
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                LEFT JOIN f11_nacionalidad nac ON p.F01_ID_NACIONALIDAD = nac.F11_ID_NACIONALIDAD
+                LEFT JOIN f10_instruccion ins ON p.F01_ID_INSTRUCCION = ins.F10_ID_INSTRUCCION
+                LEFT JOIN f09_profesion prof ON p.F01_ID_PROFESION = prof.F09_ID_PROFESION
+                WHERE CAST(c.F02_ID_CLIENTE AS UNSIGNED) = CAST(:cliente AS UNSIGNED)
+                LIMIT 1";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $socio = $stmt->fetch();
+        
+        if ($socio === false) {
+            return [];
+        }
+        
+        return $socio;
+    }
+
+    /**
+     * Obtener historial de cambios de un socio
+     */
+    public function obtenerHistorialCambios(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    'CREACION' as tipo_accion,
+                    p.F01_ID_USUA_CREA as usuario,
+                    p.F01_FE_USUA_CREA as fecha,
+                    'Registro inicial' as descripcion,
+                    c.F02_ID_CLIENTE as cliente_codigo,
+                    p.F01_APE_PAT as socio_nombre
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.F01_ID_PERSONA = c.F02_ID_PERSONA
+                WHERE CAST(c.F02_ID_CLIENTE AS UNSIGNED) = CAST(:cliente1 AS UNSIGNED)
+                
+                UNION ALL
+                
+                SELECT 
+                    'MODIFICACION' as tipo_accion,
+                    p.F01_ID_USUA_MODI as usuario,
+                    p.F01_FE_USUA_MODI as fecha,
+                    'Actualizacion de datos' as descripcion,
+                    c.F02_ID_CLIENTE as cliente_codigo,
+                    p.F01_APE_PAT as socio_nombre
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.F01_ID_PERSONA = c.F02_ID_PERSONA
+                WHERE CAST(c.F02_ID_CLIENTE AS UNSIGNED) = CAST(:cliente2 AS UNSIGNED)
+                    AND p.F01_ID_USUA_MODI IS NOT NULL
+                
+                ORDER BY fecha DESC
+                LIMIT 50";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente1' => $idCliente, ':cliente2' => $idCliente]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener todos los cambios de auditoría
+     */
+    public function obtenerTodosLosCambios(int $limite = 100): array
+    {
+        $sql = "SELECT 
+                    'CREACION' as tipo_accion,
+                    p.F01_ID_USUA_CREA as usuario,
+                    p.F01_FE_USUA_CREA as fecha,
+                    'Registro inicial' as descripcion,
+                    c.F02_ID_CLIENTE as cliente_codigo,
+                    p.F01_APE_PAT as socio_nombre
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.F01_ID_PERSONA = c.F02_ID_PERSONA
+                WHERE p.F01_ID_USUA_CREA IS NOT NULL
+                
+                UNION ALL
+                
+                SELECT 
+                    'MODIFICACION' as tipo_accion,
+                    p.F01_ID_USUA_MODI as usuario,
+                    p.F01_FE_USUA_MODI as fecha,
+                    'Actualizacion de datos' as descripcion,
+                    c.F02_ID_CLIENTE as cliente_codigo,
+                    p.F01_APE_PAT as socio_nombre
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.F01_ID_PERSONA = c.F02_ID_PERSONA
+                WHERE p.F01_ID_USUA_MODI IS NOT NULL
+                
+                ORDER BY fecha DESC
+                LIMIT :limite";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':limite', $limite, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Listar socios con filtros avanzados
+     */
+    public function listarSocios(array $filtros = [], int $offset = 0, int $limit = 10): array
     {
         $where = ['c.F02_STDO = 1'];
         $params = [];
 
+        // Filtro de búsqueda general (nombre, apellido, código)
         if (!empty($filtros['criterio'])) {
-            $where[] = "(p.F01_APE_PAT LIKE :criterio OR p.F01_APE_MAT LIKE :criterio OR p.F01_NOMB_PRI LIKE :criterio OR c.F02_ID_CLIENTE LIKE :criterio)";
-            $params[':criterio'] = '%' . $filtros['criterio'] . '%';
+            $where[] = "(p.F01_APE_PAT LIKE :criterio1 OR p.F01_APE_MAT LIKE :criterio2 OR p.F01_NOMB_PRI LIKE :criterio3 OR c.F02_ID_CLIENTE LIKE :criterio4)";
+            $criterioParam = '%' . $filtros['criterio'] . '%';
+            $params[':criterio1'] = $criterioParam;
+            $params[':criterio2'] = $criterioParam;
+            $params[':criterio3'] = $criterioParam;
+            $params[':criterio4'] = $criterioParam;
+        }
+
+        // Filtro por departamento
+        if (!empty($filtros['departamento'])) {
+            $where[] = "p.F01_DEPARTAMENTO = :departamento";
+            $params[':departamento'] = $filtros['departamento'];
+        }
+
+        // Filtro por provincia
+        if (!empty($filtros['provincia'])) {
+            $where[] = "p.F01_PROVINCIA = :provincia";
+            $params[':provincia'] = $filtros['provincia'];
+        }
+
+        // Filtro por distrito
+        if (!empty($filtros['distrito'])) {
+            $where[] = "p.F01_DISTRITO = :distrito";
+            $params[':distrito'] = $filtros['distrito'];
+        }
+
+        // Filtro por sexo
+        if (!empty($filtros['sexo'])) {
+            $where[] = "p.F01_SEXO = :sexo";
+            $params[':sexo'] = $filtros['sexo'];
+        }
+
+        // Filtro por condición
+        if (!empty($filtros['condicion'])) {
+            $where[] = "p.F01_CONDICION = :condicion";
+            $params[':condicion'] = $filtros['condicion'];
+        }
+
+        // Filtro por situación
+        if (!empty($filtros['situacion'])) {
+            $where[] = "p.F01_SITUACION = :situacion";
+            $params[':situacion'] = $filtros['situacion'];
+        }
+
+        // Filtro por edad mínima
+        if (!empty($filtros['edad_min'])) {
+            $where[] = "p.F01_EDAD >= :edad_min";
+            $params[':edad_min'] = (int) $filtros['edad_min'];
+        }
+
+        // Filtro por edad máxima
+        if (!empty($filtros['edad_max'])) {
+            $where[] = "p.F01_EDAD <= :edad_max";
+            $params[':edad_max'] = (int) $filtros['edad_max'];
+        }
+
+        // Filtro por estado (activo/inactivo)
+        if (isset($filtros['estado']) && $filtros['estado'] !== '') {
+            $estado = (int) $filtros['estado'];
+            $where[] = "c.F02_STDO = :estado";
+            $params[':estado'] = $estado;
         }
 
         $sql = "SELECT 
@@ -368,15 +574,216 @@ class SociosServicio
                     p.F01_CONDICION,
                     p.F01_SITUACION,
                     p.F01_FECHA_RETIRO,
-                    p.F01_FECHA_FALLE
+                    p.F01_FECHA_FALLE,
+                    p.F01_DEPARTAMENTO,
+                    p.F01_PROVINCIA,
+                    p.F01_DISTRITO,
+                    p.F01_SEXO,
+                    p.F01_EDAD
                 FROM f02_cliente c
                 INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
                 WHERE " . implode(' AND ', $where) . "
                 ORDER BY p.F01_APE_PAT, p.F01_APE_MAT, p.F01_NOMB_PRI
-                LIMIT 50";
+                LIMIT :limit OFFSET :offset";
 
         $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
+        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Contar total de socios con filtros
+     */
+    public function contarSocios(array $filtros = []): int
+    {
+        $where = ['c.F02_STDO = 1'];
+        $params = [];
+
+        // Filtro de búsqueda general
+        if (!empty($filtros['criterio'])) {
+            $where[] = "(p.F01_APE_PAT LIKE :criterio1 OR p.F01_APE_MAT LIKE :criterio2 OR p.F01_NOMB_PRI LIKE :criterio3 OR c.F02_ID_CLIENTE LIKE :criterio4)";
+            $criterioParam = '%' . $filtros['criterio'] . '%';
+            $params[':criterio1'] = $criterioParam;
+            $params[':criterio2'] = $criterioParam;
+            $params[':criterio3'] = $criterioParam;
+            $params[':criterio4'] = $criterioParam;
+        }
+
+        // Filtro por departamento
+        if (!empty($filtros['departamento'])) {
+            $where[] = "p.F01_DEPARTAMENTO = :departamento";
+            $params[':departamento'] = $filtros['departamento'];
+        }
+
+        // Filtro por provincia
+        if (!empty($filtros['provincia'])) {
+            $where[] = "p.F01_PROVINCIA = :provincia";
+            $params[':provincia'] = $filtros['provincia'];
+        }
+
+        // Filtro por distrito
+        if (!empty($filtros['distrito'])) {
+            $where[] = "p.F01_DISTRITO = :distrito";
+            $params[':distrito'] = $filtros['distrito'];
+        }
+
+        // Filtro por sexo
+        if (!empty($filtros['sexo'])) {
+            $where[] = "p.F01_SEXO = :sexo";
+            $params[':sexo'] = $filtros['sexo'];
+        }
+
+        // Filtro por condición
+        if (!empty($filtros['condicion'])) {
+            $where[] = "p.F01_CONDICION = :condicion";
+            $params[':condicion'] = $filtros['condicion'];
+        }
+
+        // Filtro por situación
+        if (!empty($filtros['situacion'])) {
+            $where[] = "p.F01_SITUACION = :situacion";
+            $params[':situacion'] = $filtros['situacion'];
+        }
+
+        // Filtro por edad mínima
+        if (!empty($filtros['edad_min'])) {
+            $where[] = "p.F01_EDAD >= :edad_min";
+            $params[':edad_min'] = (int) $filtros['edad_min'];
+        }
+
+        // Filtro por edad máxima
+        if (!empty($filtros['edad_max'])) {
+            $where[] = "p.F01_EDAD <= :edad_max";
+            $params[':edad_max'] = (int) $filtros['edad_max'];
+        }
+
+        // Filtro por estado
+        if (isset($filtros['estado']) && $filtros['estado'] !== '') {
+            $estado = (int) $filtros['estado'];
+            $where[] = "c.F02_STDO = :estado";
+            $params[':estado'] = $estado;
+        }
+
+        $sql = "SELECT COUNT(*) as total
+                FROM f02_cliente c
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                WHERE " . implode(' AND ', $where);
+
+        $stmt = $this->db->prepare($sql);
+        
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        
+        $stmt->execute();
+        $result = $stmt->fetch();
+        return (int) ($result['total'] ?? 0);
+    }
+
+    /**
+     * Obtener departamentos
+     */
+    public function obtenerDepartamentos(): array
+    {
+        $sql = "SELECT DISTINCT 
+                    SUBSTRING(ubigeo_codigo, 1, 2) as codigo,
+                    ubigeo_distrito as nombre
+                FROM f05_ubigeo 
+                WHERE ubigeo_distrito IS NOT NULL 
+                ORDER BY ubigeo_distrito ASC";
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener todas las provincias
+     */
+    public function obtenerTodasProvincias(): array
+    {
+        $sql = "SELECT DISTINCT 
+                    SUBSTRING(ubigeo_codigo, 3, 2) as codigo,
+                    ubigeo_provincia as nombre
+                FROM f05_ubigeo 
+                WHERE ubigeo_provincia IS NOT NULL
+                ORDER BY ubigeo_provincia ASC";
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener todos los distritos
+     */
+    public function obtenerTodosDistritos(): array
+    {
+        $sql = "SELECT DISTINCT 
+                    SUBSTRING(ubigeo_codigo, 5, 2) as codigo,
+                    ubigeo_departamento as nombre
+                FROM f05_ubigeo 
+                WHERE ubigeo_departamento IS NOT NULL
+                ORDER BY ubigeo_departamento ASC";
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener provincias por departamento
+     */
+    public function obtenerProvincias(string $departamento): array
+    {
+        $sql = "SELECT DISTINCT 
+                    SUBSTRING(ubigeo_codigo, 3, 2) as codigo,
+                    ubigeo_provincia as nombre
+                FROM f05_ubigeo 
+                WHERE SUBSTRING(ubigeo_codigo, 1, 2) = :departamento
+                    AND ubigeo_provincia IS NOT NULL
+                ORDER BY ubigeo_provincia ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':departamento' => $departamento]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener distritos por departamento y provincia
+     */
+    public function obtenerDistritos(string $departamento, string $provincia): array
+    {
+        $sql = "SELECT DISTINCT 
+                    SUBSTRING(ubigeo_codigo, 5, 2) as codigo,
+                    ubigeo_departamento as nombre
+                FROM f05_ubigeo 
+                WHERE SUBSTRING(ubigeo_codigo, 1, 2) = :departamento
+                    AND SUBSTRING(ubigeo_codigo, 3, 2) = :provincia
+                    AND ubigeo_departamento IS NOT NULL
+                ORDER BY ubigeo_departamento ASC";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':departamento' => $departamento, ':provincia' => $provincia]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener condiciones únicas
+     */
+    public function obtenerCondiciones(): array
+    {
+        $sql = "SELECT DISTINCT F01_CONDICION FROM f01_persona WHERE F01_CONDICION IS NOT NULL AND F01_CONDICION != '' ORDER BY F01_CONDICION";
+        $stmt = $this->db->query($sql);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener situaciones únicas
+     */
+    public function obtenerSituaciones(): array
+    {
+        $sql = "SELECT DISTINCT F01_SITUACION FROM f01_persona WHERE F01_SITUACION IS NOT NULL AND F01_SITUACION != '' ORDER BY F01_SITUACION";
+        $stmt = $this->db->query($sql);
         return $stmt->fetchAll();
     }
 

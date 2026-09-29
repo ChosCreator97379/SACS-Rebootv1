@@ -45,6 +45,16 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         .search-bar input:focus { outline: none; border-color: var(--teal); }
         .search-bar button { min-height: 38px; padding: 8px 20px; border: none; border-radius: 4px; background: var(--teal); color: #fff; cursor: pointer; font-size: 13px; font-weight: bold; }
         .search-bar button:hover { background: #166664; }
+        .filters-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 20px; margin-bottom: 24px; padding: 24px; background: #fff; border: 1px solid var(--line); border-radius: 7px; }
+        .filter-group { display: flex; flex-direction: column; gap: 6px; }
+        .filter-group label { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+        .filter-group select, .filter-group input { min-height: 36px; padding: 8px 10px; border: 1px solid #b9c7c7; border-radius: 4px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
+        .filter-group select:focus, .filter-group input:focus { outline: none; border-color: var(--teal); }
+        .filter-actions { display: flex; gap: 12px; }
+        .filter-actions button { min-height: 38px; padding: 8px 20px; border: none; border-radius: 4px; background: var(--teal); color: #fff; cursor: pointer; font-size: 13px; font-weight: bold; }
+        .filter-actions button:hover { background: #166664; }
+        .filter-actions .btn-secondary { background: #e7f0ed; color: var(--navy); }
+        .filter-actions .btn-secondary:hover { background: #dce4e1; }
         .table-container { border: 1px solid var(--line); border-radius: 7px; background: var(--panel); overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px 16px; background: #f8f9fa; color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: .04em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
@@ -58,6 +68,11 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         .btn-secondary { background: #e7f0ed; color: var(--navy); }
         .btn-secondary:hover { background: #dce4e1; }
         .empty { padding: 40px; text-align: center; color: var(--muted); }
+        .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; }
+        .pagination-btn { padding: 8px 16px; border: 1px solid var(--line); border-radius: 4px; background: #fff; cursor: pointer; font-size: 13px; }
+        .pagination-btn:hover { background: var(--paper); }
+        .pagination-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pagination-info { margin: 0 16px; font-size: 13px; color: var(--muted); }
         @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
     </style>
 </head>
@@ -76,6 +91,8 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php" class="nav-link">Dashboard</a>
                 <a href="index.php?module=socios&action=listado" class="nav-link active">Listado de Socios</a>
                 <a href="index.php?module=socios&action=registro" class="nav-link">Registro de Socio</a>
+                <div class="nav-label">Auditoría</div>
+                <a href="index.php?module=socios&action=auditoria_general" class="nav-link">Auditoría General</a>
             </nav>
         </aside>
 
@@ -91,6 +108,90 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <input type="hidden" name="action" value="listado">
                 <input type="text" name="criterio" placeholder="Buscar por nombre, apellido o código..." value="<?= $escape($_GET['criterio'] ?? '') ?>">
                 <button type="submit">Buscar</button>
+            </form>
+
+            <form method="get" class="filters-bar">
+                <input type="hidden" name="module" value="socios">
+                <input type="hidden" name="action" value="listado">
+                <div class="filter-group">
+                    <label>Departamento</label>
+                    <input type="text" name="departamento" list="listaDepartamentos" placeholder="Seleccione departamento" value="<?= $escape($_GET['departamento'] ?? '') ?>">
+                    <datalist id="listaDepartamentos">
+                        <?php foreach ($departamentos ?? [] as $dep): ?>
+                            <option value="<?= $escape($dep['codigo']) ?>">
+                                <?= $escape($dep['nombre']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </datalist>
+                </div>
+                <div class="filter-group">
+                    <label>Provincia</label>
+                    <input type="text" name="provincia" list="listaProvincias" placeholder="Seleccione provincia" value="<?= $escape($_GET['provincia'] ?? '') ?>">
+                    <datalist id="listaProvincias">
+                        <?php foreach ($provincias ?? [] as $prov): ?>
+                            <option value="<?= $escape($prov['codigo']) ?>">
+                                <?= $escape($prov['nombre']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </datalist>
+                </div>
+                <div class="filter-group">
+                    <label>Distrito</label>
+                    <input type="text" name="distrito" list="listaDistritos" placeholder="Seleccione distrito" value="<?= $escape($_GET['distrito'] ?? '') ?>">
+                    <datalist id="listaDistritos">
+                        <?php foreach ($distritos ?? [] as $dist): ?>
+                            <option value="<?= $escape($dist['codigo']) ?>">
+                                <?= $escape($dist['nombre']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </datalist>
+                </div>
+                <div class="filter-group">
+                    <label>Condición</label>
+                    <select name="condicion">
+                        <option value="">Todas</option>
+                        <?php foreach ($condiciones ?? [] as $cond): ?>
+                            <option value="<?= $escape($cond['F01_CONDICION']) ?>" <?= ($_GET['condicion'] ?? '') === $cond['F01_CONDICION'] ? 'selected' : '' ?>>
+                                <?= $escape($cond['F01_CONDICION']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Situación</label>
+                    <select name="situacion">
+                        <option value="">Todas</option>
+                        <?php foreach ($situaciones ?? [] as $sit): ?>
+                            <option value="<?= $escape($sit['F01_SITUACION']) ?>" <?= ($_GET['situacion'] ?? '') === $sit['F01_SITUACION'] ? 'selected' : '' ?>>
+                                <?= $escape($sit['F01_SITUACION']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Estado</label>
+                    <select name="estado">
+                        <option value="">Todos</option>
+                        <option value="1" <?= ($_GET['estado'] ?? '') === '1' ? 'selected' : '' ?>>Activo</option>
+                        <option value="0" <?= ($_GET['estado'] ?? '') === '0' ? 'selected' : '' ?>>Inactivo</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Edad Min</label>
+                    <input type="number" name="edad_min" min="0" max="120" value="<?= $escape($_GET['edad_min'] ?? '') ?>">
+                </div>
+                <div class="filter-group">
+                    <label>Edad Max</label>
+                    <input type="number" name="edad_max" min="0" max="120" value="<?= $escape($_GET['edad_max'] ?? '') ?>">
+                </div>
+                <div class="filter-group filter-actions">
+                    <label>&nbsp;</label>
+                    <button type="submit">Filtrar</button>
+                </div>
+                <div class="filter-group filter-actions">
+                    <label>&nbsp;</label>
+                    <button type="button" onclick="window.location.href='index.php?module=socios&action=listado'">Limpiar</button>
+                </div>
             </form>
 
             <div class="table-container">
@@ -132,6 +233,8 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                                     <td>
                                         <div class="actions">
                                             <a href="index.php?module=caja&profile=client&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-primary">Ver</a>
+                                            <a href="index.php?module=socios&action=info&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-secondary">Info</a>
+                                            <a href="index.php?module=socios&action=auditoria&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-secondary">Auditoría</a>
                                         </div>
                                     </td>
                                 </tr>
@@ -140,6 +243,33 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                     </table>
                 <?php endif; ?>
             </div>
+
+            <?php if ($totalPaginas > 1): ?>
+                <div class="pagination">
+                    <?php 
+                    // Construir URL manteniendo los filtros actuales
+                    $queryParams = $_GET;
+                    unset($queryParams['pagina']);
+                    $baseUrl = '?' . http_build_query($queryParams);
+                    ?>
+                    
+                    <?php if ($pagina > 1): ?>
+                        <a href="<?= $escape($baseUrl) ?>&pagina=<?= $pagina - 1 ?>" class="pagination-btn">Anterior</a>
+                    <?php else: ?>
+                        <button class="pagination-btn" disabled>Anterior</button>
+                    <?php endif; ?>
+                    
+                    <span class="pagination-info">
+                        Página <?= $pagina ?> de <?= $totalPaginas ?> (<?= $totalSocios ?> socios)
+                    </span>
+                    
+                    <?php if ($pagina < $totalPaginas): ?>
+                        <a href="<?= $escape($baseUrl) ?>&pagina=<?= $pagina + 1 ?>" class="pagination-btn">Siguiente</a>
+                    <?php else: ?>
+                        <button class="pagination-btn" disabled>Siguiente</button>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </main>
     </div>
 </body>
