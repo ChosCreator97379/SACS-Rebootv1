@@ -25,17 +25,16 @@ $filtroAportes = trim((string) ($_GET['filtro'] ?? 'todos'));
 if ($clienteCodigo === '') {
     http_response_code(400);
     $error = 'Cliente no especificado';
-    require dirname(__DIR__) . '/views/home.php';
+    require dirname(__DIR__, 2) . '/views/home.php';
     exit;
 }
 
 // Obtener datos del cliente
 $cliente = $repository->findClientProfile($clienteCodigo);
+$clienteNoExiste = false;
 if ($cliente === null) {
-    http_response_code(404);
-    $error = 'Cliente no encontrado';
-    require dirname(__DIR__) . '/views/home.php';
-    exit;
+    $clienteNoExiste = true;
+    // No hacer exit, mostrar alerta en la vista
 }
 
 // Obtener montos de aportes
@@ -212,6 +211,14 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     </div>
                 </div>
             </div>
+
+            <?php if ($clienteNoExiste): ?>
+                <div class="alert alert-error">
+                    Cliente no encontrado. Por favor, verifique el código del cliente y vuelva a intentarlo.
+                    <br><br>
+                    <a href="index.php?module=caja" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">Volver a Caja</a>
+                </div>
+            <?php else: ?>
 
             <?php if (isset($_GET['error'])): ?>
                 <div class="alert alert-error">
@@ -450,5 +457,6 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 document.getElementById('totalCoopamCodigo').value = codigoTotal;
             }
         </script>
+    <?php endif; // Fin de if (!$clienteNoExiste) ?>
     </body>
 </html>

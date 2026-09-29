@@ -67,6 +67,11 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
         .page-link { padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); color: var(--teal); font-size: 12px; }
         .page-link.disabled { color: #a8b4b4; pointer-events: none; }
         .empty { padding: 42px; color: var(--muted); text-align: center; }
+        .alert { padding: 15px; margin-bottom: 20px; border-radius: 6px; }
+        .alert-error { background: #fee; color: #c33; border: 1px solid #fcc; }
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+        .btn-secondary { background: var(--paper); color: var(--ink); }
+        .btn-secondary:hover { background: #e8ebe9; }
         @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } .filters { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .filters button { width: 100%; } }
         @media (max-width: 520px) { .filters { grid-template-columns: 1fr; } .summary { align-items: flex-start; flex-direction: column; } }
     </style>
@@ -137,6 +142,20 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                 <label>Código Movimiento<input name="movement_code" inputmode="numeric" maxlength="11" value="<?= $escape($filters['movement_code'] ?? '') ?>" placeholder="Opcional"></label>
                 <button type="submit">Filtrar</button>
             </form>
+
+            <?php if (isset($_GET['error'])): ?>
+                <div class="alert alert-error">
+                    <?= $escape($_GET['error']) ?>
+                    <br><br>
+                    <a href="index.php?module=caja" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">Limpiar búsqueda</a>
+                </div>
+            <?php elseif (isset($movements['client_not_found']) && $movements['client_not_found']): ?>
+                <div class="alert alert-error">
+                    Cliente no encontrado. El código <?= $escape($selectedClient) ?> no corresponde a ningún socio registrado.
+                    <br><br>
+                    <a href="index.php?module=caja" class="btn btn-secondary" style="display: inline-block; margin-top: 10px;">Limpiar búsqueda</a>
+                </div>
+            <?php endif; ?>
 
             <div class="summary"><span><?= number_format($movements['total']) ?> movimientos encontrados</span><span>Pagina <?= $movements['page'] ?> de <?= $movements['pages'] ?></span></div>
             <div class="table-wrap">

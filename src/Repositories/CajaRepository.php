@@ -42,10 +42,32 @@ final class CajaRepository
             $conditions[] = 'm.f15_operacion = :operation';
             $parameters['operation'] = (int) $filters['operation'];
         }
-        if (($filters['client'] ?? '') !== '') {
+        
+        // Validar que el cliente existe si se proporciona filtro de cliente
+        $clientCode = trim((string) ($filters['client'] ?? ''));
+        if ($clientCode !== '') {
+            $database = Database::connection();
+            $clientCheck = $database->prepare("SELECT COUNT(*) FROM f02_cliente WHERE CAST(F02_ID_CLIENTE AS UNSIGNED) = CAST(:client AS UNSIGNED)");
+            $clientCheck->execute(['client' => $clientCode]);
+            $clientExists = (int) $clientCheck->fetchColumn();
+            
+            if ($clientExists === 0) {
+                // Cliente no existe, retornar array con indicador de error
+                return [
+                    'items' => [],
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'pages' => 1,
+                    'searched' => true,
+                    'client_not_found' => true,
+                ];
+            }
+            
             $conditions[] = 'm.f15_cliente = :client';
-            $parameters['client'] = trim($filters['client']);
+            $parameters['client'] = $clientCode;
         }
+        
         if (($filters['movement_code'] ?? '') !== '') {
             $conditions[] = 'm.f15_codigo = :movement_code';
             $parameters['movement_code'] = trim($filters['movement_code']);
