@@ -49,11 +49,23 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         .info-item { display: flex; flex-direction: column; gap: 4px; }
         .info-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
         .info-value { font-size: 14px; }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; text-decoration: none; display: inline-block; }
         .btn-primary { background: var(--teal); color: white; }
         .btn-primary:hover { background: #166664; }
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
         .btn-secondary { background: var(--paper); color: var(--ink); }
         .btn-secondary:hover { background: #e8ebe9; }
+        .btn-blue { background: #3b82f6; color: white; }
+        .btn-blue:hover { background: #2563eb; }
+        .btn-green { background: #10b981; color: white; }
+        .btn-green:hover { background: #059669; }
+        .btn-purple { background: #8b5cf6; color: white; }
+        .btn-purple:hover { background: #7c3aed; }
+        .btn-orange { background: #f59e0b; color: white; }
+        .btn-orange:hover { background: #d97706; }
+        .btn-gray { background: #6b7280; color: white; }
+        .btn-gray:hover { background: #4b5563; }
         .btn-sm { padding: 4px 10px; font-size: 11px; }
         .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
         .status-active { background: #d4edda; color: #155724; }
@@ -76,7 +88,21 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php" class="nav-link">Dashboard</a>
                 <a href="index.php?module=socios&action=listado" class="nav-link">Listado de Socios</a>
                 <a href="index.php?module=socios&action=registro" class="nav-link">Registro de Socio</a>
+                <a href="index.php?module=socios&action=info&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Información Personal</a>
+                <a href="index.php?module=socios&action=observaciones&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Observaciones</a>
+                <a href="index.php?module=socios&action=carta&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Carta</a>
+                <a href="index.php?module=socios&action=sobregiro&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Sobregiro</a>
+                <a href="index.php?module=socios&action=aportes_completos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes Completos</a>
+                <a href="index.php?module=socios&action=aportes_fonbes&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
+                <a href="index.php?module=socios&action=aportes_coopam&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
+                <a href="index.php?module=socios&action=gestion_estado&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Gestión de Estado</a>
+                <a href="index.php?module=socios&action=beneficios&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Beneficios</a>
+                <a href="index.php?module=socios&action=familiares&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Familiares</a>
+                <a href="index.php?module=socios&action=rifas&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Rifas</a>
+                <a href="index.php?module=socios&action=multas&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Multas</a>
+                <a href="index.php?module=socios&action=cheques" class="nav-link">Cheques</a>
                 <div class="nav-label">Auditoría</div>
+                <a href="index.php?module=socios&action=auditoria&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Auditoría Individual</a>
                 <a href="index.php?module=socios&action=auditoria_general" class="nav-link">Auditoría General</a>
             </nav>
         </aside>
@@ -282,17 +308,54 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <h2>Observaciones</h2>
                 <div class="info-grid">
                     <div class="info-item" style="grid-column: 1 / -1;">
-                        <span class="info-label">Observaciones</span>
-                        <span class="info-value"><?= $escape($socio['F01_OBSERVACION']) ?></span>
+                        <span class="info-label">Observación Actual</span>
+                        <span class="info-value"><?= $escape($socio['F01_OBS2'] ?? 'Sin observaciones') ?></span>
                     </div>
+                </div>
+                <div style="margin-top: 16px;">
+                    <a href="index.php?module=socios&action=observaciones&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-primary">📝 Gestionar Observaciones</a>
                 </div>
             </section>
 
-            <div style="display: flex; gap: 12px; margin-top: 24px;">
-                <a href="index.php?module=socios&action=editar&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-primary">Editar Socio</a>
-                <a href="index.php?module=socios&action=auditoria&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">Ver Historial de Cambios</a>
-                <a href="index.php?module=caja&profile=client&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">Ver Operaciones</a>
-                <a href="index.php?module=socios&action=listado" class="btn btn-secondary">Volver al Listado</a>
+            <section class="panel">
+                <h2>Carta</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Firmó</span>
+                        <span class="info-value"><?= isset($socio['F01_FIRMO']) && $socio['F01_FIRMO'] == '1' ? 'Sí' : 'No' ?></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Carta</span>
+                        <span class="info-value"><?= $escape($socio['F01_CARTA'] ?? 'Sin carta') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Fecha del Banco</span>
+                        <span class="info-value"><?= $escape($socio['F01_FECHA_BCO'] ?? 'Sin fecha') ?></span>
+                    </div>
+                    <div class="info-item" style="grid-column: 1 / -1;">
+                        <span class="info-label">Observación de Carta</span>
+                        <span class="info-value"><?= $escape($socio['F01_OBS_CARTA'] ?? 'Sin observación') ?></span>
+                    </div>
+                </div>
+                <div style="margin-top: 16px;">
+                    <a href="index.php?module=socios&action=carta&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-primary">📝 Gestionar Carta</a>
+                    <a href="index.php?module=socios&action=sobregiro&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-primary" style="margin-left: 12px;">💰 Ver Sobregiro</a>
+                </div>
+            </section>
+
+            <div style="display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap;">
+                <a href="index.php?module=socios&action=editar&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-blue">✏️ Editar Socio</a>
+                <a href="index.php?module=socios&action=gestion_estado&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-danger">⚙️ Gestionar Estado</a>
+                <a href="index.php?module=socios&action=beneficios&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-purple">💎 Beneficios</a>
+                <a href="index.php?module=socios&action=familiares&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-blue">👨‍👩‍👧 Familiares</a>
+                <a href="index.php?module=socios&action=rifas&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-orange">🎫 Rifas</a>
+                <a href="index.php?module=socios&action=multas&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-danger">⚠️ Multas</a>
+                <a href="index.php?module=socios&action=cheques" class="btn btn-blue">📄 Cheques</a>
+                <a href="index.php?module=socios&action=aportes_fonbes&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-green">💰 Aportes FONBES</a>
+                <a href="index.php?module=socios&action=aportes_coopam&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-green">💰 Aportes COOPAM</a>
+                <a href="index.php?module=socios&action=auditoria&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-purple">📋 Ver Historial de Cambios</a>
+                <a href="index.php?module=caja&profile=client&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-orange">💼 Ver Operaciones</a>
+                <a href="index.php?module=socios&action=listado" class="btn btn-gray">🔙 Volver al Listado</a>
             </div>
         </main>
     </div>

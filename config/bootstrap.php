@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+// Cargar autoload de Composer si existe
+$vendorAutoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (is_file($vendorAutoload)) {
+    require $vendorAutoload;
+}
+
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Sacs\\';
     $baseDirectory = dirname(__DIR__) . '/src/';

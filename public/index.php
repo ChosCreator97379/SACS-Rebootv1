@@ -966,6 +966,90 @@ if ($auth->check()) {
         exit;
     }
 
+    // Procesar POST de pago integral
+    if (($_POST['action'] ?? '') === 'pago_integral' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $error = null;
+
+        // Validar CSRF
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida. CSRF token mismatch.';
+        } else {
+            try {
+                $datos = [
+                    'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+                    'prestamos' => $_POST['prestamos'] ?? [],
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                    'observaciones' => trim((string) ($_POST['observaciones'] ?? '')),
+                ];
+
+                // Procesar códigos contables globales
+                $codigosContables = [];
+                foreach (['aportesFonbes', 'aportesCoopam', 'sobregiroFonbes', 'sobregiroCoopam'] as $componente) {
+                    if (!empty($_POST['codigosContables'][$componente]['codigo'])) {
+                        $codigosContables[$componente] = [
+                            'codigoContable' => trim((string) $_POST['codigosContables'][$componente]['codigo']),
+                            'tipoAsiento' => trim((string) ($_POST['codigosContables'][$componente]['tipo'] ?? 'HABER')),
+                            'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                        ];
+                    }
+                }
+
+                // Procesar códigos contables por préstamo
+                if (!empty($_POST['codigosContables']['prestamos'])) {
+                    $codigosContables['prestamos'] = [];
+                    foreach ($_POST['codigosContables']['prestamos'] as $prestamoCodigo => $codigos) {
+                        $codigosContables['prestamos'][$prestamoCodigo] = [];
+                        foreach (['sobregiro', 'amortizacion'] as $componente) {
+                            if (!empty($codigos[$componente]['codigo'])) {
+                                $codigosContables['prestamos'][$prestamoCodigo][$componente] = [
+                                    'codigoContable' => trim((string) $codigos[$componente]['codigo']),
+                                    'tipoAsiento' => trim((string) ($codigos[$componente]['tipo'] ?? 'HABER')),
+                                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                                ];
+                            }
+                        }
+                    }
+                }
+
+                // Validaciones básicas
+                if ($datos['cliente'] === '' || empty($datos['prestamos'])) {
+                    $error = 'Cliente y préstamos son requeridos';
+                } else {
+                    // Llamar al servicio de pago integral
+                    require __DIR__ . '/../src/Services/PagoIntegralServicio.php';
+                    $servicio = new \Sacs\Services\PagoIntegralServicio();
+                    $resultado = $servicio->ejecutarPagoIntegral($datos, $codigosContables);
+
+                    if ($resultado['exito']) {
+                        // Redirigir al perfil del cliente con mensaje de éxito
+                        $query = http_build_query([
+                            'module' => 'caja',
+                            'profile' => 'client',
+                            'client' => $datos['cliente'],
+                            'success' => 'Pago integral procesado correctamente. ' . count($resultado['movimientos']) . ' movimientos generados.'
+                        ]);
+                        header('Location: index.php?' . $query);
+                        exit;
+                    } else {
+                        $error = $resultado['mensaje'] ?? 'No fue posible procesar el pago integral';
+                    }
+                }
+            } catch (Throwable $exception) {
+                $error = 'Error inesperado: ' . $exception->getMessage();
+            }
+        }
+
+        // Redirigir al formulario con error
+        $prestamosParam = implode('&prestamos[]=', $datos['prestamos']);
+        $query = http_build_query(['module' => 'caja', 'action' => 'pago_integral_form', 'client' => $datos['cliente'], 'error' => $error]);
+        if (!empty($datos['prestamos'])) {
+            $query .= '&prestamos[]=' . implode('&prestamos[]=', $datos['prestamos']);
+        }
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
     // Procesar POST de amortización (independiente de parámetros GET)
     if (($_POST['action'] ?? '') === 'amortizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // Procesar amortización AEE
@@ -1402,6 +1486,28 @@ if ($auth->check()) {
             exit;
         }
 
+        if (($_GET['action'] ?? '') === 'pago_integral_seleccion') {
+            if ($clientId !== '') {
+                require dirname(__DIR__) . '/views/caja/pago_integral_seleccion.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para la selección de pago integral';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'pago_integral_form') {
+            if ($clientId !== '' && !empty($_GET['prestamos'])) {
+                require dirname(__DIR__) . '/views/caja/pago_integral.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de pago integral';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
         if (($_GET['action'] ?? '') === 'egresos_form') {
             if ($clientId !== '') {
                 require dirname(__DIR__) . '/views/caja/egresos.php';
@@ -1519,9 +1625,14 @@ if ($auth->check()) {
     }
 
     // Módulo Socios
-    if (($_GET['module'] ?? '') === 'socios') {
+    if (($_GET['module'] ?? '') === 'socios' || ($_POST['module'] ?? '') === 'socios') {
         $sociosServicio = new SociosServicio();
-        $action = $_GET['action'] ?? '';
+        // Si es POST, tomar action solo de POST, si no, de GET
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
+        } else {
+            $action = $_GET['action'] ?? '';
+        }
 
         // GET: Listado de socios
         if ($action === 'listado') {
@@ -1579,6 +1690,1767 @@ if ($auth->check()) {
             
             require dirname(__DIR__) . '/views/socios/info.php';
             exit;
+        }
+
+        // GET: Aportes FONBES del socio
+        if ($action === 'aportes_fonbes') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/aportes_fonbes.php';
+            exit;
+        }
+
+        // GET: Aportes COOPAM del socio
+        if ($action === 'aportes_coopam') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/aportes_coopam.php';
+            exit;
+        }
+
+        // GET: Gestión de estado del socio
+        if ($action === 'gestion_estado') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/gestion_estado.php';
+            exit;
+        }
+
+        // GET: Beneficios del socio
+        if ($action === 'beneficios') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/beneficios.php';
+            exit;
+        }
+
+        // GET: Formulario nuevo beneficio
+        if ($action === 'beneficio_nuevo') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/beneficio_form.php';
+            exit;
+        }
+
+        // GET: Formulario editar beneficio
+        if ($action === 'beneficio_editar') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+
+            if ($clienteCodigo === '' || $codigo === '') {
+                http_response_code(400);
+                $error = 'Cliente o código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            require dirname(__DIR__) . '/views/socios/beneficio_form.php';
+            exit;
+        }
+
+        // AJAX: Obtener provincias
+        if ($action === 'get_provincias') {
+            $departamento = trim((string) ($_GET['departamento'] ?? ''));
+            if ($departamento === '') {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
+            }
+
+            $provincias = $sociosServicio->obtenerProvincias($departamento);
+            header('Content-Type: application/json');
+            echo json_encode($provincias);
+            exit;
+        }
+
+        // AJAX: Obtener distritos
+        if ($action === 'get_distritos') {
+            $departamento = trim((string) ($_GET['departamento'] ?? ''));
+            $provincia = trim((string) ($_GET['provincia'] ?? ''));
+            if ($departamento === '' || $provincia === '') {
+                header('Content-Type: application/json');
+                echo json_encode([]);
+                exit;
+            }
+
+            $distritos = $sociosServicio->obtenerDistritos($departamento, $provincia);
+            header('Content-Type: application/json');
+            echo json_encode($distritos);
+            exit;
+        }
+
+        // POST: Guardar beneficio (crear/editar)
+        if ($action === 'beneficio_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $modo = trim((string) ($_POST['modo'] ?? ''));
+                $clienteCodigo = trim((string) ($_POST['cliente'] ?? ''));
+                $codigo = trim((string) ($_POST['codigo'] ?? ''));
+
+                $datos = [
+                    'socio' => $clienteCodigo,
+                    'nombres' => trim((string) ($_POST['nombres'] ?? '')),
+                    'beneficiario' => trim((string) ($_POST['beneficiario'] ?? '')),
+                    'dni1' => trim((string) ($_POST['dni1'] ?? '')),
+                    'direccion1' => trim((string) ($_POST['direccion1'] ?? '')),
+                    'dni2' => trim((string) ($_POST['dni2'] ?? '')) ?: null,
+                    'direccion2' => trim((string) ($_POST['direccion2'] ?? '')) ?: null,
+                    'tipo_pa1' => trim((string) ($_POST['tipo_pa1'] ?? '')) ?: null,
+                    'tipo_pa2' => trim((string) ($_POST['tipo_pa2'] ?? '')) ?: null,
+                    'tipo' => trim((string) ($_POST['tipo'] ?? '')),
+                    'importe' => trim((string) ($_POST['importe'] ?? '')),
+                    'fecha_falle' => trim((string) ($_POST['fecha_falle'] ?? '')) ?: null,
+                    'lugar_falle' => trim((string) ($_POST['lugar_falle'] ?? '')) ?: null,
+                    'tramite' => trim((string) ($_POST['tramite'] ?? '')) ?: null,
+                    'vigencia' => trim((string) ($_POST['vigencia'] ?? '')) ?: null,
+                    'obs' => trim((string) ($_POST['obs'] ?? '')) ?: null,
+                    'acredita' => isset($_POST['acredita']) ? 1 : 0,
+                    'aporta' => isset($_POST['aporta']) ? 1 : 0,
+                ];
+
+                if ($modo === 'nuevo') {
+                    $resultado = $sociosServicio->registrarBeneficio($datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                } else {
+                    $resultado = $sociosServicio->actualizarBeneficio((int) $codigo, $datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                }
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'beneficio_nuevo' : 'beneficio_editar', 'client' => $clienteCodigo, 'codigo' => $codigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar beneficio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'beneficio_nuevo' : 'beneficio_editar', 'client' => $_POST['cliente'] ?? '', 'codigo' => $_POST['codigo'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Eliminar beneficio
+        if ($action === 'beneficio_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $codigo = trim((string) ($_GET['codigo'] ?? ''));
+                $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+
+                if ($codigo === '') {
+                    throw new Exception('Código no especificado');
+                }
+
+                $resultado = $sociosServicio->eliminarBeneficio((int) $codigo, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar beneficio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Listado de familiares
+        if ($action === 'familiares') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/familiares.php';
+            exit;
+        }
+
+        // GET: Buscar familiar (persona)
+        if ($action === 'familiar_buscar') {
+            require dirname(__DIR__) . '/views/socios/familiar_buscar.php';
+            exit;
+        }
+
+        // GET: Editar parentesco de familiar
+        if ($action === 'familiar_editar') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            $idPersona = trim((string) ($_GET['persona'] ?? ''));
+            
+            if ($clienteCodigo === '' || $idPersona === '') {
+                http_response_code(400);
+                $error = 'Cliente o persona no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/familiar_editar.php';
+            exit;
+        }
+
+        // POST: Agregar familiar
+        if ($action === 'familiar_agregar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                $idPersona = trim((string) ($_POST['persona'] ?? ''));
+                $tipoParentesco = trim((string) ($_POST['parentesco'] ?? ''));
+
+                if ($clienteCodigo === '' || $idPersona === '' || $tipoParentesco === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->registrarFamiliar($clienteCodigo, $idPersona, $tipoParentesco, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al agregar familiar: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Actualizar parentesco de familiar
+        if ($action === 'familiar_actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                $idPersona = trim((string) ($_POST['persona'] ?? ''));
+                $tipoParentesco = trim((string) ($_POST['parentesco'] ?? ''));
+
+                if ($clienteCodigo === '' || $idPersona === '' || $tipoParentesco === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->actualizarParentesco($clienteCodigo, $idPersona, $tipoParentesco, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al actualizar parentesco: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Eliminar familiar
+        if ($action === 'familiar_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+                $idPersona = trim((string) ($_GET['persona'] ?? ''));
+
+                if ($clienteCodigo === '' || $idPersona === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->eliminarFamiliar($clienteCodigo, $idPersona, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar familiar: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Listado de rifas
+        if ($action === 'rifas') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/rifas.php';
+            exit;
+        }
+
+        // GET: Nueva rifa
+        if ($action === 'rifa_nuevo') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/rifa_form.php';
+            exit;
+        }
+
+        // GET: Editar rifa
+        if ($action === 'rifa_editar') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+            
+            if ($clienteCodigo === '' || $codigo === '') {
+                http_response_code(400);
+                $error = 'Cliente o código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/rifa_form.php';
+            exit;
+        }
+
+        // POST: Guardar rifa
+        if ($action === 'rifa_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $modo = trim((string) ($_POST['modo'] ?? ''));
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                
+                $datos = [
+                    'socio' => $clienteCodigo,
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'rifap' => trim((string) ($_POST['rifap'] ?? '0')),
+                    'rifad' => trim((string) ($_POST['rifad'] ?? '0')),
+                    'rifar' => trim((string) ($_POST['rifar'] ?? '0')),
+                    'fechaPago' => trim((string) ($_POST['fechaPago'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                ];
+
+                if ($datos['periodo'] === '') {
+                    throw new Exception('Periodo es requerido');
+                }
+
+                if ($modo === 'nuevo') {
+                    $resultado = $sociosServicio->registrarRifa($datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                } else {
+                    $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                    if ($codigo === '') {
+                        throw new Exception('Código no especificado');
+                    }
+                    $resultado = $sociosServicio->actualizarRifa((int) $codigo, $datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                }
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'rifa_nuevo' : 'rifa_editar', 'client' => $clienteCodigo, 'codigo' => $_POST['codigo'] ?? '', 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar rifa: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Eliminar rifa
+        if ($action === 'rifa_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+                $codigo = trim((string) ($_GET['codigo'] ?? ''));
+
+                if ($clienteCodigo === '' || $codigo === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->eliminarRifa((int) $codigo, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar rifa: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Guardar multa
+        if ($action === 'multa_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $modo = trim((string) ($_POST['modo'] ?? ''));
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                
+                $datos = [
+                    'socio' => $clienteCodigo,
+                    'periodo' => trim((string) ($_POST['periodo'] ?? '')),
+                    'multap' => trim((string) ($_POST['multap'] ?? '0')),
+                    'multad' => trim((string) ($_POST['multad'] ?? '0')),
+                    'multar' => trim((string) ($_POST['multar'] ?? '0')),
+                    'fechaPago' => trim((string) ($_POST['fechaPago'] ?? '')),
+                    'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
+                ];
+
+                if ($datos['periodo'] === '') {
+                    throw new Exception('Periodo es requerido');
+                }
+
+                if ($modo === 'nuevo') {
+                    $resultado = $sociosServicio->registrarMulta($datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                } else {
+                    $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                    if ($codigo === '') {
+                        throw new Exception('Código no especificado');
+                    }
+                    $resultado = $sociosServicio->actualizarMulta((int) $codigo, $datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                }
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'multa_nuevo' : 'multa_editar', 'client' => $clienteCodigo, 'codigo' => $_POST['codigo'] ?? '', 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar multa: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Listado de multas
+        if ($action === 'multas') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/multas.php';
+            exit;
+        }
+
+        // GET: Nueva multa
+        if ($action === 'multa_nuevo') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/multa_form.php';
+            exit;
+        }
+
+        // GET: Editar multa
+        if ($action === 'multa_editar') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+            
+            if ($clienteCodigo === '' || $codigo === '') {
+                http_response_code(400);
+                $error = 'Cliente o código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/multa_form.php';
+            exit;
+        }
+
+        // GET: Eliminar multa
+        if ($action === 'multa_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+                $codigo = trim((string) ($_GET['codigo'] ?? ''));
+
+                if ($clienteCodigo === '' || $codigo === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->eliminarMulta((int) $codigo, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar multa: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Guardar cheque
+        if ($action === 'cheque_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $modo = trim((string) ($_POST['modo'] ?? ''));
+                
+                $datos = [
+                    'nombre' => trim((string) ($_POST['nombre'] ?? '')),
+                    'monto' => trim((string) ($_POST['monto'] ?? '')),
+                    'montoLetras' => trim((string) ($_POST['montoLetras'] ?? '')),
+                    'fecha' => trim((string) ($_POST['fecha'] ?? '')),
+                    'cheque' => trim((string) ($_POST['cheque'] ?? '')),
+                    'motivo' => trim((string) ($_POST['motivo'] ?? '')),
+                    'centro' => trim((string) ($_POST['centro'] ?? '')),
+                    'condicion' => trim((string) ($_POST['condicion'] ?? '')),
+                ];
+
+                if ($datos['nombre'] === '' || $datos['monto'] === '' || $datos['montoLetras'] === '') {
+                    throw new Exception('Nombre, monto y monto en letras son requeridos');
+                }
+
+                if ($modo === 'nuevo') {
+                    $resultado = $sociosServicio->registrarCheque($datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                } else {
+                    $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                    if ($codigo === '') {
+                        throw new Exception('Código no especificado');
+                    }
+                    $resultado = $sociosServicio->actualizarCheque((int) $codigo, $datos, $_SESSION['user']['username'] ?? 'SISTEMA');
+                }
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'cheque_nuevo' : 'cheque_editar', 'codigo' => $_POST['codigo'] ?? '', 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar cheque: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Listado de cheques
+        if ($action === 'cheques') {
+            require dirname(__DIR__) . '/views/socios/cheques.php';
+            exit;
+        }
+
+        // GET: Nuevo cheque
+        if ($action === 'cheque_nuevo') {
+            require dirname(__DIR__) . '/views/socios/cheque_form.php';
+            exit;
+        }
+
+        // GET: Editar cheque
+        if ($action === 'cheque_editar') {
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+            
+            if ($codigo === '') {
+                http_response_code(400);
+                $error = 'Código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/socios/cheque_form.php';
+            exit;
+        }
+
+        // GET: Eliminar cheque
+        if ($action === 'cheque_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $codigo = trim((string) ($_GET['codigo'] ?? ''));
+
+                if ($codigo === '') {
+                    throw new Exception('Código no especificado');
+                }
+
+                $resultado = $sociosServicio->eliminarCheque((int) $codigo, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar cheque: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Carta
+        if ($action === 'carta') {
+            require dirname(__DIR__) . '/views/socios/carta.php';
+            exit;
+        }
+
+        // POST: Guardar carta
+        if ($action === 'carta_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'carta', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $sociosServicio = new \Sacs\Services\SociosServicio();
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                $firmo = isset($_POST['firmo']) && $_POST['firmo'] === '1' ? '1' : '0';
+                $carta = trim((string) ($_POST['carta'] ?? ''));
+                $fechaBanco = trim((string) ($_POST['fecha_banco'] ?? ''));
+                $obsCarta = trim((string) ($_POST['obs_carta'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+                if (empty($clienteCodigo)) {
+                    throw new Exception('El código de cliente es requerido');
+                }
+
+                // Obtener código de persona
+                $socio = $sociosServicio->obtenerSocioPorCliente($clienteCodigo);
+                if (!$socio) {
+                    throw new Exception('Socio no encontrado');
+                }
+
+                $codigoPersona = (string) $socio['F01_ID_PERSONA'];
+
+                // Actualizar carta
+                $resultado = $sociosServicio->actualizarCarta($codigoPersona, $firmo, $carta, $fechaBanco, $obsCarta, $usuario);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => 'Carta guardada correctamente']);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = 'Error al guardar la carta';
+                    $query = http_build_query(['module' => 'socios', 'action' => 'carta', 'client' => $clienteCodigo, 'error' => $error]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar carta: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'carta', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Sobregiro
+        if ($action === 'sobregiro') {
+            require dirname(__DIR__) . '/views/socios/sobregiro.php';
+            exit;
+        }
+
+        // GET: Aportaciones Completas
+        if ($action === 'aportes_completos') {
+            require dirname(__DIR__) . '/views/socios/aportes_completos.php';
+            exit;
+        }
+
+        // GET: Observaciones
+        if ($action === 'observaciones') {
+            require dirname(__DIR__) . '/views/socios/observaciones.php';
+            exit;
+        }
+
+        // POST: Guardar observación
+        if ($action === 'observacion_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'observaciones', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $sociosServicio = new \Sacs\Services\SociosServicio();
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                $titulo = trim((string) ($_POST['titulo'] ?? ''));
+                $observacion = trim((string) ($_POST['observacion'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+                if (empty($clienteCodigo)) {
+                    throw new Exception('El código de cliente es requerido');
+                }
+
+                if (empty($titulo)) {
+                    throw new Exception('El título es requerido');
+                }
+
+                if (empty($observacion)) {
+                    throw new Exception('La observación es requerida');
+                }
+
+                // Obtener código de persona
+                $socio = $sociosServicio->obtenerSocioPorCliente($clienteCodigo);
+                if (!$socio) {
+                    throw new Exception('Socio no encontrado');
+                }
+
+                $codigoPersona = (string) $socio['F01_ID_PERSONA'];
+
+                // Actualizar observación en f01_persona
+                $resultadoActualizacion = $sociosServicio->actualizarObservacion($codigoPersona, $titulo, $observacion, $usuario);
+
+                // Registrar en historial f28_obs_detalle
+                $resultadoHistorial = $sociosServicio->registrarObservacionHistorial($codigoPersona, $titulo, $observacion, $usuario);
+
+                if ($resultadoActualizacion['success'] && $resultadoHistorial['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => 'Observación guardada correctamente']);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = 'Error al guardar la observación';
+                    $query = http_build_query(['module' => 'socios', 'action' => 'observaciones', 'client' => $clienteCodigo, 'error' => $error]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar observación: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'observaciones', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar socios CSV
+        if ($action === 'exportar_socios_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'nombre' => trim((string) ($_GET['nombre'] ?? '')),
+                    'documento' => trim((string) ($_GET['documento'] ?? '')),
+                    'centro' => trim((string) ($_GET['centro'] ?? '')),
+                    'condicion' => trim((string) ($_GET['condicion'] ?? '')),
+                    'estado' => trim((string) ($_GET['estado'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarSociosCSV($filtros);
+                
+                $filename = 'socios_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar socios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'listado', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar familiares CSV
+        if ($action === 'exportar_familiares_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'inactivos' => trim((string) ($_GET['inactivos'] ?? '')) === 'true',
+                ];
+                
+                $csv = $exportacionServicio->exportarFamiliaresCSV($filtros);
+                
+                $filename = 'familiares_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar familiares: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes FONBES CSV
+        if ($action === 'exportar_aportes_fonbes_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarAportesFonbesCSV($filtros);
+                
+                $filename = 'aportes_fonbes_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes FONBES: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_fonbes', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes COOPAM CSV
+        if ($action === 'exportar_aportes_coopam_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarAportesCoopamCSV($filtros);
+                
+                $filename = 'aportes_coopam_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes COOPAM: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_coopam', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar beneficios CSV
+        if ($action === 'exportar_beneficios_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarBeneficiosCSV($filtros);
+                
+                $filename = 'beneficios_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar beneficios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar rifas CSV
+        if ($action === 'exportar_rifas_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarRifasCSV($filtros);
+                
+                $filename = 'rifas_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar rifas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar multas CSV
+        if ($action === 'exportar_multas_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarMultasCSV($filtros);
+                
+                $filename = 'multas_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar multas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar cheques CSV
+        if ($action === 'exportar_cheques_csv') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $csv = $exportacionServicio->exportarChequesCSV($filtros);
+                
+                $filename = 'cheques_' . date('Y-m-d') . '.csv';
+                
+                header('Content-Type: text/csv; charset=utf-8');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $csv;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar cheques: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar socios Excel
+        if ($action === 'exportar_socios_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'nombre' => trim((string) ($_GET['nombre'] ?? '')),
+                    'documento' => trim((string) ($_GET['documento'] ?? '')),
+                    'centro' => trim((string) ($_GET['centro'] ?? '')),
+                    'condicion' => trim((string) ($_GET['condicion'] ?? '')),
+                    'estado' => trim((string) ($_GET['estado'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarSociosExcel($filtros);
+                
+                $filename = 'socios_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar socios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'listado', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar familiares Excel
+        if ($action === 'exportar_familiares_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'inactivos' => trim((string) ($_GET['inactivos'] ?? '')) === 'true',
+                ];
+                
+                $excel = $exportacionServicio->exportarFamiliaresExcel($filtros);
+                
+                $filename = 'familiares_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar familiares: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes FONBES Excel
+        if ($action === 'exportar_aportes_fonbes_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarAportesFonbesExcel($filtros);
+                
+                $filename = 'aportes_fonbes_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes FONBES: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_fonbes', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes COOPAM Excel
+        if ($action === 'exportar_aportes_coopam_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarAportesCoopamExcel($filtros);
+                
+                $filename = 'aportes_coopam_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes COOPAM: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_coopam', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar beneficios Excel
+        if ($action === 'exportar_beneficios_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarBeneficiosExcel($filtros);
+                
+                $filename = 'beneficios_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar beneficios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar rifas Excel
+        if ($action === 'exportar_rifas_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarRifasExcel($filtros);
+                
+                $filename = 'rifas_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar rifas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar multas Excel
+        if ($action === 'exportar_multas_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarMultasExcel($filtros);
+                
+                $filename = 'multas_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar multas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar cheques Excel
+        if ($action === 'exportar_cheques_excel') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $excel = $exportacionServicio->exportarChequesExcel($filtros);
+                
+                $filename = 'cheques_' . date('Y-m-d') . '.xlsx';
+                
+                header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $excel;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar cheques: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar socios PDF
+        if ($action === 'exportar_socios_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'nombre' => trim((string) ($_GET['nombre'] ?? '')),
+                    'documento' => trim((string) ($_GET['documento'] ?? '')),
+                    'centro' => trim((string) ($_GET['centro'] ?? '')),
+                    'condicion' => trim((string) ($_GET['condicion'] ?? '')),
+                    'estado' => trim((string) ($_GET['estado'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarSociosPDF($filtros);
+                
+                $filename = 'socios_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar socios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'listado', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar familiares PDF
+        if ($action === 'exportar_familiares_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'inactivos' => trim((string) ($_GET['inactivos'] ?? '')) === 'true',
+                ];
+                
+                $pdf = $exportacionServicio->exportarFamiliaresPDF($filtros);
+                
+                $filename = 'familiares_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar familiares: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'familiares', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes FONBES PDF
+        if ($action === 'exportar_aportes_fonbes_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarAportesFonbesPDF($filtros);
+                
+                $filename = 'aportes_fonbes_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes FONBES: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_fonbes', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar aportes COOPAM PDF
+        if ($action === 'exportar_aportes_coopam_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarAportesCoopamPDF($filtros);
+                
+                $filename = 'aportes_coopam_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar aportes COOPAM: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'aportes_coopam', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar beneficios PDF
+        if ($action === 'exportar_beneficios_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarBeneficiosPDF($filtros);
+                
+                $filename = 'beneficios_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar beneficios: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'beneficios', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar rifas PDF
+        if ($action === 'exportar_rifas_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarRifasPDF($filtros);
+                
+                $filename = 'rifas_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar rifas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'rifas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar multas PDF
+        if ($action === 'exportar_multas_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'cliente_codigo' => trim((string) ($_GET['client'] ?? '')),
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarMultasPDF($filtros);
+                
+                $filename = 'multas_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar multas: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'multas', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Exportar cheques PDF
+        if ($action === 'exportar_cheques_pdf') {
+            try {
+                $exportacionServicio = new \Sacs\Services\ExportacionServicio();
+                
+                $filtros = [
+                    'fecha_desde' => trim((string) ($_GET['fecha_desde'] ?? '')),
+                    'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? '')),
+                ];
+                
+                $pdf = $exportacionServicio->exportarChequesPDF($filtros);
+                
+                $filename = 'cheques_' . date('Y-m-d') . '.pdf';
+                
+                header('Content-Type: application/pdf');
+                header('Content-Disposition: attachment; filename="' . $filename . '"');
+                header('Pragma: no-cache');
+                header('Expires: 0');
+                
+                echo $pdf;
+                exit;
+                
+            } catch (Exception $e) {
+                $error = 'Error al exportar cheques: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'cheques', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Eliminar socio
+        if ($action === 'eliminar_socio' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $idPersona = trim((string) ($_POST['id_persona'] ?? ''));
+                $tipo = trim((string) ($_POST['tipo'] ?? ''));
+                $fechaUltimoAporte = trim((string) ($_POST['fecha_ultimo_aporte'] ?? '')) ?: null;
+                $clienteCodigo = trim((string) ($_POST['cliente'] ?? ''));
+
+                if ($idPersona === '' || $tipo === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->eliminarSocio($idPersona, $tipo, $_SESSION['user']['username'] ?? 'SISTEMA', $fechaUltimoAporte);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar socio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Activar socio
+        if ($action === 'activar_socio' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $idPersona = trim((string) ($_POST['id_persona'] ?? ''));
+                $clienteCodigo = trim((string) ($_POST['cliente'] ?? ''));
+
+                if ($idPersona === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->activarSocio($idPersona, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al activar socio: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Ocultar/mostrar socio
+        if ($action === 'ocultar_socio' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $idPersona = trim((string) ($_POST['id_persona'] ?? ''));
+                $visible = (int) ($_POST['visible'] ?? 1);
+                $clienteCodigo = trim((string) ($_POST['cliente'] ?? ''));
+
+                if ($idPersona === '') {
+                    throw new Exception('Datos incompletos');
+                }
+
+                $resultado = $sociosServicio->ocultarSocio($idPersona, $visible, $_SESSION['user']['username'] ?? 'SISTEMA');
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'info', 'client' => $clienteCodigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $clienteCodigo, 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al cambiar visibilidad: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'gestion_estado', 'client' => $_POST['cliente'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
         }
 
         // GET: Editar socio

@@ -61,7 +61,7 @@ final class DesembolsoBeneficiosServicio
             if ($beneficio === false) {
                 throw new RuntimeException('Beneficio no encontrado o no pertenece al cliente');
             }
-            if (strtoupper($beneficio['f21_estado']) !== 'PENDIENTE') {
+            if (strtoupper($beneficio['f21_estado']) !== 'REGISTRADO') {
                 throw new RuntimeException('El beneficio ya ha sido procesado');
             }
 
@@ -244,7 +244,7 @@ final class DesembolsoBeneficiosServicio
     {
         $sql = "SELECT f21_codigo, f21_importe, f21_beneficiario, f21_fecha, f21_tipo
                 FROM f21_beneficios
-                WHERE f21_socio = :socio AND f21_estado = 'PENDIENTE'
+                WHERE f21_socio = :socio AND f21_estado = 'REGISTRADO'
                 ORDER BY f21_fecha DESC";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(['socio' => $clienteCodigo]);

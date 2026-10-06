@@ -213,6 +213,7 @@ $codigoContablePorFormaPago = [
             <a class="nav-link" href="index.php?module=caja&action=desembolso_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Desembolso Préstamo</a>
             <a class="nav-link" href="index.php?module=caja&action=sobregiro_prestamo_form&client=<?= rawurlencode($clienteCodigo) ?>">Sobregiro Préstamo</a>
             <a class="nav-link active" href="index.php?module=caja&action=amortizar_form&client=<?= rawurlencode($clienteCodigo) ?>&loan=<?= $prestamoId ?>">Amortización</a>
+            <a class="nav-link" href="index.php?module=caja&action=pago_integral_seleccion&client=<?= rawurlencode($clienteCodigo) ?>">Pago Integral</a>
             <a class="nav-link" href="index.php?module=caja&action=multas_form&client=<?= rawurlencode($clienteCodigo) ?>">Multas</a>
             <a class="nav-link" href="index.php?module=caja&action=devolucion_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Devolución FONBES</a>
             <a class="nav-link" href="index.php?module=caja&action=devolucion_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Devolución COOPAM</a>

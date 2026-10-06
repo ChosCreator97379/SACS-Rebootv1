@@ -91,6 +91,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php" class="nav-link">Dashboard</a>
                 <a href="index.php?module=socios&action=listado" class="nav-link active">Listado de Socios</a>
                 <a href="index.php?module=socios&action=registro" class="nav-link">Registro de Socio</a>
+                <a href="index.php?module=socios&action=cheques" class="nav-link">Cheques</a>
                 <div class="nav-label">Auditoría</div>
                 <a href="index.php?module=socios&action=auditoria_general" class="nav-link">Auditoría General</a>
             </nav>
@@ -99,7 +100,12 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         <main class="main">
             <div class="header">
                 <h1>Listado de Socios</h1>
-                <a href="index.php?module=socios&action=registro" class="btn-sm btn-primary" style="padding: 8px 16px; font-size: 13px;">Nuevo Socio</a>
+                <div style="display: flex; gap: 12px;">
+                    <a href="index.php?module=socios&action=registro" class="btn-sm btn-primary" style="padding: 8px 16px; font-size: 13px;">Nuevo Socio</a>
+                    <a href="index.php?module=socios&action=exportar_socios_csv&criterio=<?= $escape($_GET['criterio'] ?? '') ?>&nombre=<?= $escape($_GET['nombre'] ?? '') ?>&documento=<?= $escape($_GET['documento'] ?? '') ?>&centro=<?= $escape($_GET['centro'] ?? '') ?>&condicion=<?= $escape($_GET['condicion'] ?? '') ?>&estado=<?= $escape($_GET['estado'] ?? '') ?>" class="btn-sm btn-secondary" style="padding: 8px 16px; font-size: 13px;">📄 CSV</a>
+                    <a href="index.php?module=socios&action=exportar_socios_excel&criterio=<?= $escape($_GET['criterio'] ?? '') ?>&nombre=<?= $escape($_GET['nombre'] ?? '') ?>&documento=<?= $escape($_GET['documento'] ?? '') ?>&centro=<?= $escape($_GET['centro'] ?? '') ?>&condicion=<?= $escape($_GET['condicion'] ?? '') ?>&estado=<?= $escape($_GET['estado'] ?? '') ?>" class="btn-sm btn-secondary" style="padding: 8px 16px; font-size: 13px;">📊 Excel</a>
+                    <a href="index.php?module=socios&action=exportar_socios_pdf&criterio=<?= $escape($_GET['criterio'] ?? '') ?>&nombre=<?= $escape($_GET['nombre'] ?? '') ?>&documento=<?= $escape($_GET['documento'] ?? '') ?>&centro=<?= $escape($_GET['centro'] ?? '') ?>&condicion=<?= $escape($_GET['condicion'] ?? '') ?>&estado=<?= $escape($_GET['estado'] ?? '') ?>" class="btn-sm btn-secondary" style="padding: 8px 16px; font-size: 13px;">📋 PDF</a>
+                </div>
             </div>
             <p class="intro">Busque y gestione los socios del sistema.</p>
 

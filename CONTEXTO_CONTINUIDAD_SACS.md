@@ -1,6 +1,6 @@
 # Contexto de continuidad: reconstruccion SACS
 
-Fecha de corte: 2026-09-12
+Fecha de corte: 2026-10-06 (actualizado - Exportación y Reportes, y Gestión de Observaciones implementados)
 
 ## 1. Objetivo del proyecto
 
@@ -18,7 +18,7 @@ Regla principal:
 
 Proyecto legacy Java original:
 
-`C:\Users\GIGABYTE\OneDrive\Escritorio\fuente\SistemaAdmCreditosSocios\SACS`
+## 'O:\fuente\SistemaAdmCreditosSocios\SACS'
 
 Proyecto PHP nuevo:
 
@@ -1748,24 +1748,718 @@ Se realizó una revisión completa de todos los sidebars en las vistas de caja p
 **Corrección aplicada:**
 - `views/caja/pago_rifa.php`: Se corrigió el sidebar para incluir las 3 operaciones faltantes (Devolución FONBES, Devolución COOPAM, Cancelación AEE). Ahora tiene las 16 operaciones completas.
 
-**Estado de sidebars después de corrección:**
-- ✅ `amortizacion.php` - 16 operaciones completas
-- ✅ `aportes_fonbes.php` - 16 operaciones completas
-- ✅ `aportes_coopam.php` - 16 operaciones completas
-- ✅ `sobregiro_prestamo.php` - 16 operaciones completas
-- ✅ `desembolso_prestamo.php` - 16 operaciones completas
-- ✅ `cancelacion_aee.php` - 16 operaciones completas
-- ✅ `desembolso_beneficio.php` - 16 operaciones completas
-- ✅ `desembolso_beneficios.php` - 16 operaciones completas
-- ✅ `devolucion_coopam.php` - 16 operaciones completas
-- ✅ `devolucion_fonbes.php` - 16 operaciones completas
-- ✅ `multas.php` - 16 operaciones completas
-- ✅ `otras_devoluciones.php` - 16 operaciones completas
-- ✅ `otros_ingresos.php` - 16 operaciones completas
-- ✅ `pago_rifa.php` - 16 operaciones completas (CORREGIDO)
-- ✅ `pago_sobregiro_fonbes.php` - 16 operaciones completas
-- ✅ `pago_sobregiro_coopam.php` - 16 operaciones completas
-- ✅ `egresos.php` - 16 operaciones completas
-- ✅ `movimientos.php` - 16 operaciones completas (con lógica condicional)
+## 17. Módulo de Socios - Implementación Reciente
 
-Todos los sidebars ahora tienen las 16 operaciones completas y consistentes.
+**Fecha de implementación**: 2026-09-29 a 2026-10-01
+
+### 17.1 Servicio de Socios
+
+**Archivo**: `src/Services/SociosServicio.php`
+
+Funcionalidades implementadas:
+- `registrarSocio($datosPersona, $datosCliente, $usuario)` - Registro de nuevos socios con auditoría de usuario y fecha de creación
+- `actualizarSocio($idPersona, $datosPersona, $usuario)` - Actualización de datos de socios con auditoría de usuario y fecha de modificación
+- `listarSocios($filtros, $offset, $limit)` - Listado con filtros avanzados y paginación (10 por página)
+- `contarSocios($filtros)` - Conteo total de socios con los mismos filtros
+- `obtenerSocioDetalle($idCliente)` - Obtener información detallada de un socio con joins a tablas de referencia
+- `obtenerHistorialCambios($idCliente)` - Historial de cambios de un socio (CREACIÓN/MODIFICACIÓN)
+- `obtenerTodosLosCambios($limite)` - Historial completo de cambios del sistema
+- `obtenerDepartamentos()` - Lista de departamentos desde f05_ubigeo
+- `obtenerTodasProvincias()` - Lista de todas las provincias
+- `obtenerTodosDistritos()` - Lista de todos los distritos
+- `obtenerCondiciones()` - Lista de condiciones únicas
+- `obtenerSituaciones()` - Lista de situaciones únicas
+
+### 17.2 Listado de Socios con Filtros Avanzados
+
+**Archivo**: `views/socios/listado.php`
+
+Funcionalidades implementadas:
+- ✅ Paginación: 10 socios por página con botones "Anterior"/"Siguiente"
+- ✅ Filtros avanzados:
+  - Búsqueda general (nombre, apellido, código)
+  - Ubicación geográfica (departamento, provincia, distrito) con datalist nativo HTML5
+  - Condición del socio
+  - Situación del socio
+  - Estado (activo/inactivo)
+  - Rango de edad (mínima y máxima)
+- ✅ Botón "Filtrar" explícito (envía el formulario)
+- ✅ Botón "Limpiar" para resetear filtros
+- ✅ Sidebar con navegación a módulos de Socios y Auditoría
+- ✅ Acciones por socio:
+  - "Ver" - Ver operaciones activas en Caja
+  - "Info" - Ver información personal
+  - "Auditoría" - Ver historial de cambios
+
+### 17.3 Vista de Información Personal
+
+**Archivo**: `views/socios/info.php`
+
+Funcionalidades implementadas:
+- ✅ Información completa del socio organizada en secciones:
+  - Información General (código, estado, nombre completo, documento, sexo, fecha nacimiento, edad, estado civil)
+  - Información de Contacto (correo, teléfonos)
+  - Dirección (zona, vía, interior, exterior, piso, departamento, provincia, distrito)
+  - Información Académica y Laboral (nacionalidad, instrucción, profesión, ingreso)
+  - Información de Lugar de Nacimiento (departamento, provincia, distrito)
+  - Información del Socio (condición, situación, centro, cuenta, aportación, saldo)
+  - Observaciones
+- ✅ Sidebar consistente con módulos de Socios y Auditoría
+- ✅ Botones de acción:
+  - "Editar Socio" - Modificar datos personales
+  - "Ver Historial de Cambios" - Auditoría individual
+  - "Ver Operaciones" - Operaciones de Caja
+  - "Volver al Listado"
+
+### 17.4 Edición de Socios
+
+**Archivo**: `views/socios/editar.php`
+
+Funcionalidades implementadas:
+- ✅ Formulario completo de edición con secciones:
+  - Información Personal (apellidos, nombres, documento, sexo, fecha nacimiento, estado civil)
+  - Contacto (correo, teléfonos)
+  - Ubicación (departamento, provincia, distrito, dirección completa)
+  - Información del Socio (condición, situación, centro, cuenta, ingresos, aportación, saldo, edad)
+  - Observaciones
+- ✅ Valores pre-llenados con datos actuales del socio
+- ✅ CSRF token para seguridad
+- ✅ Sidebar consistente
+- ✅ Validación de campos requeridos
+
+**Rutas en controlador**:
+- GET: `module=socios&action=editar&client=CODIGO_CLIENTE` - Mostrar formulario de edición
+- POST: `module=socios&action=actualizar` - Procesar actualización con auditoría
+
+### 17.5 Auditoría de Cambios
+
+**Vistas creadas**:
+- `views/socios/auditoria.php` - Historial individual de cambios de un socio
+- `views/socios/auditoria_general.php` - Historial completo de cambios del sistema
+
+**Funcionalidades implementadas**:
+- ✅ Registro automático de auditoría en creación y modificación de socios
+- ✅ Campos de auditoría en `f01_persona`:
+  - `F01_ID_USUA_CREA` - Usuario que creó
+  - `F01_FE_USUA_CREA` - Fecha de creación
+  - `F01_ID_USUA_MODI` - Usuario que modificó
+  - `F01_FE_USUA_MODI` - Fecha de modificación
+- ✅ Campos de auditoría en `f02_cliente`:
+  - `F02_ID_USUA_CREA` - Usuario que creó
+  - `F02_FE_USUA_CREA` - Fecha de creación
+  - `F02_ID_USUA_MODI` - Usuario que modificó
+  - `F02_FE_USUA_MODI` - Fecha de modificación
+- ✅ Vista individual: muestra CREACIÓN y MODIFICACIÓN de un socio específico
+- ✅ Vista general: muestra todos los cambios del sistema (limitado a 100)
+- ✅ Badges visuales para diferenciar tipo de acción (CREACIÓN en verde, MODIFICACIÓN en amarillo)
+- ✅ Sidebar con navegación a Auditoría General desde todas las vistas de Socios
+
+**Rutas en controlador**:
+- GET: `module=socios&action=auditoria&client=CODIGO_CLIENTE` - Historial individual
+- GET: `module=socios&action=auditoria_general` - Historial general
+
+### 17.6 Datalist para Ubicación
+
+**Implementación**: Nativa HTML5 `<datalist>` (sin JavaScript custom)
+
+Funcionalidades implementadas:
+- ✅ Departamentos: carga desde `f05_ubigeo` usando `ubigeo_distrito` (columna que contiene nombres de departamentos)
+- ✅ Provincias: carga desde `f05_ubigeo` usando `ubigeo_provincia` (columna que contiene nombres de provincias)
+- ✅ Distritos: carga desde `f05_ubigeo` usando `ubigeo_departamento` (columna que contiene nombres de distritos)
+- ✅ Código ubigeo de 6 dígitos interpretado como:
+  - Caracteres 1-2: código de departamento
+  - Caracteres 3-4: código de provincia
+  - Caracteres 5-6: código de distrito
+- ✅ Los filtros en la base de datos comparan códigos de 2 caracteres (no el código completo de 6 dígitos)
+
+**Nota importante sobre estructura de f05_ubigeo**:
+Los datos están almacenados en un orden diferente al esperado por los nombres de columnas:
+- `ubigeo_departamento` contiene nombres de distritos
+- `ubigeo_provincia` contiene nombres de provincias
+- `ubigeo_distrito` contiene nombres de departamentos
+- `ubigeo_codigo` contiene el código ubigeo de 6 dígitos
+
+### 17.7 Sidebar Consistente en Socios
+
+Todas las vistas de Socios tienen el mismo sidebar:
+- Dashboard
+- Listado de Socios
+- Registro de Socio
+- **Auditoría** (sección nueva)
+  - Auditoría General
+
+**Vistas actualizadas**:
+- `views/socios/listado.php`
+- `views/socios/info.php`
+- `views/socios/auditoria.php`
+- `views/socios/auditoria_general.php`
+- `views/socios/editar.php`
+
+### 17.8 Mejoras al Login
+
+**Fecha de implementación**: 2026-09-29
+
+**Archivo**: `views/login.php`
+
+Funcionalidades implementadas:
+- ✅ Rediseño profesional con sistema de colores consistente con el dashboard
+- ✅ Brand con logo circular estilo dashboard
+- ✅ Mejor tipografía y espaciado
+- ✅ Inputs con focus states y transitions suaves
+- ✅ Botón con hover/active states
+- ✅ Footer informativo
+- ✅ Responsive design (adaptable a móviles)
+- ✅ Mejor estructura visual con grupos de formulario
+- ✅ Placeholders en los inputs
+- ✅ Card con sombra y bordes redondeados
+- ✅ Fondo visual con gradiente (azul púrpura a púrpura) y elementos decorativos
+- ✅ Funcionalidad para mostrar/ocultar contraseña con botón de ojo (👁)
+- ✅ Botón del ojo al lado del campo de contraseña (no dentro, para evitar problemas de posicionamiento)
+
+### 17.9 Pendientes en Gestión de Socios
+
+Según comparación con sistema legacy Java (~200 métodos en SociosDAO), aún faltan:
+
+- ❌ Eliminar socio (parcial, falle, final) - 3 tipos de eliminación
+- ❌ Activar socio - Reactivar un socio eliminado
+- ❌ Ocultar socio - Ocultar socio del listado sin eliminar
+- ❌ Actualizar observaciones - Modificar observaciones existentes
+- ❌ Registrar observaciones - Agregar nuevas observaciones (separado de edición general)
+- ❌ Gestión de aportes (FONBES/COOPAM desde Socios)
+- ❌ Gestión de beneficios
+- ❌ Gestión de familiares
+- ❌ Gestión de rifas y multas
+- ❌ Gestión de cheques
+- ❌ Exportación y reportes
+
+**Funcionalidades completadas posteriormente**:
+- ✅ Eliminar socio (completo con 3 tipos: parcial, falle, final)
+- ✅ Activar socio - Reactivar un socio eliminado
+- ✅ Ocultar socio - Ocultar socio del listado sin eliminar
+- ✅ Gestión de aportes (FONBES/COOPAM desde Socios)
+- ✅ Gestión de beneficios
+- ✅ Gestión de familiares
+- ✅ Gestión de rifas y multas
+- ✅ Gestión de cheques
+- ✅ Exportación y reportes (CSV, Excel, PDF)
+- ✅ Gestión de observaciones
+
+**Estado actual del módulo de Socios**: ~80% de la funcionalidad del legacy (aproximadamente 160-170 métodos implementados de ~200)
+
+### 17.10 Reglas de Diseño del Dashboard
+
+**Regla establecida por el usuario**:
+- "NO eliminar nada"
+- "Solo implementar"
+- Si se quiere eliminar algo, que se discuta primero antes que todo
+
+Esta regla se aplica especialmente al dashboard.
+
+## 18. Estado General del Proyecto
+
+### 18.1 Módulos Completados
+
+**Caja**: ~100% de las 16 operaciones implementadas + Pago Integral (operación combinada)
+- ✅ Operación 1: Aportes FONBES
+- ✅ Operación 2: Amortización AEE
+- ✅ Operación 3: Desembolso Préstamo
+- ✅ Operación 4: Devolución FONBES
+- ✅ Operación 5: Devolución COOPAM
+- ✅ Operación 6: Cancelación AEE
+- ✅ Operación 7: Desembolso Beneficios
+- ✅ Operación 8: Egresos
+- ✅ Operación 9: Aportes COOPAM
+- ✅ Operación 10: Pago Sobregiro Préstamo
+- ✅ Operación 11: Pagos de Multas
+- ✅ Operación 12: Pago Rifa
+- ✅ Operación 13: Otras Devoluciones
+- ✅ Operación 14: Pago Sobregiro FONBES
+- ✅ Operación 15: Pago Sobregiro COOPAM
+- ✅ Operación 16: Otros Ingresos
+- ✅ **Pago Integral** (operación combinada - nueva implementación)
+
+### 18.2 Operación de Pago Integral (Nueva)
+
+**Fecha de implementación**: 2026-10-01
+
+**Descripción**:
+Operación combinada que permite pagar todo lo pendiente del socio (global y por préstamo) en una sola transacción. Se procesan múltiples componentes en orden lógico, generando movimientos individuales con sus códigos de operación correctos.
+
+**Componentes procesados (en orden)**:
+
+1. **Componentes globales (por socio)**:
+   - Aportes FONBES pendientes (últimos 12 periodos)
+   - Aportes COOPAM pendientes (últimos 12 periodos)
+   - Sobregiro de aportaciones FONBES
+   - Sobregiro de aportaciones COOPAM
+
+2. **Componentes por préstamo (por cada préstamo seleccionado)**:
+   - Sobregiro del préstamo
+   - Gastos administrativos (sobregiro)
+   - Mora (sobregiro)
+   - Otros 1
+   - Otros 2
+   - Amortización de cuota actual (capital + interés + mora de cuota)
+
+**NOTA**: Las multas se omiten (perdonan) según especificación del usuario. La Cancelación AEE es una operación separada con su propio flujo estricto.
+
+**Archivos creados**:
+- `src/Services/PagoIntegralServicio.php` - Servicio principal con métodos:
+  - `obtenerPrestamosActivos()` - Lista préstamos activos (estado 4)
+  - `obtenerCuotaActual()` - Obtiene la cuota que debe pagarse hoy (f17_ncuota > 0)
+  - `calcularPendientesGlobales()` - Calcula pendientes globales con desglose por periodo
+  - `calcularPendientesPorPrestamo()` - Calcula pendientes por préstamo con desglose detallado
+  - `ejecutarPagoIntegral()` - Ejecuta la transacción reutilizando servicios existentes
+
+- `views/caja/pago_integral_seleccion.php` - Vista intermedia para seleccionar préstamos:
+  - Lista de préstamos activos con checkboxes
+  - Validación de al menos un préstamo seleccionado
+  - Botón "Seleccionar todos"
+
+- `views/caja/pago_integral.php` - Vista principal del formulario:
+  - Desglose de componentes globales con tablas editables
+  - Secciones separadas por préstamo: sobregiro y amortización
+  - Selectores de códigos contables y tipos (debe/haber) al lado de cada monto
+  - Cálculo automático de totales en tiempo real con JavaScript
+  - Diseño consistente con otras vistas de Caja
+
+**Archivos modificados**:
+- `public/index.php` - Agregadas rutas:
+  - GET: `module=caja&action=pago_integral_seleccion&client=XXX`
+  - GET: `module=caja&action=pago_integral_form&client=XXX&prestamos[]=YYY`
+  - POST: `module=caja&action=pago_integral`
+
+- `views/caja/cliente.php` - Agregado botón "Pago Integral" en sección de Préstamos
+
+- Sidebars actualizados en vistas de caja para incluir enlace a Pago Integral:
+  - `amortizacion.php`
+  - `sobregiro_prestamo.php`
+  - `desembolso_prestamo.php`
+  - `movimientos.php`
+
+**Características de la UI**:
+- Todos los montos son editables
+- Cada monto tiene su código contable y tipo (debe/haber) al lado
+- Secciones separadas visualmente:
+  - Componentes globales (aportes y sobregiros de aportaciones)
+  - Por préstamo: Sobregiro del préstamo (separado)
+  - Por préstamo: Amortización de cuota (separada)
+  - Resumen total del préstamo
+- Cálculo automático de subtotales y total general en tiempo real
+- Diseño con fondo dorado para "Total a Pagar" para mejor visibilidad
+
+**Correcciones de esquema aplicadas**:
+- `f16_fechaDesem` → `f16_fechaDes` (fecha de desembolso en préstamos)
+- `f17_fechaVencimiento` → `f17_fecha` (fecha de vencimiento en cuotas)
+- `f16_aportacion` → `f16_sobre` (sobregiro de préstamo)
+
+**Rutas**:
+1. Selección de préstamos: `GET index.php?module=caja&action=pago_integral_seleccion&client=CODIGO_CLIENTE`
+2. Formulario de pago: `GET index.php?module=caja&action=pago_integral_form&client=CODIGO_CLIENTE&prestamos[]=YYY`
+3. Procesamiento: `POST index.php?module=caja&action=pago_integral`
+
+**Validaciones**:
+- El usuario debe seleccionar al menos un préstamo
+- Solo se pueden seleccionar préstamos activos (estado 4)
+- La cuota actual debe tener `f17_ncuota > 0` (se filtran cuotas inválidas)
+- Validación CSRF en el POST
+
+**Pendientes**:
+- Probar la funcionalidad completa con datos reales
+- Verificar que el procesamiento POST funcione correctamente
+- Verificar generación de movimientos y asientos contables
+- Documentar cualquier ajuste necesario en el procesamiento
+
+### 18.3 Implementación de Gestión de Beneficios en Socios
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivo modificado**: `src/Services/SociosServicio.php`
+
+Métodos agregados:
+- `obtenerBeneficios($clienteCodigo)` - Listar beneficios de un socio
+- `obtenerBeneficio($codigo)` - Obtener un beneficio específico
+- `registrarBeneficio($datos, $usuario)` - Registrar nuevo beneficio con estado "REGISTRADO"
+- `actualizarBeneficio($codigo, $datos, $usuario)` - Actualizar beneficio existente
+- `eliminarBeneficio($codigo, $usuario)` - Eliminar beneficio (cambia estado a "BAJA")
+
+**Archivos creados**:
+- `views/socios/beneficios.php` - Vista de listado de beneficios con:
+  - Tabla de beneficios con información completa
+  - Filtros por rango de fechas
+  - Botón "Nuevo Beneficio"
+  - Acciones de editar y eliminar
+  - Sidebar consistente con módulo de Socios
+
+- `views/socios/beneficio_form.php` - Vista de formulario de beneficio con:
+  - Formulario para crear/editar beneficios
+  - Campos: código de socio, tipo de beneficio, importe, parentesco, fecha, observaciones
+  - Validación de campos requeridos
+  - Sidebar consistente
+
+**Archivos modificados**:
+- `public/index.php` - Agregadas rutas para beneficios
+- `views/socios/info.php` - Agregado botón "💎 Beneficios"
+- Sidebars actualizados en todas las vistas de socios
+
+**Características**:
+- Estado "REGISTRADO" al crear (compatible con legacy)
+- Compatible con operación de desembolso de beneficios en Caja
+- Sin AJAX - usa formularios POST/GET tradicionales
+- Validación de CSRF
+- Auditoría de usuario en todas las operaciones
+
+### 18.4 Implementación de Gestión de Familiares en Socios
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivo modificado**: `src/Services/SociosServicio.php`
+
+Métodos agregados:
+- `obtenerTiposParentesco()` - Lista de tipos de parentesco (1-11)
+- `obtenerFamiliares($clienteCodigo, $inactivos = false)` - Listar familiares
+- `registrarFamiliar($clienteCodigo, $idPersona, $tipoParentesco, $usuario)` - Registrar familiar
+- `actualizarParentesco($clienteCodigo, $idPersona, $tipoParentesco, $usuario)` - Actualizar parentesco
+- `eliminarFamiliar($clienteCodigo, $idPersona, $usuario)` - Eliminar familiar
+- `buscarPersonaPorDocumento($documento)` - Buscar persona para agregar como familiar
+
+**Archivos creados**:
+- `views/socios/familiares.php` - Vista de listado de familiares
+- `views/socios/familiar_buscar.php` - Vista de búsqueda de persona
+- `views/socios/familiar_editar.php` - Vista de edición de parentesco
+
+**Archivos modificados**:
+- `public/index.php` - Agregadas rutas para familiares
+- `views/socios/info.php` - Agregado botón "👨‍👩‍👧 Familiares"
+- Sidebars actualizados en todas las vistas de socios
+
+**Características**:
+- CRUD completo de familiares
+- Búsqueda de persona por documento sin AJAX
+- Sin AJAX - usa formularios POST/GET tradicionales
+- Validación de CSRF
+- Auditoría de usuario en todas las operaciones
+
+### 18.5 Implementación de Gestión de Rifas y Multas en Socios
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivo modificado**: `src/Services/SociosServicio.php`
+
+Métodos agregados para Rifas:
+- `obtenerRifas($clienteCodigo, $fechaDesde, $fechaHasta)` - Listar rifas
+- `obtenerRifa($codigo)` - Obtener una rifa específica
+- `registrarRifa($datos, $usuario)` - Registrar nueva rifa
+- `actualizarRifa($codigo, $datos, $usuario)` - Actualizar rifa existente
+- `eliminarRifa($codigo, $usuario)` - Eliminar rifa
+- `obtenerRifaPendiente($clienteCodigo)` - Obtener rifa pendiente (para Caja)
+
+Métodos agregados para Multas:
+- `obtenerMultas($clienteCodigo, $fechaDesde, $fechaHasta)` - Listar multas
+- `obtenerMulta($codigo)` - Obtener una multa específica
+- `registrarMulta($datos, $usuario)` - Registrar nueva multa
+- `actualizarMulta($codigo, $datos, $usuario)` - Actualizar multa existente
+- `eliminarMulta($codigo, $usuario)` - Eliminar multa
+- `obtenerMultaPendiente($clienteCodigo)` - Obtener multa pendiente (para Caja)
+
+**Archivos creados**:
+- `views/socios/rifas.php` - Vista de listado de rifas
+- `views/socios/rifa_form.php` - Vista de formulario de rifa
+- `views/socios/multas.php` - Vista de listado de multas
+- `views/socios/multa_form.php` - Vista de formulario de multa
+
+**Archivos modificados**:
+- `public/index.php` - Agregadas rutas para rifas y multas
+- `views/socios/info.php` - Agregados botones "🎫 Rifas" y "⚠️ Multas"
+- Sidebars actualizados en todas las vistas de socios
+
+**Características**:
+- CRUD completo de rifas y multas
+- Filtros por año del periodo
+- Sin AJAX - usa formularios POST/GET tradicionales
+- Validación de CSRF
+- Auditoría de usuario en todas las operaciones
+- Compatible con operaciones de pago en Caja
+
+**Corrección importante**: Se corrigió la resolución de action en index.php para que POST use solo $_POST['action'] y GET use solo $_GET['action'], evitando conflictos cuando una URL contiene un action GET al enviar un formulario POST.
+
+### 18.6 Implementación de Gestión de Cheques en Socios
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivo modificado**: `src/Services/SociosServicio.php`
+
+Métodos agregados:
+- `obtenerCheques($fechaDesde, $fechaHasta, $pagina, $porPagina)` - Listar cheques con paginación
+- `contarCheques($fechaDesde, $fechaHasta)` - Contar total de cheques
+- `obtenerCheque($codigo)` - Obtener un cheque específico
+- `registrarCheque($datos, $usuario)` - Registrar nuevo cheque con código auto-incremental
+- `actualizarCheque($codigo, $datos, $usuario)` - Actualizar cheque existente
+- `eliminarCheque($codigo, $usuario)` - Eliminar cheque
+
+**Archivos creados**:
+- `views/socios/cheques.php` - Vista de listado de cheques con:
+  - Tabla de cheques con información completa
+  - Filtros por rango de fechas
+  - Paginación de 10 registros por página
+  - Botones de navegación (Anterior/Siguiente)
+  - Filas compactas con mejor espaciado
+  - Botón "Nuevo Cheque"
+  - Acciones de editar y eliminar
+  - Sidebar consistente con módulo de Socios
+
+- `views/socios/cheque_form.php` - Vista de formulario de cheque con:
+  - Formulario para crear/editar cheques
+  - Campos: nombre, monto, monto en letras, fecha, número de cheque, motivo, centro, condición
+  - Conversión automática de monto numérico a letras
+  - Manejo correcto de decimales en formato "/100"
+  - Validación de campos requeridos
+  - Sidebar consistente
+
+**Archivos modificados**:
+- `public/index.php` - Agregadas rutas para cheques
+- `views/socios/info.php` - Agregado botón "📄 Cheques"
+- Sidebars actualizados en todas las vistas de socios (16 archivos)
+
+**Características**:
+- CRUD completo de cheques
+- Paginación de 10 registros por página
+- Filtros por rango de fechas
+- Generación de código auto-incremental (max + 1)
+- Conversión automática de monto a letras con JavaScript
+- Manejo de decimales: `8025.9` → "OCHO MIL VEINTICINCO 90/100"
+- Sin AJAX - usa formularios POST/GET tradicionales
+- Validación de CSRF
+- Auditoría de usuario en todas las operaciones
+- Diseño optimizado con filas compactas (padding 10px 14px)
+
+**Nota importante**: A diferencia de rifas y multas que están asociadas a un socio específico, los cheques son generales del sistema y no tienen un campo de socio. Por lo tanto, la vista de cheques no filtra por cliente sino solo por rango de fechas, como en el sistema legacy.
+
+**Socios**: ~65% implementado
+- ✅ Listado con filtros avanzados y paginación
+- ✅ Vista de información personal
+- ✅ Edición de socios
+- ✅ Auditoría de cambios (individual y general)
+- ✅ Eliminación, activación, ocultación de socios
+- ✅ Gestión de aportes desde Socios (FONBES/COOPAM)
+- ✅ Gestión de beneficios
+- ✅ Gestión de familiares
+- ✅ Gestión de rifas
+- ✅ Gestión de multas
+- ✅ Gestión de cheques
+- ❌ Exportación y reportes
+
+### 18.2 Estado de la Base de Datos
+
+- Base: `sacs`
+- Host: `127.0.0.1`
+- Puerto: `3306`
+- Usuario: `root`
+- Password: vacío
+- Driver: `pdo_mysql`
+
+### 18.3 Estructura del Proyecto PHP
+
+**Archivos principales**:
+- `config/bootstrap.php` - Autoload y carga de .env
+- `src/Core/Database.php` - Conexión PDO singleton
+- `src/Security/Auth.php` - Autenticación
+- `src/Repositories/UserRepository.php` - Login
+- `src/Repositories/CajaRepository.php` - Consultas de Caja
+- `src/Services/*` - Servicios de negocio (Caja, Socios, etc.)
+- `public/index.php` - Router principal
+- `views/*` - Vistas del sistema
+
+### 18.4 Reglas Principales
+
+- Visualización: se puede innovar
+- Operaciones de escritura: deben respetar el flujo, calculos, estados, tablas y resultados del legacy
+- Seguridad: se puede mejorar con transacciones, validaciones, consultas parametrizadas, auditoría
+- Dashboard: NO eliminar nada, solo implementar
+
+## 19. Comandos útiles
+
+Validar sintaxis PHP:
+
+```powershell
+$project = 'C:\xampp\htdocs\sacs_nuevo'
+Get-ChildItem -LiteralPath $project -Recurse -File -Filter *.php | ForEach-Object { php -l $_.FullName }
+```
+
+Probar conexión:
+
+```powershell
+php -r "require 'C:/xampp/htdocs/sacs_nuevo/config/bootstrap.php'; Sacs\Core\Database::connection()->query('SELECT 1'); echo 'ok', PHP_EOL;"
+```
+
+## 20. Restricciones de continuidad
+
+- No ejecutar UPDATE, INSERT o DELETE en `sacs` durante análisis.
+- No consultar listados globales de millones de filas; usar LIMIT y filtros por ID/cliente.
+- No eliminar ni revertir cambios existentes.
+- No modificar el proyecto Java legacy para avanzar PHP.
+- No asumir que códigos de cliente tienen el mismo formato en todas las tablas.
+- No copiar ciegamente defectos del legacy como MAX+1, SQL concatenado o doble escritura sin transacción.
+
+## 21. Implementaciones Recientes (Octubre 2026)
+
+### 21.1 Gestión de Beneficios (2026-10-02)
+
+**Fecha de implementación**: 2026-10-02
+
+**Archivos creados**:
+- `views/socios/beneficios.php` - Listado de beneficios
+- `views/socios/beneficio_form.php` - Formulario de beneficios
+
+**Archivos modificados**:
+- `src/Services/SociosServicio.php` - Métodos para gestión de beneficios
+- `public/index.php` - Rutas GET/POST para beneficios
+- `views/socios/info.php` - Botón de beneficios y sidebar
+
+**Características**:
+- CRUD completo de beneficios (crear, leer, actualizar, eliminar)
+- Filtros por rango de fechas
+- Paginación de 10 registros por página
+- Validación de CSRF
+- Auditoría de usuario
+
+### 21.2 Gestión de Familiares (2026-10-03)
+
+**Fecha de implementación**: 2026-10-03
+
+**Archivos creados**:
+- `views/socios/familiares.php` - Listado de familiares
+- `views/socios/familiar_buscar.php` - Búsqueda de familiares
+- `views/socios/familiar_editar.php` - Edición de familiares
+
+**Archivos modificados**:
+- `src/Services/SociosServicio.php` - Métodos para gestión de familiares
+- `public/index.php` - Rutas GET/POST para familiares
+- `views/socios/info.php` - Botón de familiares y sidebar
+
+**Características**:
+- CRUD completo de familiares
+- Búsqueda de personas existentes en el sistema
+- Asociar familiar existente a socio
+- Filtrado por activos/inactivos
+- Paginación de 10 registros por página
+
+### 21.3 Gestión de Rifas y Multas (2026-10-04)
+
+**Fecha de implementación**: 2026-10-04
+
+**Archivos creados**:
+- `views/socios/rifas.php` - Listado de rifas
+- `views/socios/rifa_form.php` - Formulario de rifas
+- `views/socios/multas.php` - Listado de multas
+- `views/socios/multa_form.php` - Formulario de multas
+
+**Archivos modificados**:
+- `src/Services/SociosServicio.php` - Métodos para rifas y multas
+- `public/index.php` - Rutas GET/POST para rifas y multas
+- `views/socios/info.php` - Botones de rifas y multas
+- Sidebars de todas las vistas de socios
+
+**Características**:
+- CRUD completo de rifas y multas
+- Filtros por rango de años (periodo)
+- Paginación de 10 registros por página
+- Validación de CSRF
+- Auditoría de usuario
+
+**Corrección importante**: Se corrigió la resolución de action en index.php para que POST use `$_POST['action']` exclusivamente.
+
+### 21.4 Gestión de Cheques (2026-10-05)
+
+**Fecha de implementación**: 2026-10-05
+
+**Archivos creados**:
+- `views/socios/cheques.php` - Listado de cheques
+- `views/socios/cheque_form.php` - Formulario de cheques
+
+**Archivos modificados**:
+- `src/Services/SociosServicio.php` - Métodos para gestión de cheques
+- `public/index.php` - Rutas GET/POST para cheques
+- `views/socios/info.php` - Botón de cheques
+- Sidebars de todas las vistas de socios
+
+**Características**:
+- CRUD completo de cheques (general del sistema, no asociado a socio específico)
+- Filtros por rango de fechas
+- Paginación de 10 registros por página
+- Generación de código auto-incremental (max + 1)
+- Conversión automática de monto numérico a letras con formato `/100` para decimales
+- Validación de CSRF
+- Auditoría de usuario
+
+**Nota**: A diferencia de rifas y multas, los cheques son generales del sistema y no tienen un campo de socio en f23_cheque.
+
+### 21.5 Exportación y Reportes (2026-10-06)
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivos creados**:
+- `composer.json` - Configuración de dependencias
+- `composer.lock` - Lock file de dependencias
+- `vendor/` - Directorio con librerías instaladas
+- `src/Services/ExportacionServicio.php` - Servicio de exportación
+- `MANUAL_INSTALACION_LIBRERIAS.md` - Manual de instalación de librerías
+
+**Librerías instaladas**:
+- PhpSpreadsheet 1.30.7 - Para exportación a Excel (XLSX)
+- TCPDF 6.11.4 - Para exportación a PDF
+- CSV - Nativo de PHP (sin dependencias)
+
+**Archivos modificados**:
+- `config/bootstrap.php` - Autoload de Composer
+- `public/index.php` - 24 rutas de exportación (8 CSV + 8 Excel + 8 PDF)
+- Vistas de listado (8 archivos) - Botones de exportación:
+  - `views/socios/listado.php`
+  - `views/socios/familiares.php`
+  - `views/socios/aportes_fonbes.php`
+  - `views/socios/aportes_coopam.php`
+  - `views/socios/beneficios.php`
+  - `views/socios/rifas.php`
+  - `views/socios/multas.php`
+  - `views/socios/cheques.php`
+
+**Características**:
+- Exportación a CSV con headers UTF-8 BOM para compatibilidad con Excel
+- Exportación a Excel (XLSX) con PhpSpreadsheet
+- Exportación a PDF con TCPDF
+- Filtros actuales de las vistas se mantienen al exportar
+- Archivos con fecha en el nombre (ej: `socios_2026-10-06.xlsx`)
+- Headers estilizados en Excel (negrita, fondo gris, ancho automático)
+- Diseño limpio en PDF (tamaño A4 landscape, headers de página)
+
+**Corrección importante**: Se corrigieron las columnas de la consulta de familiares (F01_NOMBRE → F01_NOMB_PRI, etc.) para que coincidan con la base de datos real.
+
+### 21.6 Gestión de Observaciones (2026-10-06)
+
+**Fecha de implementación**: 2026-10-06
+
+**Archivos creados**:
+- `views/socios/observaciones.php` - Vista de observaciones con formulario e historial
+
+**Archivos modificados**:
+- `src/Services/SociosServicio.php` - Métodos para gestión de observaciones:
+  - `obtenerObservacion()` - Obtener observación actual (F01_OBS2, F01_TITULO)
+  - `obtenerHistorialObservaciones()` - Obtener historial de f28_obs_detalle
+  - `contarHistorialObservaciones()` - Contar total de registros en historial
+  - `actualizarObservacion()` - Actualizar F01_OBS2 y F01_TITULO en f01_persona
+  - `registrarObservacionHistorial()` - Insertar en f28_obs_detalle
+- `public/index.php` - Rutas GET/POST para observaciones
+- `views/socios/info.php` - Mostrar observación actual (F01_OBS2) y botón de gestión
+- Sidebars de todas las vistas de socios - Enlace a observaciones
+
+**Características**:
+- Formulario para actualizar observación (título y detalle)
+- Actualiza F01_OBS2 y F01_TITULO en f01_persona
+- Registra historial en f28_obs_detalle (socio, título, detalle, usuario, fecha)
+- Historial con paginación de 20 registros por página
+- Validación de CSRF
+- Auditoría de usuario
+- Sin AJAX - usa formularios POST/GET tradicionales
+
+**Corrección importante**: Se corrigió el tipo de parámetro en `actualizarObservacion()` para convertir el código de persona a string antes de pasarlo al método.
+- Mantener mensajes y flujo familiar para usuarios en operaciones reales.

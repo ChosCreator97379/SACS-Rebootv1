@@ -1,4 +1,43 @@
 <?php
+require dirname(__DIR__) . '/../config/bootstrap.php';
+
+use Sacs\Services\SociosServicio;
+
+$sociosServicio = new SociosServicio();
+
+// Obtener datos de ubigeo
+$ubigeos = $sociosServicio->obtenerTodosUbigeos();
+
+// Generar arrays JavaScript
+$ubigeosPorDepartamento = [];
+$ubigeosPorProvincia = [];
+
+foreach ($ubigeos as $ubigeo) {
+    $depCod = $ubigeo['departamento_codigo'];
+    $prov = $ubigeo['provincia'];
+    $dist = $ubigeo['distrito'];
+    
+    if (!isset($ubigeosPorDepartamento[$depCod])) {
+        $ubigeosPorDepartamento[$depCod] = [];
+    }
+    
+    if (!in_array($prov, $ubigeosPorDepartamento[$depCod])) {
+        $ubigeosPorDepartamento[$depCod][] = $prov;
+    }
+    
+    $key = $depCod . '|' . $prov;
+    if (!isset($ubigeosPorProvincia[$key])) {
+        $ubigeosPorProvincia[$key] = [];
+    }
+    
+    if (!in_array($dist, $ubigeosPorProvincia[$key])) {
+        $ubigeosPorProvincia[$key][] = $dist;
+    }
+}
+
+$profesiones = [];
+$instrucciones = [];
+
 $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
@@ -61,7 +100,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } .layout { grid-template-columns: 1fr; } }
     </style>
 </head>
-<body>
+<body data-ubigeos-departamento="<?php echo htmlspecialchars(json_encode($ubigeosPorDepartamento), ENT_QUOTES, 'UTF-8'); ?>" data-ubigeos-provincia="<?php echo htmlspecialchars(json_encode($ubigeosPorProvincia), ENT_QUOTES, 'UTF-8'); ?>">
     <div class="shell">
         <aside class="sidebar">
             <a href="index.php" class="brand">
@@ -448,5 +487,82 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
             </form>
         </main>
     </div>
+
+    <script>
+        // Datos de ubigeo cargados desde PHP
+        var ubigeosPorDepartamento = {
+            <?php
+            foreach ($ubigeosPorDepartamento as $dep => $provs) {
+                echo "'" . addslashes($dep) . "': [";
+                foreach ($provs as $prov) {
+                    echo "'" . addslashes($prov) . "',";
+                }
+                echo "],";
+            }
+            ?>
+        };
+        
+        var ubigeosPorProvincia = {
+            <?php
+            foreach ($ubigeosPorProvincia as $key => $dists) {
+                echo "'" . addslashes($key) . "': [";
+                foreach ($dists as $dist) {
+                    echo "'" . addslashes($dist) . "',";
+                }
+                echo "],";
+            }
+            ?>
+        };
+
+        // Cargar provincias cuando se selecciona un departamento
+        document.getElementById('departamento').addEventListener('change', function() {
+            const departamento = this.value;
+            const provinciaSelect = document.getElementById('provincia');
+            const distritoSelect = document.getElementById('distrito');
+
+            // Limpiar selects
+            provinciaSelect.innerHTML = '<option value="">Seleccione</option>';
+            distritoSelect.innerHTML = '<option value="">Seleccione</option>';
+
+            if (departamento === '' || !ubigeosPorDepartamento[departamento]) {
+                return;
+            }
+
+            // Cargar provincias desde el array local
+            ubigeosPorDepartamento[departamento].forEach(provincia => {
+                const option = document.createElement('option');
+                option.value = provincia;
+                option.textContent = provincia;
+                provinciaSelect.appendChild(option);
+            });
+        });
+
+        // Cargar distritos cuando se selecciona una provincia
+        document.getElementById('provincia').addEventListener('change', function() {
+            const departamento = document.getElementById('departamento').value;
+            const provincia = this.value;
+            const distritoSelect = document.getElementById('distrito');
+
+            // Limpiar select
+            distritoSelect.innerHTML = '<option value="">Seleccione</option>';
+
+            if (provincia === '' || departamento === '') {
+                return;
+            }
+
+            const key = departamento + '|' + provincia;
+            if (!ubigeosPorProvincia[key]) {
+                return;
+            }
+
+            // Cargar distritos desde el array local
+            ubigeosPorProvincia[key].forEach(distrito => {
+                const option = document.createElement('option');
+                option.value = distrito;
+                option.textContent = distrito;
+                distritoSelect.appendChild(option);
+            });
+        });
+    </script>
 </body>
 </html>
