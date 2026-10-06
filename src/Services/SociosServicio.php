@@ -2453,6 +2453,556 @@ class SociosServicio
     }
 
     /**
+     * Obtener descuentos del socio
+     */
+    public function obtenerDescuentos(string $codigoPersona, array $filtros = [], int $pagina = 1, int $porPagina = 20): array
+    {
+        $offset = ($pagina - 1) * $porPagina;
+        
+        $sql = "SELECT 
+                    f24_socio as socio,
+                    f24_periodo as periodo,
+                    f24_aportep as aportacion_pendiente,
+                    f24_aportea as aportacion_actual,
+                    f24_aported as aportacion_deducida,
+                    f24_montoP as monto_pendiente,
+                    f24_montoA as monto_actual,
+                    f24_montoD as monto_deducido,
+                    f24_amortiza as amortizacion,
+                    f24_moraa as mora_activa,
+                    f24_morad as mora_deducida,
+                    f24_interesa as interes_activo,
+                    f24_interesd as interes_deducido,
+                    f24_otro as otro1,
+                    f24_otro2 as otro2,
+                    f24_morap as mora_pendiente,
+                    f24_tipo as tipo
+                FROM f24_descuentos
+                WHERE f24_socio = :codigo_persona";
+        
+        $params = ['codigo_persona' => $codigoPersona];
+        
+        if (!empty($filtros['periodo'])) {
+            $sql .= " AND f24_periodo = :periodo";
+            $params['periodo'] = $filtros['periodo'];
+        }
+        
+        if (!empty($filtros['tipo'])) {
+            $sql .= " AND f24_tipo = :tipo";
+            $params['tipo'] = $filtros['tipo'];
+        }
+        
+        $sql .= " ORDER BY f24_periodo DESC LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $porPagina, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Contar descuentos del socio
+     */
+    public function contarDescuentos(string $codigoPersona, array $filtros = []): int
+    {
+        $sql = "SELECT COUNT(*) as total
+                FROM f24_descuentos
+                WHERE f24_socio = :codigo_persona";
+        
+        $params = ['codigo_persona' => $codigoPersona];
+        
+        if (!empty($filtros['periodo'])) {
+            $sql .= " AND f24_periodo = :periodo";
+            $params['periodo'] = $filtros['periodo'];
+        }
+        
+        if (!empty($filtros['tipo'])) {
+            $sql .= " AND f24_tipo = :tipo";
+            $params['tipo'] = $filtros['tipo'];
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+        
+        $result = $stmt->fetch();
+        
+        return (int) ($result['total'] ?? 0);
+    }
+
+    /**
+     * Obtener descuento específico
+     */
+    public function obtenerDescuento(string $codigoPersona, string $periodo): ?array
+    {
+        $sql = "SELECT 
+                    f24_socio as socio,
+                    f24_periodo as periodo,
+                    f24_aportep as aportacion_pendiente,
+                    f24_aportea as aportacion_actual,
+                    f24_aported as aportacion_deducida,
+                    f24_montoP as monto_pendiente,
+                    f24_montoA as monto_actual,
+                    f24_montoD as monto_deducido,
+                    f24_amortiza as amortizacion,
+                    f24_moraa as mora_activa,
+                    f24_morad as mora_deducida,
+                    f24_interesa as interes_activo,
+                    f24_interesd as interes_deducido,
+                    f24_otro as otro1,
+                    f24_otro2 as otro2,
+                    f24_morap as mora_pendiente,
+                    f24_tipo as tipo
+                FROM f24_descuentos
+                WHERE f24_socio = :codigo_persona
+                AND f24_periodo = :periodo";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'codigo_persona' => $codigoPersona,
+            'periodo' => $periodo
+        ]);
+        
+        $result = $stmt->fetch();
+        
+        return $result ?: null;
+    }
+
+    /**
+     * Actualizar descuento
+     */
+    public function actualizarDescuento(string $codigoPersona, string $periodo, array $datos, string $usuario): array
+    {
+        try {
+            $sql = "UPDATE f24_descuentos 
+                    SET f24_aportep = :aportacion_pendiente,
+                        f24_aportea = :aportacion_actual,
+                        f24_aported = :aportacion_deducida,
+                        f24_montoP = :monto_pendiente,
+                        f24_montoA = :monto_actual,
+                        f24_montoD = :monto_deducido,
+                        f24_amortiza = :amortizacion,
+                        f24_moraa = :mora_activa,
+                        f24_morad = :mora_deducida,
+                        f24_interesa = :interes_activo,
+                        f24_interesd = :interes_deducido,
+                        f24_otro = :otro1,
+                        f24_otro2 = :otro2,
+                        f24_morap = :mora_pendiente,
+                        f24_tipo = :tipo
+                    WHERE f24_socio = :codigo_persona
+                    AND f24_periodo = :periodo";
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'aportacion_pendiente' => $datos['aportacion_pendiente'] ?? 0,
+                'aportacion_actual' => $datos['aportacion_actual'] ?? 0,
+                'aportacion_deducida' => $datos['aportacion_deducida'] ?? 0,
+                'monto_pendiente' => $datos['monto_pendiente'] ?? 0,
+                'monto_actual' => $datos['monto_actual'] ?? 0,
+                'monto_deducido' => $datos['monto_deducido'] ?? 0,
+                'amortizacion' => $datos['amortizacion'] ?? 0,
+                'mora_activa' => $datos['mora_activa'] ?? 0,
+                'mora_deducida' => $datos['mora_deducida'] ?? 0,
+                'interes_activo' => $datos['interes_activo'] ?? 0,
+                'interes_deducido' => $datos['interes_deducido'] ?? 0,
+                'otro1' => $datos['otro1'] ?? 0,
+                'otro2' => $datos['otro2'] ?? 0,
+                'mora_pendiente' => $datos['mora_pendiente'] ?? 0,
+                'tipo' => $datos['tipo'] ?? '',
+                'codigo_persona' => $codigoPersona,
+                'periodo' => $periodo
+            ]);
+            
+            $this->log('Descuento actualizado', ['codigo_persona' => $codigoPersona, 'periodo' => $periodo, 'usuario' => $usuario]);
+            return ['success' => true, 'message' => 'Descuento actualizado correctamente'];
+            
+        } catch (Exception $e) {
+            $this->log('Error al actualizar descuento', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Error al actualizar descuento: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Eliminar descuento (UPDATE a cero)
+     */
+    public function eliminarDescuento(string $codigoPersona, string $periodo, string $usuario): array
+    {
+        try {
+            $sql = "UPDATE f24_descuentos 
+                    SET f24_aportep = 0,
+                        f24_aportea = 0,
+                        f24_aported = 0,
+                        f24_montoP = 0,
+                        f24_montoA = 0,
+                        f24_montoD = 0,
+                        f24_amortiza = 0,
+                        f24_moraa = 0,
+                        f24_morad = 0,
+                        f24_interesa = 0,
+                        f24_interesd = 0,
+                        f24_otro = 0,
+                        f24_otro2 = 0,
+                        f24_morap = 0
+                    WHERE f24_socio = :codigo_persona
+                    AND f24_periodo = :periodo";
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'codigo_persona' => $codigoPersona,
+                'periodo' => $periodo
+            ]);
+            
+            $this->log('Descuento eliminado', ['codigo_persona' => $codigoPersona, 'periodo' => $periodo, 'usuario' => $usuario]);
+            return ['success' => true, 'message' => 'Descuento eliminado correctamente'];
+            
+        } catch (Exception $e) {
+            $this->log('Error al eliminar descuento', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Error al eliminar descuento: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Registrar descuento
+     */
+    public function registrarDescuento(string $codigoPersona, string $periodo, array $datos, string $usuario): array
+    {
+        try {
+            $sql = "INSERT INTO f24_descuentos (
+                        f24_socio,
+                        f24_periodo,
+                        f24_aportep,
+                        f24_aportea,
+                        f24_aported,
+                        f24_montoP,
+                        f24_montoA,
+                        f24_montoD,
+                        f24_amortiza,
+                        f24_moraa,
+                        f24_morad,
+                        f24_interesa,
+                        f24_interesd,
+                        f24_otro,
+                        f24_otro2,
+                        f24_morap,
+                        f24_tipo
+                    ) VALUES (
+                        :socio,
+                        :periodo,
+                        :aportacion_pendiente,
+                        :aportacion_actual,
+                        :aportacion_deducida,
+                        :monto_pendiente,
+                        :monto_actual,
+                        :monto_deducido,
+                        :amortizacion,
+                        :mora_activa,
+                        :mora_deducida,
+                        :interes_activo,
+                        :interes_deducido,
+                        :otro1,
+                        :otro2,
+                        :mora_pendiente,
+                        :tipo
+                    )";
+            
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                'socio' => $codigoPersona,
+                'periodo' => $periodo,
+                'aportacion_pendiente' => $datos['aportacion_pendiente'] ?? 0,
+                'aportacion_actual' => $datos['aportacion_actual'] ?? 0,
+                'aportacion_deducida' => $datos['aportacion_deducida'] ?? 0,
+                'monto_pendiente' => $datos['monto_pendiente'] ?? 0,
+                'monto_actual' => $datos['monto_actual'] ?? 0,
+                'monto_deducido' => $datos['monto_deducido'] ?? 0,
+                'amortizacion' => $datos['amortizacion'] ?? 0,
+                'mora_activa' => $datos['mora_activa'] ?? 0,
+                'mora_deducida' => $datos['mora_deducida'] ?? 0,
+                'interes_activo' => $datos['interes_activo'] ?? 0,
+                'interes_deducido' => $datos['interes_deducido'] ?? 0,
+                'otro1' => $datos['otro1'] ?? 0,
+                'otro2' => $datos['otro2'] ?? 0,
+                'mora_pendiente' => $datos['mora_pendiente'] ?? 0,
+                'tipo' => $datos['tipo'] ?? ''
+            ]);
+            
+            $this->log('Descuento registrado', ['codigo_persona' => $codigoPersona, 'periodo' => $periodo, 'usuario' => $usuario]);
+            return ['success' => true, 'message' => 'Descuento registrado correctamente'];
+            
+        } catch (Exception $e) {
+            $this->log('Error al registrar descuento', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Error al registrar descuento: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Listar socios atrasados (préstamos con estado 4 y retraso de más de 1 mes)
+     */
+    public function listarSociosAtrazados(string $centro = '0', string $condicion = '0', int $pagina = 1, int $porPagina = 10): array
+    {
+        $offset = ($pagina - 1) * $porPagina;
+        
+        $sql = "SELECT 
+                    f16_fechaUP as fecha_actualizacion,
+                    f16_importe as importe,
+                    f16_cuotas as cuotas,
+                    p.F01_APE_PAT as apellido_paterno,
+                    p.F01_APE_MAT as apellido_materno,
+                    p.F01_NOMB_PRI as nombre_primero,
+                    p.F01_NOMB_SEG as nombre_segundo,
+                    f16_fechaDes as fecha_desembolso,
+                    f16_estado as estado,
+                    f16_cliente as cliente,
+                    f16_saldo as saldo,
+                    f16_cuotasPend as cuotas_pendientes,
+                    f16_gastosa as gastos_activos,
+                    f16_gastosm as gastos_mora,
+                    f16_otros as otros,
+                    f16_otros2 as otros2,
+                    f16_cuotaMe as cuota_mensual,
+                    f16_desembolso as desembolso,
+                    f16_seguro as seguro,
+                    f16_fecha as fecha,
+                    p.F01_DISTRITO as distrito,
+                    p.F01_PROVINCIA as provincia,
+                    p.F01_DEPARTAMENTO as departamento,
+                    p.f01_centro as centro,
+                    p.f01_condicion as condicion,
+                    f16_producto as producto,
+                    f16_sobre as sobre
+                FROM f16_prestamo f16
+                INNER JOIN f02_cliente c ON f16.f16_cliente = c.F02_ID_CLIENTE
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                WHERE f16_importe > 0
+                AND p.F01_STDO_PERSN = 1
+                AND f16_estado = 4
+                AND (MONTH(f16_fechaUP) - 1) > MONTH(CURDATE())";
+        
+        $params = [];
+        
+        if ($condicion !== '0') {
+            $sql .= " AND p.F01_CONDICION = :condicion";
+            $params['condicion'] = $condicion;
+        }
+        
+        if ($centro !== '0') {
+            $sql .= " AND p.f01_centro = :centro";
+            $params['centro'] = $centro;
+        }
+        
+        $sql .= " GROUP BY f16_cliente LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $porPagina, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Contar socios atrasados
+     */
+    public function contarSociosAtrazados(string $centro = '0', string $condicion = '0'): int
+    {
+        $sql = "SELECT COUNT(DISTINCT f16_cliente) as total
+                FROM f16_prestamo f16
+                INNER JOIN f02_cliente c ON f16.f16_cliente = c.F02_ID_CLIENTE
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                WHERE f16_importe > 0
+                AND p.F01_STDO_PERSN = 1
+                AND f16_estado = 4
+                AND (MONTH(f16_fechaUP) - 1) > MONTH(CURDATE())";
+        
+        $params = [];
+        
+        if ($condicion !== '0') {
+            $sql .= " AND p.F01_CONDICION = :condicion";
+            $params['condicion'] = $condicion;
+        }
+        
+        if ($centro !== '0') {
+            $sql .= " AND p.f01_centro = :centro";
+            $params['centro'] = $centro;
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+        
+        $result = $stmt->fetch();
+        
+        return (int) ($result['total'] ?? 0);
+    }
+
+    /**
+     * Listar socios candidatos (préstamos con estado 3)
+     */
+    public function listarSociosCandidatos(string $centro = '0', string $condicion = '0', int $pagina = 1, int $porPagina = 10): array
+    {
+        $offset = ($pagina - 1) * $porPagina;
+        
+        $sql = "SELECT 
+                    f16_fechaUP as fecha_actualizacion,
+                    f16_importe as importe,
+                    f16_cuotas as cuotas,
+                    p.F01_APE_PAT as apellido_paterno,
+                    p.F01_APE_MAT as apellido_materno,
+                    p.F01_NOMB_PRI as nombre_primero,
+                    p.F01_NOMB_SEG as nombre_segundo,
+                    f16_fechaDes as fecha_desembolso,
+                    f16_estado as estado,
+                    f16_cliente as cliente,
+                    f16_saldo as saldo,
+                    f16_cuotasPend as cuotas_pendientes,
+                    f16_gastosa as gastos_activos,
+                    f16_gastosm as gastos_mora,
+                    f16_otros as otros,
+                    f16_otros2 as otros2,
+                    f16_cuotaMe as cuota_mensual,
+                    f16_desembolso as desembolso,
+                    f16_seguro as seguro,
+                    f16_fecha as fecha,
+                    p.F01_DISTRITO as distrito,
+                    p.F01_PROVINCIA as provincia,
+                    p.F01_DEPARTAMENTO as departamento,
+                    p.f01_centro as centro,
+                    p.f01_condicion as condicion,
+                    f16_producto as producto,
+                    f16_sobre as sobre
+                FROM f16_prestamo f16
+                INNER JOIN f02_cliente c ON f16.f16_cliente = c.F02_ID_CLIENTE
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                WHERE f16_importe > 0
+                AND p.F01_STDO_PERSN = 1
+                AND f16_estado = 3";
+        
+        $params = [];
+        
+        if ($condicion !== '0') {
+            $sql .= " AND p.F01_CONDICION = :condicion";
+            $params['condicion'] = $condicion;
+        }
+        
+        if ($centro !== '0') {
+            $sql .= " AND p.f01_centro = :centro";
+            $params['centro'] = $centro;
+        }
+        
+        $sql .= " GROUP BY f16_cliente LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->bindValue(':limit', $porPagina, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Contar socios candidatos
+     */
+    public function contarSociosCandidatos(string $centro = '0', string $condicion = '0'): int
+    {
+        $sql = "SELECT COUNT(DISTINCT f16_cliente) as total
+                FROM f16_prestamo f16
+                INNER JOIN f02_cliente c ON f16.f16_cliente = c.F02_ID_CLIENTE
+                INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
+                WHERE f16_importe > 0
+                AND p.F01_STDO_PERSN = 1
+                AND f16_estado = 3";
+        
+        $params = [];
+        
+        if ($condicion !== '0') {
+            $sql .= " AND p.F01_CONDICION = :condicion";
+            $params['condicion'] = $condicion;
+        }
+        
+        if ($centro !== '0') {
+            $sql .= " AND p.f01_centro = :centro";
+            $params['centro'] = $centro;
+        }
+        
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+        
+        $result = $stmt->fetch();
+        
+        return (int) ($result['total'] ?? 0);
+    }
+
+    /**
+     * Listar socios para pronóstico
+     */
+    public function listarSociosPronostico(string $centro, string $condicion, int $pagina = 1, int $porPagina = 10): array
+    {
+        $offset = ($pagina - 1) * $porPagina;
+        
+        $sql = "SELECT 
+                    c.F02_ID_CLIENTE as cliente,
+                    p.F01_APORTACION as aportacion
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.f01_id_persona = c.f02_id_persona
+                WHERE p.f01_centro = :centro
+                AND p.F01_STDO_PERSN = 1
+                AND p.F01_CONDICION = :condicion
+                ORDER BY c.F02_ID_CLIENTE ASC
+                LIMIT :limit OFFSET :offset";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':centro', $centro);
+        $stmt->bindValue(':condicion', $condicion);
+        $stmt->bindValue(':limit', $porPagina, \PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, \PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Contar socios para pronóstico
+     */
+    public function contarSociosPronostico(string $centro, string $condicion): int
+    {
+        $sql = "SELECT COUNT(*) as total
+                FROM f01_persona p
+                INNER JOIN f02_cliente c ON p.f01_id_persona = c.f02_id_persona
+                WHERE p.f01_centro = :centro
+                AND p.F01_STDO_PERSN = 1
+                AND p.F01_CONDICION = :condicion";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            'centro' => $centro,
+            'condicion' => $condicion
+        ]);
+        
+        $result = $stmt->fetch();
+        
+        return (int) ($result['total'] ?? 0);
+    }
+
+    /**
      * Logging
      */
     private function log(string $mensaje, array $contexto = []): void

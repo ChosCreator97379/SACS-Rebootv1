@@ -97,7 +97,7 @@ $supervisor = $user['supervisor'] === 'S';
         <nav class="nav" aria-label="Navegacion principal">
             <a class="nav-link active" href="index.php"><span class="nav-icon">01</span>Resumen</a>
             <a class="nav-link" href="index.php?module=socios&action=listado"><span class="nav-icon">02</span>Socios</a>
-            <a class="nav-link" href="#prestamos"><span class="nav-icon">03</span>Prestamos</a>
+            <a class="nav-link" href="index.php?module=prestamos&action=listado"><span class="nav-icon">03</span>Prestamos</a>
             <a class="nav-link" href="index.php?module=caja"><span class="nav-icon">04</span>Movimientos</a>
             <a class="nav-link" href="index.php?module=caja&action=diario_contable"><span class="nav-icon">05</span>Diario Contable</a>
             <a class="nav-link" href="#reportes"><span class="nav-icon">06</span>Reportes</a>

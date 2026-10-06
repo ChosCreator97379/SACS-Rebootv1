@@ -43,7 +43,8 @@ $profile = 'Administrador';
             --gold: #d69e47;
             --green: #0f766e;
             --red: #991b1b;
-            --border: #e2e8f0;
+            --line: #dce4e1;
+            --shadow: 0 18px 45px rgba(20, 43, 58, .08);
         }
 
         * {
@@ -52,233 +53,58 @@ $profile = 'Administrador';
             box-sizing: border-box;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--paper);
-            color: var(--ink);
-            line-height: 1.5;
-        }
+        body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", sans-serif; }
+        a { color: inherit; text-decoration: none; }
+        .shell { display: grid; grid-template-columns: 254px minmax(0, 1fr); min-height: 100vh; }
+        .sidebar { display: flex; flex-direction: column; padding: 28px 18px 20px; background: var(--navy); color: #e7f0ed; }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; color: inherit; text-decoration: none; }
+        .brand:hover { opacity: 0.9; }
 
-        .app {
-            display: flex;
-            min-height: 100vh;
-        }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid var(--gold); border-radius: 50%; color: var(--gold); font-family: Georgia, serif; font-size: 20px; }
+        .brand-name { font-family: Georgia, serif; font-size: 22px; letter-spacing: .02em; }
+        .brand-note { display: block; margin-top: 3px; color: #9bb3b7; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 
-        .sidebar {
-            width: 280px;
-            background: var(--navy);
-            color: white;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
+        .nav-label { padding: 0 12px 10px; color: #86a6ad; font-size: 10px; font-weight: bold; letter-spacing: .14em; text-transform: uppercase; }
+        .nav { display: grid; gap: 5px; }
+        .nav-link { padding: 10px 12px; border-radius: 6px; color: #e7f0ed; font-size: 13px; transition: background .15s; }
+        .nav-link:hover { background: var(--navy-soft); }
+        .nav-link.active { background: var(--teal); }
+        .main { padding: 40px 48px; overflow-y: auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
+        .user { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--teal); color: white; display: grid; place-items: center; font-size: 14px; font-weight: bold; }
+        .user-name { font-size: 13px; }
+        .user-profile { font-size: 11px; color: var(--muted); }
 
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 30px;
-            text-decoration: none;
-            color: white;
-        }
+        .intro { max-width: 640px; margin: 12px 0 28px; color: var(--muted); line-height: 1.55; }
+        .panel { background: var(--panel); border-radius: 12px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
+        .panel h2 { margin: 0 0 20px; font-size: 18px; font-weight: 400; }
 
-        .brand-mark {
-            width: 40px;
-            height: 40px;
-            background: var(--teal);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 20px;
-        }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px 16px; background: #f8f9fa; color: var(--muted); font-size: 11px; font-weight: bold; letter-spacing: .04em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+        td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #f8f9fa; }
+        td.right { text-align: right; }
+        th.right { text-align: right; }
 
-        .brand-name {
-            font-weight: 600;
-            font-size: 18px;
-        }
-
-        .brand-note {
-            font-size: 12px;
-            color: rgba(255,255,255,0.7);
-        }
-
-        .nav-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255,255,255,0.5);
-            margin: 20px 0 10px;
-        }
-
-        .nav {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .nav-link {
-            padding: 10px 12px;
-            border-radius: 6px;
-            text-decoration: none;
-            color: rgba(255,255,255,0.8);
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-
-        .nav-link.active {
-            background: var(--teal);
-            color: white;
-        }
-
-        .main {
-            flex: 1;
-            padding: 30px;
-            overflow-y: auto;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 36px;
-            height: 36px;
-            background: var(--teal);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-        }
-
-        .user-name {
-            font-weight: 500;
-        }
-
-        .user-profile {
-            font-size: 12px;
-            color: var(--muted);
-        }
-
-        .intro {
-            color: var(--muted);
-            margin-bottom: 30px;
-        }
-
-        .panel {
-            background: var(--panel);
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-
-        .panel h2 {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }
-
-        .table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .table th,
-        .table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .table th {
-            font-weight: 600;
-            font-size: 13px;
-            color: var(--muted);
-            background: var(--paper);
-        }
-
-        .table tr:hover {
-            background: var(--paper);
-        }
-
-        .table td.right {
-            text-align: right;
-        }
-
-        .table th.right {
-            text-align: right;
-        }
-
-        .empty {
-            text-align: center;
-            padding: 40px;
-            color: var(--muted);
-        }
-
-        .total {
-            font-weight: 600;
-            font-size: 16px;
-            padding: 16px;
-            background: var(--paper);
-            border-radius: 6px;
-            margin-top: 16px;
-        }
-
-        .total span {
-            color: var(--red);
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-secondary {
-            background: var(--muted);
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #56606d;
-        }
+        .empty { padding: 40px; text-align: center; color: var(--muted); }
+        .total { font-weight: 600; font-size: 16px; padding: 16px; background: var(--paper); border-radius: 6px; margin-top: 16px; }
+        .total span { color: var(--red); }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s; }
+        .btn-secondary { background: var(--paper); color: var(--ink); }
+        .btn-secondary:hover { background: #e8ebe9; }
     </style>
 </head>
 <body>
-    <div class="app">
+    <div class="shell">
         <aside class="sidebar">
             <a href="index.php" class="brand">
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Socios</div>
@@ -290,6 +116,7 @@ $profile = 'Administrador';
                 <a href="index.php?module=socios&action=carta&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Carta</a>
                 <a href="index.php?module=socios&action=sobregiro&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Sobregiro</a>
                 <a href="index.php?module=socios&action=aportes_completos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes Completos</a>
+                <a href="index.php?module=socios&action=descuentos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Descuentos</a>
                 <a href="index.php?module=socios&action=aportes_fonbes&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
                 <a href="index.php?module=socios&action=aportes_coopam&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
                 <a href="index.php?module=socios&action=gestion_estado&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Gestión de Estado</a>

@@ -56,134 +56,34 @@ $profile = 'Administrador';
             box-sizing: border-box;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--paper);
-            color: var(--ink);
-            line-height: 1.5;
-        }
+        body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Trebuchet MS", sans-serif; }
+        a { color: inherit; text-decoration: none; }
+        .shell { display: grid; grid-template-columns: 254px minmax(0, 1fr); min-height: 100vh; }
 
-        .app {
-            display: flex;
-            min-height: 100vh;
-        }
+        .sidebar { display: flex; flex-direction: column; padding: 28px 18px 20px; background: var(--navy); color: #e7f0ed; }
 
-        .sidebar {
-            width: 280px;
-            background: var(--navy);
-            color: white;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
+        .brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 34px; color: inherit; text-decoration: none; }
+        .brand:hover { opacity: 0.9; }
 
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 30px;
-            text-decoration: none;
-            color: white;
-        }
+        .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 2px solid var(--gold); border-radius: 50%; color: var(--gold); font-family: Georgia, serif; font-size: 20px; }
+        .brand-name { font-family: Georgia, serif; font-size: 22px; letter-spacing: .02em; }
+        .brand-note { display: block; margin-top: 3px; color: #9bb3b7; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; }
 
-        .brand-mark {
-            width: 40px;
-            height: 40px;
-            background: var(--teal);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 20px;
-        }
+        .nav-label { padding: 0 12px 10px; color: #86a6ad; font-size: 10px; font-weight: bold; letter-spacing: .14em; text-transform: uppercase; }
+        .nav { display: grid; gap: 5px; }
 
-        .brand-name {
-            font-weight: 600;
-            font-size: 18px;
-        }
+        .nav-link { padding: 10px 12px; border-radius: 6px; color: #e7f0ed; font-size: 13px; transition: background .15s; }
+        .nav-link:hover { background: var(--navy-soft); }
+        .nav-link.active { background: var(--teal); }
 
-        .brand-note {
-            font-size: 12px;
-            color: rgba(255,255,255,0.7);
-        }
+        .main { padding: 40px 48px; overflow-y: auto; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+        .header h1 { margin: 0; font-size: 28px; font-weight: 400; }
 
-        .nav-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            color: rgba(255,255,255,0.5);
-            margin: 20px 0 10px;
-        }
-
-        .nav {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .nav-link {
-            padding: 10px 12px;
-            border-radius: 6px;
-            text-decoration: none;
-            color: rgba(255,255,255,0.8);
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-
-        .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-        }
-
-        .nav-link.active {
-            background: var(--teal);
-            color: white;
-        }
-
-        .main {
-            flex: 1;
-            padding: 30px;
-            overflow-y: auto;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            font-weight: 600;
-        }
-
-        .user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .user-avatar {
-            width: 36px;
-            height: 36px;
-            background: var(--teal);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-        }
-
-        .user-name {
-            font-weight: 500;
-        }
-
-        .user-profile {
-            font-size: 12px;
-            color: var(--muted);
-        }
+        .user { display: flex; align-items: center; gap: 12px; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--teal); color: white; display: grid; place-items: center; font-size: 14px; font-weight: bold; }
+        .user-name { font-size: 13px; }
+        .user-profile { font-size: 11px; color: var(--muted); }
 
         .intro {
             color: var(--muted);
@@ -301,13 +201,13 @@ $profile = 'Administrador';
     </style>
 </head>
 <body>
-    <div class="app">
+    <div class="shell">
         <aside class="sidebar">
             <a href="index.php" class="brand">
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Socios</div>
@@ -319,6 +219,7 @@ $profile = 'Administrador';
                 <a href="index.php?module=socios&action=carta&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Carta</a>
                 <a href="index.php?module=socios&action=sobregiro&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Sobregiro</a>
                 <a href="index.php?module=socios&action=aportes_completos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Aportes Completos</a>
+                <a href="index.php?module=socios&action=descuentos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Descuentos</a>
                 <a href="index.php?module=socios&action=aportes_fonbes&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
                 <a href="index.php?module=socios&action=aportes_coopam&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
                 <a href="index.php?module=socios&action=gestion_estado&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Gestión de Estado</a>

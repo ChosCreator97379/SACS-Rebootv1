@@ -80,7 +80,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Socios</div>
@@ -93,6 +93,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php?module=socios&action=carta&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Carta</a>
                 <a href="index.php?module=socios&action=sobregiro&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Sobregiro</a>
                 <a href="index.php?module=socios&action=aportes_completos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes Completos</a>
+                <a href="index.php?module=socios&action=descuentos&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Descuentos</a>
                 <a href="index.php?module=socios&action=aportes_fonbes&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
                 <a href="index.php?module=socios&action=aportes_coopam&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
                 <a href="index.php?module=socios&action=gestion_estado&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Gestión de Estado</a>
@@ -312,8 +313,13 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                         <span class="info-value"><?= $escape($socio['F01_OBS2'] ?? 'Sin observaciones') ?></span>
                     </div>
                 </div>
-                <div style="margin-top: 16px;">
+                <div style="margin-top: 16px; display: flex; gap: 12px;">
                     <a href="index.php?module=socios&action=observaciones&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-primary">📝 Gestionar Observaciones</a>
+                    <a href="index.php?module=socios&action=descuentos&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">💳 Descuentos</a>
+                    <a href="index.php?module=socios&action=beneficios&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">🎁 Beneficios</a>
+                    <a href="index.php?module=socios&action=familiares&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">👨‍👩‍👧‍👦 Familiares</a>
+                    <a href="index.php?module=socios&action=rifas&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">🎟️ Rifas</a>
+                    <a href="index.php?module=socios&action=multas&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">⚠️ Multas</a>
                 </div>
             </section>
 

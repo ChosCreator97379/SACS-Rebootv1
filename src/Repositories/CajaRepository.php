@@ -259,7 +259,7 @@ final class CajaRepository
             SELECT f16_codigo AS id, f16_estado AS status, f16_producto AS product,
                    f16_importe AS amount, f16_saldo AS balance, f16_gastosa AS gastos_adm
             FROM f16_prestamo
-            WHERE f16_cliente = :client AND f16_estado = 3
+            WHERE f16_cliente = :client AND f16_estado = 2
             ORDER BY f16_codigo DESC
             LIMIT 20
         SQL;

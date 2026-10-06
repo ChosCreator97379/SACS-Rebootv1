@@ -28,8 +28,250 @@ if (!isset($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// Obtener módulo y acción
+$module = trim((string) ($_GET['module'] ?? $_POST['module'] ?? ''));
+$action = trim((string) ($_GET['action'] ?? $_POST['action'] ?? ''));
+
 $error = null;
 $username = '';
+
+// Módulo Préstamos
+if ($module === 'prestamos') {
+    // Si es POST, tomar action solo de POST, si no, de GET
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = $_POST['action'] ?? '';
+    } else {
+        $action = $_GET['action'] ?? '';
+    }
+
+    // GET: Listado de Préstamos
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/prestamos/listado.php';
+        exit;
+    }
+
+    // GET: Detalle de Préstamo
+    if ($action === 'detalle') {
+        // Por ahora redirigir al listado
+        $query = http_build_query(['module' => 'prestamos', 'action' => 'listado']);
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Registro de Préstamo
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/prestamos/registro.php';
+        exit;
+    }
+
+    // GET: Editar Préstamo
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/prestamos/editar.php';
+        exit;
+    }
+
+    // GET: Aprobar Préstamo
+    if ($action === 'aprobar') {
+        require dirname(__DIR__) . '/views/prestamos/aprobar.php';
+        exit;
+    }
+
+    // GET: Gestión de Estado
+    if ($action === 'gestion_estado') {
+        require dirname(__DIR__) . '/views/prestamos/gestion_estado.php';
+        exit;
+    }
+
+    // GET: Cronograma
+    if ($action === 'cronograma') {
+        require dirname(__DIR__) . '/views/prestamos/cronograma.php';
+        exit;
+    }
+
+    // GET: Resumen
+    if ($action === 'resumen') {
+        require dirname(__DIR__) . '/views/prestamos/resumen.php';
+        exit;
+    }
+
+    // GET: Reporte General
+    if ($action === 'reporte_general') {
+        require dirname(__DIR__) . '/views/prestamos/reporte_general.php';
+        exit;
+    }
+
+    // GET: Reporte Consolidado
+    if ($action === 'reporte_consolidado') {
+        require dirname(__DIR__) . '/views/prestamos/reporte_consolidado.php';
+        exit;
+    }
+
+    // GET: Reporte por Cuota
+    if ($action === 'reporte_cuota') {
+        require dirname(__DIR__) . '/views/prestamos/reporte_cuota.php';
+        exit;
+    }
+
+    // POST: Registrar Préstamo
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $prestamosServicio = new \Sacs\Services\PrestamosServicio();
+        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+        $datos = [
+            'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+            'importe' => trim((string) ($_POST['importe'] ?? '')),
+            'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+            'interes' => trim((string) ($_POST['interes'] ?? '')),
+            'fecha_desembolso' => trim((string) ($_POST['fecha_desembolso'] ?? '')),
+            'producto' => trim((string) ($_POST['producto'] ?? '')),
+            'tramite' => trim((string) ($_POST['tramite'] ?? '')),
+            'garante' => trim((string) ($_POST['garante'] ?? '')),
+            'garante2' => trim((string) ($_POST['garante2'] ?? '')),
+            'garante3' => trim((string) ($_POST['garante3'] ?? '')),
+            'garante4' => trim((string) ($_POST['garante4'] ?? ''))
+        ];
+
+        $resultado = $prestamosServicio->registrarPrestamo($datos, $usuario);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'registro', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // POST: Actualizar Préstamo
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'editar', 'codigo' => $_POST['codigo'] ?? '', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $prestamosServicio = new \Sacs\Services\PrestamosServicio();
+        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $codigo = trim((string) ($_POST['codigo'] ?? ''));
+
+        $datos = [
+            'cliente' => trim((string) ($_POST['cliente'] ?? '')),
+            'importe' => trim((string) ($_POST['importe'] ?? '')),
+            'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+            'interes' => trim((string) ($_POST['interes'] ?? '')),
+            'fecha_desembolso' => trim((string) ($_POST['fecha_desembolso'] ?? '')),
+            'producto' => trim((string) ($_POST['producto'] ?? '')),
+            'tramite' => trim((string) ($_POST['tramite'] ?? '')),
+            'garante' => trim((string) ($_POST['garante'] ?? '')),
+            'garante2' => trim((string) ($_POST['garante2'] ?? '')),
+            'garante3' => trim((string) ($_POST['garante3'] ?? '')),
+            'garante4' => trim((string) ($_POST['garante4'] ?? ''))
+        ];
+
+        // Verificar si se debe regenerar el cronograma
+        $regenerarCronograma = isset($_POST['regenerar_cronograma']) && $_POST['regenerar_cronograma'] === '1';
+
+        if ($regenerarCronograma) {
+            $resultado = $prestamosServicio->regenerarCronograma($codigo, $datos, $usuario);
+        } else {
+            $resultado = $prestamosServicio->actualizarPrestamo($codigo, $datos, $usuario);
+        }
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'editar', 'codigo' => $codigo, 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // POST: Aprobar/Rechazar Préstamo
+    if ($action === 'aprobar_accion' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'listado', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $prestamosServicio = new \Sacs\Services\PrestamosServicio();
+        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $codigo = trim((string) ($_POST['codigo'] ?? ''));
+        $accion = trim((string) ($_POST['accion'] ?? ''));
+
+        if ($accion === 'aprobar') {
+            $resultado = $prestamosServicio->aprobarPrestamo($codigo, $usuario);
+        } elseif ($accion === 'rechazar') {
+            $motivo = trim((string) ($_POST['motivo'] ?? ''));
+            $resultado = $prestamosServicio->rechazarPrestamo($codigo, $motivo, $usuario);
+        } else {
+            $resultado = ['success' => false, 'message' => 'Acción no válida'];
+        }
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'aprobar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // POST: Gestión de Estado
+    if ($action === 'gestion_estado_accion' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'listado', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $prestamosServicio = new \Sacs\Services\PrestamosServicio();
+        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $codigo = trim((string) ($_POST['codigo'] ?? ''));
+        $accion = trim((string) ($_POST['accion'] ?? ''));
+        $motivo = trim((string) ($_POST['motivo'] ?? ''));
+
+        switch ($accion) {
+            case 'cancelar':
+                $resultado = $prestamosServicio->cancelarPrestamo($codigo, $motivo, $usuario);
+                break;
+            case 'anular':
+                $resultado = $prestamosServicio->anularPrestamo($codigo, $motivo, $usuario);
+                break;
+            case 'activar':
+                $resultado = $prestamosServicio->activarPrestamo($codigo, $usuario);
+                break;
+            default:
+                $resultado = ['success' => false, 'message' => 'Acción no válida'];
+        }
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'gestion_estado', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim((string) ($_POST['username'] ?? ''));
@@ -1625,7 +1867,7 @@ if ($auth->check()) {
     }
 
     // Módulo Socios
-    if (($_GET['module'] ?? '') === 'socios' || ($_POST['module'] ?? '') === 'socios') {
+    if ($module === 'socios') {
         $sociosServicio = new SociosServicio();
         // Si es POST, tomar action solo de POST, si no, de GET
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -2533,6 +2775,173 @@ if ($auth->check()) {
         // GET: Aportaciones Completas
         if ($action === 'aportes_completos') {
             require dirname(__DIR__) . '/views/socios/aportes_completos.php';
+            exit;
+        }
+
+        // GET: Descuentos
+        if ($action === 'descuentos') {
+            require dirname(__DIR__) . '/views/socios/descuentos.php';
+            exit;
+        }
+
+        // GET: Nuevo Descuento
+        if ($action === 'descuento_nuevo') {
+            require dirname(__DIR__) . '/views/socios/descuento_form.php';
+            exit;
+        }
+
+        // GET: Editar Descuento
+        if ($action === 'descuento_editar') {
+            require dirname(__DIR__) . '/views/socios/descuento_form.php';
+            exit;
+        }
+
+        // POST: Guardar Descuento
+        if ($action === 'descuento_guardar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $_POST['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $sociosServicio = new \Sacs\Services\SociosServicio();
+                $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
+                $modo = trim((string) ($_POST['modo'] ?? 'nuevo'));
+                $periodo = trim((string) ($_POST['periodo'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+                if (empty($clienteCodigo)) {
+                    throw new Exception('El código de cliente es requerido');
+                }
+
+                if (empty($periodo)) {
+                    throw new Exception('El periodo es requerido');
+                }
+
+                // Obtener código de persona
+                $socio = $sociosServicio->obtenerSocioPorCliente($clienteCodigo);
+                if (!$socio) {
+                    throw new Exception('Socio no encontrado');
+                }
+
+                $codigoPersona = (string) $socio['F01_ID_PERSONA'];
+
+                $datos = [
+                    'aportacion_pendiente' => (float) ($_POST['aportacion_pendiente'] ?? 0),
+                    'aportacion_actual' => (float) ($_POST['aportacion_actual'] ?? 0),
+                    'aportacion_deducida' => (float) ($_POST['aportacion_deducida'] ?? 0),
+                    'monto_pendiente' => (float) ($_POST['monto_pendiente'] ?? 0),
+                    'monto_actual' => (float) ($_POST['monto_actual'] ?? 0),
+                    'monto_deducido' => (float) ($_POST['monto_deducido'] ?? 0),
+                    'amortizacion' => (float) ($_POST['amortizacion'] ?? 0),
+                    'mora_activa' => (float) ($_POST['mora_activa'] ?? 0),
+                    'mora_deducida' => (float) ($_POST['mora_deducida'] ?? 0),
+                    'interes_activo' => (float) ($_POST['interes_activo'] ?? 0),
+                    'interes_deducido' => (float) ($_POST['interes_deducido'] ?? 0),
+                    'otro1' => (float) ($_POST['otro1'] ?? 0),
+                    'otro2' => (float) ($_POST['otro2'] ?? 0),
+                    'mora_pendiente' => (float) ($_POST['mora_pendiente'] ?? 0),
+                    'tipo' => trim((string) ($_POST['tipo'] ?? ''))
+                ];
+
+                if ($modo === 'nuevo') {
+                    // Verificar si ya existe descuento para este periodo
+                    $existente = $sociosServicio->obtenerDescuento($codigoPersona, $periodo);
+                    if ($existente) {
+                        throw new Exception('Ya existe un descuento para este periodo');
+                    }
+                    $resultado = $sociosServicio->registrarDescuento($codigoPersona, $periodo, $datos, $usuario);
+                } else {
+                    $periodoOriginal = trim((string) ($_POST['periodo_original'] ?? ''));
+                    $resultado = $sociosServicio->actualizarDescuento($codigoPersona, $periodoOriginal, $datos, $usuario);
+                }
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $clienteCodigo, 'success' => $modo === 'nuevo' ? 'Descuento registrado correctamente' : 'Descuento actualizado correctamente']);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = 'Error al guardar descuento';
+                    $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'descuento_nuevo' : 'descuento_editar', 'client' => $clienteCodigo, 'periodo' => $periodo, 'error' => $error]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al guardar descuento: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => $modo === 'nuevo' ? 'descuento_nuevo' : 'descuento_editar', 'client' => $_POST['client'] ?? '', 'periodo' => $_POST['periodo'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Eliminar Descuento
+        if ($action === 'descuento_eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $sociosServicio = new \Sacs\Services\SociosServicio();
+                $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+                $periodo = trim((string) ($_GET['periodo'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+                if (empty($clienteCodigo) || empty($periodo)) {
+                    throw new Exception('Parámetros inválidos');
+                }
+
+                // Obtener código de persona
+                $socio = $sociosServicio->obtenerSocioPorCliente($clienteCodigo);
+                if (!$socio) {
+                    throw new Exception('Socio no encontrado');
+                }
+
+                $codigoPersona = (string) $socio['F01_ID_PERSONA'];
+
+                $resultado = $sociosServicio->eliminarDescuento($codigoPersona, $periodo, $usuario);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $clienteCodigo, 'success' => 'Descuento eliminado correctamente']);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = 'Error al eliminar descuento';
+                    $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $clienteCodigo, 'error' => $error]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar descuento: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'socios', 'action' => 'descuentos', 'client' => $_GET['client'] ?? '', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // GET: Socios Atrasados
+        if ($action === 'socios_atrasados') {
+            require dirname(__DIR__) . '/views/socios/socios_atrasados.php';
+            exit;
+        }
+
+        // GET: Socios Candidatos
+        if ($action === 'socios_candidatos') {
+            require dirname(__DIR__) . '/views/socios/socios_candidatos.php';
+            exit;
+        }
+
+        // GET: Socios Pronóstico
+        if ($action === 'socios_pronostico') {
+            require dirname(__DIR__) . '/views/socios/socios_pronostico.php';
             exit;
         }
 

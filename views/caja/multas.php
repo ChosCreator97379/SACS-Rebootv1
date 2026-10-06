@@ -113,7 +113,7 @@ $money = fn(float $amount): string => number_format($amount, 2, '.', ',');
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Caja</div>

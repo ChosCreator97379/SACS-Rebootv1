@@ -39,8 +39,8 @@ if ($cliente === null) {
     exit;
 }
 
-// Obtener datos del préstamo (estado 3 = aprobado, pendiente de desembolso)
-$stmt = $database->prepare("SELECT * FROM f16_prestamo WHERE f16_codigo = ? AND f16_estado = 3");
+// Obtener datos del préstamo (estado 2 = aprobado, pendiente de desembolso)
+$stmt = $database->prepare("SELECT * FROM f16_prestamo WHERE f16_codigo = ? AND f16_estado = 2");
 $stmt->execute([$prestamoId]);
 $prestamo = $stmt->fetch();
 
@@ -136,7 +136,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Caja</div>

@@ -83,7 +83,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <div class="brand-mark">S</div>
                 <div>
                     <div class="brand-name">SACS</div>
-                    <div class="brand-note">Sistema de Administración</div>
+                    <div class="brand-note">gestion social</div>
                 </div>
             </a>
             <div class="nav-label">Socios</div>
@@ -91,6 +91,9 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php" class="nav-link">Dashboard</a>
                 <a href="index.php?module=socios&action=listado" class="nav-link active">Listado de Socios</a>
                 <a href="index.php?module=socios&action=registro" class="nav-link">Registro de Socio</a>
+                <a href="index.php?module=socios&action=socios_atrasados" class="nav-link">Socios Atrasados</a>
+                <a href="index.php?module=socios&action=socios_candidatos" class="nav-link">Socios Candidatos</a>
+                <a href="index.php?module=socios&action=socios_pronostico" class="nav-link">Pronóstico</a>
                 <a href="index.php?module=socios&action=cheques" class="nav-link">Cheques</a>
                 <div class="nav-label">Auditoría</div>
                 <a href="index.php?module=socios&action=auditoria_general" class="nav-link">Auditoría General</a>
