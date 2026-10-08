@@ -1520,7 +1520,1137 @@ if ($auth->check()) {
         exit;
     }
 
-    if (($_GET['module'] ?? '') === 'caja') {
+// Módulo Tarifarios
+if ($module === 'tarifarios') {
+    // GET: Listado de Tarifarios
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/tarifarios/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Tarifario
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/tarifarios/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Tarifario
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'producto' => trim((string) ($_POST['producto'] ?? ''))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['producto'])) {
+            $error = 'El producto es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->registrarTarifario($datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'registro', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Edición de Tarifario
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/tarifarios/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Tarifario
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $datos = [
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'producto' => trim((string) ($_POST['producto'] ?? '')),
+            'estado' => trim((string) ($_POST['estado'] ?? 'A'))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['producto'])) {
+            $error = 'El producto es requerido';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->actualizarTarifario($codigo, $datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'editar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Eliminación de Tarifario
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/tarifarios/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Tarifario
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'eliminar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $resultado = $tarifariosServicio->eliminarTarifario($codigo);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'tarifarios', 'action' => 'eliminar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+}
+
+// Módulo Productos
+if ($module === 'productos') {
+    // GET: Listado de Productos
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/productos/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Producto
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/productos/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Producto
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $productosServicio = new \Sacs\Services\ProductosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'nombre' => trim((string) ($_POST['nombre'] ?? '')),
+            'cronograma' => trim((string) ($_POST['cronograma'] ?? '')),
+            'moneda' => trim((string) ($_POST['moneda'] ?? '')),
+            'max_cuotas' => trim((string) ($_POST['max_cuotas'] ?? '')),
+            'monto_min' => trim((string) ($_POST['monto_min'] ?? '')),
+            'monto_max' => trim((string) ($_POST['monto_max'] ?? '')),
+            'con_garante' => trim((string) ($_POST['con_garante'] ?? 'N'))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['nombre'])) {
+            $error = 'El nombre es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['cronograma'])) {
+            $error = 'El cronograma es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['moneda'])) {
+            $error = 'La moneda es requerida';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['max_cuotas'])) {
+            $error = 'El máximo de cuotas es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['monto_min'])) {
+            $error = 'El monto mínimo es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['monto_max'])) {
+            $error = 'El monto máximo es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $productosServicio->registrarProducto($datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'productos', 'action' => 'registro', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Edición de Producto
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/productos/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Producto
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $productosServicio = new \Sacs\Services\ProductosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $datos = [
+            'nombre' => trim((string) ($_POST['nombre'] ?? '')),
+            'cronograma' => trim((string) ($_POST['cronograma'] ?? '')),
+            'moneda' => trim((string) ($_POST['moneda'] ?? '')),
+            'max_cuotas' => trim((string) ($_POST['max_cuotas'] ?? '')),
+            'monto_min' => trim((string) ($_POST['monto_min'] ?? '')),
+            'monto_max' => trim((string) ($_POST['monto_max'] ?? '')),
+            'con_garante' => trim((string) ($_POST['con_garante'] ?? 'N')),
+            'estado' => trim((string) ($_POST['estado'] ?? 'A'))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['nombre'])) {
+            $error = 'El nombre es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['cronograma'])) {
+            $error = 'El cronograma es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['moneda'])) {
+            $error = 'La moneda es requerida';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['max_cuotas'])) {
+            $error = 'El máximo de cuotas es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['monto_min'])) {
+            $error = 'El monto mínimo es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['monto_max'])) {
+            $error = 'El monto máximo es requerido';
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $productosServicio->actualizarProducto($codigo, $datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'productos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Eliminación de Producto
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/productos/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Producto
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'productos', 'action' => 'eliminar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $productosServicio = new \Sacs\Services\ProductosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $resultado = $productosServicio->eliminarProducto($codigo);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'productos', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'productos', 'action' => 'eliminar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+}
+
+// Módulo Tarifas de Aportes
+if ($module === 'tarifas_aportes') {
+    // GET: Listado de Tarifas de Aportes
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/tarifas_aportes/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Tarifa de Aporte
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/tarifas_aportes/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Tarifa de Aporte
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'producto' => null
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->registrarTarifario($datos);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=registro');
+        }
+        exit;
+    }
+
+    // GET: Edición de Tarifa de Aporte
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/tarifas_aportes/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Tarifa de Aporte
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'editar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'estado' => trim((string) ($_POST['estado'] ?? 'A')),
+            'producto' => null
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->actualizarTarifario($datos);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=editar&codigo=' . $datos['codigo']);
+        }
+        exit;
+    }
+
+    // GET: Eliminación de Tarifa de Aporte
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/tarifas_aportes/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Tarifa de Aporte
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_aportes', 'action' => 'eliminar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $resultado = $tarifariosServicio->eliminarTarifario($codigo);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_aportes&action=eliminar&codigo=' . $codigo);
+        }
+        exit;
+    }
+}
+
+// Módulo Tarifas de Beneficios
+if ($module === 'tarifas_beneficios') {
+    // GET: Listado de Tarifas de Beneficios
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/tarifas_beneficios/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Tarifa de Beneficio
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/tarifas_beneficios/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Tarifa de Beneficio
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'producto' => '6'
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->registrarTarifario($datos);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=registro');
+        }
+        exit;
+    }
+
+    // GET: Edición de Tarifa de Beneficio
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/tarifas_beneficios/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Tarifa de Beneficio
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'editar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => (int) ($_POST['codigo'] ?? 0),
+            'concepto' => trim((string) ($_POST['concepto'] ?? '')),
+            'valor' => trim((string) ($_POST['valor'] ?? '')),
+            'fecha_desde' => trim((string) ($_POST['fecha_desde'] ?? '')),
+            'fecha_hasta' => trim((string) ($_POST['fecha_hasta'] ?? '')),
+            'estado' => trim((string) ($_POST['estado'] ?? 'A')),
+            'producto' => '6'
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['concepto'])) {
+            $error = 'El concepto es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['valor'])) {
+            $error = 'El valor es requerido';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['fecha_desde'])) {
+            $error = 'La fecha desde es requerida';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'editar', 'codigo' => $datos['codigo'], 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $tarifariosServicio->actualizarTarifario($datos);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=editar&codigo=' . $datos['codigo']);
+        }
+        exit;
+    }
+
+    // GET: Eliminación de Tarifa de Beneficio
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/tarifas_beneficios/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Tarifa de Beneficio
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'tarifas_beneficios', 'action' => 'eliminar', 'codigo' => $_POST['codigo'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $tarifariosServicio = new \Sacs\Services\TarifariosServicio(\Sacs\Core\Database::connection());
+
+        $codigo = (int) ($_POST['codigo'] ?? 0);
+        $resultado = $tarifariosServicio->eliminarTarifario($codigo);
+
+        if ($resultado['success']) {
+            $_SESSION['message'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=listado');
+        } else {
+            $_SESSION['error'] = $resultado['message'];
+            header('Location: index.php?module=tarifas_beneficios&action=eliminar&codigo=' . $codigo);
+        }
+        exit;
+    }
+}
+
+// Módulo Perfiles
+if ($module === 'perfiles') {
+    // GET: Listado de Perfiles
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/perfiles/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Perfil
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/perfiles/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Perfil
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $perfilesServicio = new \Sacs\Services\PerfilesServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'codigo' => trim((string) ($_POST['codigo'] ?? '')),
+            'nombre' => trim((string) ($_POST['nombre'] ?? ''))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['codigo'])) {
+            $error = 'El código es requerido';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['nombre'])) {
+            $error = 'El nombre es requerido';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $perfilesServicio->registrarPerfil($datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'registro', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'registro', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Edición de Perfil
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/perfiles/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Perfil
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'editar', 'id' => $_POST['id'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $perfilesServicio = new \Sacs\Services\PerfilesServicio(\Sacs\Core\Database::connection());
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $datos = [
+            'nombre' => trim((string) ($_POST['nombre'] ?? ''))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['nombre'])) {
+            $error = 'El nombre es requerido';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'editar', 'id' => $id, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $perfilesServicio->actualizarPerfil($id, $datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'editar', 'id' => $id, 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'editar', 'id' => $id, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Eliminación de Perfil
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/perfiles/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Perfil
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'eliminar', 'id' => $_POST['id'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $perfilesServicio = new \Sacs\Services\PerfilesServicio(\Sacs\Core\Database::connection());
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $resultado = $perfilesServicio->eliminarPerfil($id);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'perfiles', 'action' => 'eliminar', 'id' => $id, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+}
+
+// Módulo Usuarios
+if ($module === 'usuarios') {
+    // GET: Listado de Usuarios
+    if ($action === 'listado') {
+        require dirname(__DIR__) . '/views/usuarios/listado.php';
+        exit;
+    }
+
+    // GET: Registro de Usuario
+    if ($action === 'registro') {
+        require dirname(__DIR__) . '/views/usuarios/registro.php';
+        exit;
+    }
+
+    // POST: Registrar Usuario
+    if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $usuariosServicio = new \Sacs\Services\UsuariosServicio(\Sacs\Core\Database::connection());
+
+        $datos = [
+            'nombre' => trim((string) ($_POST['nombre'] ?? '')),
+            'password' => trim((string) ($_POST['password'] ?? '')),
+            'confirmar_password' => trim((string) ($_POST['confirmar_password'] ?? '')),
+            'perfil' => trim((string) ($_POST['perfil'] ?? ''))
+        ];
+
+        $errores = $usuariosServicio->validarUsuario($datos);
+
+        if (!empty($errores)) {
+            $error = implode(', ', $errores);
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'registro', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $resultado = $usuariosServicio->registrarUsuario($datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'registro', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'registro', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Edición de Usuario
+    if ($action === 'editar') {
+        require dirname(__DIR__) . '/views/usuarios/editar.php';
+        exit;
+    }
+
+    // POST: Actualizar Usuario
+    if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $_POST['id'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $usuariosServicio = new \Sacs\Services\UsuariosServicio(\Sacs\Core\Database::connection());
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $datos = [
+            'nombre' => trim((string) ($_POST['nombre'] ?? '')),
+            'perfil' => trim((string) ($_POST['perfil'] ?? '')),
+            'estado' => trim((string) ($_POST['estado'] ?? 'A')),
+            'password' => trim((string) ($_POST['password'] ?? '')),
+            'confirmar_password' => trim((string) ($_POST['confirmar_password'] ?? ''))
+        ];
+
+        // Validar campos requeridos
+        if (empty($datos['nombre'])) {
+            $error = 'El nombre de usuario es requerido';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($datos['perfil'])) {
+            $error = 'El perfil es requerido';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        // Validar contraseña si se está cambiando
+        if (!empty($datos['password'])) {
+            if (strlen($datos['password']) < 6) {
+                $error = 'La contraseña debe tener al menos 6 caracteres';
+                $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            if ($datos['password'] !== $datos['confirmar_password']) {
+                $error = 'Las contraseñas no coinciden';
+                $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        } else {
+            // No cambiar contraseña
+            unset($datos['password']);
+            unset($datos['confirmar_password']);
+        }
+
+        $resultado = $usuariosServicio->actualizarUsuario($id, $datos);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'editar', 'id' => $id, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Eliminación de Usuario
+    if ($action === 'eliminar') {
+        require dirname(__DIR__) . '/views/usuarios/eliminar.php';
+        exit;
+    }
+
+    // POST: Eliminar Usuario
+    if ($action === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'eliminar', 'id' => $_POST['id'] ?? 0, 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $usuariosServicio = new \Sacs\Services\UsuariosServicio(\Sacs\Core\Database::connection());
+
+        $id = (int) ($_POST['id'] ?? 0);
+        $resultado = $usuariosServicio->eliminarUsuario($id);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'listado', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'eliminar', 'id' => $id, 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+
+    // GET: Cambio de Contraseña
+    if ($action === 'cambiar_clave') {
+        require dirname(__DIR__) . '/views/usuarios/cambiar_clave.php';
+        exit;
+    }
+
+    // POST: Cambiar Contraseña
+    if ($action === 'cambiar_clave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es válida.';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        $usuariosServicio = new \Sacs\Services\UsuariosServicio(\Sacs\Core\Database::connection());
+
+        $usuarioActual = $_SESSION['usuario'] ?? 'SISTEMA';
+        $passwordActual = trim((string) ($_POST['password_actual'] ?? ''));
+        $nuevaPassword = trim((string) ($_POST['nueva_password'] ?? ''));
+        $confirmarPassword = trim((string) ($_POST['confirmar_password'] ?? ''));
+
+        // Validar campos requeridos
+        if (empty($passwordActual)) {
+            $error = 'La contraseña actual es requerida';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (empty($nuevaPassword)) {
+            $error = 'La nueva contraseña es requerida';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if (strlen($nuevaPassword) < 6) {
+            $error = 'La nueva contraseña debe tener al menos 6 caracteres';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if ($nuevaPassword !== $confirmarPassword) {
+            $error = 'Las contraseñas no coinciden';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        // Verificar contraseña actual
+        $usuarioData = $usuariosServicio->obtenerUsuarioPorNombre($usuarioActual);
+        
+        if (!$usuarioData) {
+            $error = 'Usuario no encontrado';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        if ($usuarioData['password'] !== $passwordActual) {
+            $error = 'La contraseña actual es incorrecta';
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $error]);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
+        // Cambiar contraseña
+        $resultado = $usuariosServicio->cambiarPassword($usuarioData['id'], $nuevaPassword);
+
+        if ($resultado['success']) {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'success' => $resultado['message']]);
+        } else {
+            $query = http_build_query(['module' => 'usuarios', 'action' => 'cambiar_clave', 'error' => $resultado['message']]);
+        }
+
+        header('Location: index.php?' . $query);
+        exit;
+    }
+}
+
+if (($_GET['module'] ?? '') === 'caja') {
         $clientId = trim((string) ($_GET['client'] ?? ''));
         $loanId = filter_var($_GET['loan'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $installmentNumber = filter_var($_GET['installment'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

@@ -1,6 +1,6 @@
 # Contexto de continuidad: reconstruccion SACS
 
-Fecha de corte: 2026-10-06 (actualizado - Módulo de Socios al 100% completado)
+Fecha de corte: 2026-10-08 (actualizado - Módulo de Configuración del Sistema al 100% completado)
 
 ## 1. Objetivo del proyecto
 
@@ -2293,6 +2293,158 @@ Todas las funcionalidades principales del sistema legacy Java han sido implement
 
 **Estado Final del Módulo de Préstamos: 100% completado y verificado** ✅
 
+## 24. Módulo de Usuarios y Perfiles - Implementación Reciente
+
+**Fecha de implementación**: 2026-10-07
+
+### 24.1 Servicios de Usuarios
+
+**Archivo**: `src/Services/UsuariosServicio.php`
+
+Funcionalidades implementadas:
+- `listarUsuarios()` - Listar usuarios con filtros y paginación
+- `contarUsuarios()` - Contar total de usuarios
+- `obtenerUsuario()` - Obtener usuario por ID
+- `obtenerUsuarioPorNombre()` - Obtener usuario por nombre
+- `obtenerPerfiles()` - Obtener lista de perfiles
+- `obtenerNombrePerfil()` - Obtener nombre del perfil por ID
+- `registrarUsuario()` - Registrar nuevo usuario
+- `validarUsuario()` - Validar datos del usuario
+- `actualizarUsuario()` - Actualizar datos del usuario
+- `cambiarPassword()` - Cambiar contraseña
+- `eliminarUsuario()` - Soft delete (cambia estado a 'B')
+
+### 24.2 Servicios de Perfiles
+
+**Archivo**: `src/Services/PerfilesServicio.php`
+
+Funcionalidades implementadas:
+- `listarPerfiles()` - Listar todos los perfiles
+- `obtenerPerfil()` - Obtener perfil por ID
+- `registrarPerfil()` - Registrar nuevo perfil
+- `actualizarPerfil()` - Actualizar nombre del perfil
+- `eliminarPerfil()` - Eliminar perfil (con verificación de usuarios asignados)
+
+### 24.3 Vistas de Usuarios
+
+**Archivos**:
+- `views/usuarios/listado.php` - Listado de usuarios con filtros y paginación
+- `views/usuarios/registro.php` - Formulario de registro de usuarios
+- `views/usuarios/editar.php` - Formulario de edición de usuarios
+- `views/usuarios/eliminar.php` - Confirmación de eliminación de usuarios
+- `views/usuarios/cambiar_clave.php` - Formulario de cambio de contraseña
+
+**Características**:
+- ✅ Listado con filtros por nombre y perfil
+- ✅ Paginación de 10 registros por página
+- ✅ Registro con validación de contraseña
+- ✅ Edición de nombre, perfil, estado y contraseña opcional
+- ✅ Soft delete (cambio de estado a inactivo)
+- ✅ Cambio de contraseña con verificación de contraseña actual
+- ✅ Contraseñas en texto plano (sin encriptar según solicitud del usuario)
+- ✅ Estados con badges (Activo/Inactivo)
+- ✅ Sidebar consistente
+- ✅ CSRF token en todas las operaciones
+- ✅ Mensajes de éxito/error
+
+### 24.4 Vistas de Perfiles
+
+**Archivos**:
+- `views/perfiles/listado.php` - Listado de perfiles
+- `views/perfiles/registro.php` - Formulario de registro de perfiles
+- `views/perfiles/editar.php` - Formulario de edición de perfiles
+- `views/perfiles/eliminar.php` - Confirmación de eliminación de perfiles
+
+**Características**:
+- ✅ Listado de perfiles (código, nombre)
+- ✅ Registro con código automático sugerido
+- ✅ Edición solo de nombre (código no modificable)
+- ✅ Eliminación con verificación de usuarios asignados
+- ✅ Sidebar consistente
+- ✅ CSRF token en todas las operaciones
+- ✅ Mensajes de éxito/error
+
+### 24.5 Rutas Implementadas
+
+**Usuarios**:
+- GET: `module=usuarios&action=listado` - Ver listado
+- GET: `module=usuarios&action=registro` - Formulario de registro
+- POST: `module=usuarios&action=registrar` - Procesar registro
+- GET: `module=usuarios&action=editar&id=XXX` - Formulario de edición
+- POST: `module=usuarios&action=actualizar` - Procesar actualización
+- GET: `module=usuarios&action=eliminar&id=XXX` - Formulario de eliminación
+- POST: `module=usuarios&action=eliminar` - Procesar eliminación
+- GET: `module=usuarios&action=cambiar_clave` - Formulario de cambio de contraseña
+- POST: `module=usuarios&action=cambiar_clave` - Procesar cambio de contraseña
+
+**Perfiles**:
+- GET: `module=perfiles&action=listado` - Ver listado
+- GET: `module=perfiles&action=registro` - Formulario de registro
+- POST: `module=perfiles&action=registrar` - Procesar registro
+- GET: `module=perfiles&action=editar&id=XXX` - Formulario de edición
+- POST: `module=perfiles&action=actualizar` - Procesar actualización
+- GET: `module=perfiles&action=eliminar&id=XXX` - Formulario de eliminación
+- POST: `module=perfiles&action=eliminar` - Procesar eliminación
+
+### 24.6 Integración con Dashboard
+
+**Archivo**: `views/dashboard.php`
+
+- Agregado enlace a Usuarios (ítem 05) en el sidebar del Dashboard
+
+### 24.7 Estructura de Tablas
+
+**f06_usuario** (Usuarios):
+- f06_id_usuario (ID, autoincrement)
+- f06_nombre (nombre de usuario)
+- f06_perfil (ID del perfil)
+- f06_password (contraseña en texto plano)
+- f06_estado (estado: A=Activo, B=Baja)
+
+**f08_perfil** (Perfiles):
+- f08_codigo (código del perfil)
+- f08_nombre (nombre del perfil)
+
+**Perfiles existentes en la base de datos**:
+1. SUPERVISOR
+2. PROGRAMADOR
+3. CONTABILIDAD
+4. SECRETARIA
+5. COBRANZAS
+6. CONSULTAS
+7. INFORMES
+8. SOCIOWEB
+9. AUXILIAR
+10. AUXILIAR2
+
+### 24.8 Verificación
+
+**PHP lint**:
+- UsuariosServicio.php ✅
+- PerfilesServicio.php ✅
+- listado.php ✅
+- registro.php ✅
+- editar.php ✅
+- eliminar.php ✅
+- cambiar_clave.php ✅
+
+**Sidebars**:
+- Todas las vistas de usuarios tienen sidebars consistentes ✅
+- Todas las vistas de perfiles tienen sidebars consistentes ✅
+
+### 24.9 Estado Final
+
+**Módulo de Usuarios y Perfiles: 100% completado** ✅
+
+Todas las funcionalidades principales del sistema legacy Java han sido implementadas:
+- Listado, registro, edición, eliminación de usuarios
+- Cambio de contraseña
+- Gestión completa de perfiles
+- Soft delete de usuarios
+- Verificación de usuarios asignados antes de eliminar perfiles
+- Contraseñas en texto plano (sin encriptar)
+- Integración con Dashboard
+
 ### 17.10 Reglas de Diseño del Dashboard
 
 **Regla establecida por el usuario**:
@@ -2809,4 +2961,156 @@ php -r "require 'C:/xampp/htdocs/sacs_nuevo/config/bootstrap.php'; Sacs\Core\Dat
 - Sin AJAX - usa formularios POST/GET tradicionales
 
 **Corrección importante**: Se corrigió el tipo de parámetro en `actualizarObservacion()` para convertir el código de persona a string antes de pasarlo al método.
+
+### 25. Módulo de Configuración del Sistema (2026-10-08)
+
+**Fecha de implementación**: 2026-10-08
+
+**Objetivo**: Implementar la configuración del sistema del legacy Java, incluyendo productos de préstamos, tarifarios, tarifas de aportes y tarifas de beneficios.
+
+**Análisis del sistema legacy**:
+- Productos de Préstamos: Usan tabla `f31_productos`
+- Tarifarios: Usan tabla `f19_tarifario` con producto asociado
+- Tarifas de Aportes: Usan tabla `f19_tarifario` con producto = null
+- Tarifas de Beneficios: Usan tabla `f19_tarifario` con producto = "6"
+
+#### 25.1 Productos de Préstamos (Fase 1)
+
+**Archivos creados**:
+- `src/Services/ProductosServicio.php` - Servicio de productos con métodos CRUD
+- `views/productos/listado.php` - Listado de productos
+- `views/productos/registro.php` - Registro de producto
+- `views/productos/editar.php` - Edición de producto
+- `views/productos/eliminar.php` - Eliminación de producto
+
+**Archivos modificados**:
+- `public/index.php` - Rutas GET/POST para productos
+- `views/dashboard.php` - Enlace a Configuración (ítem 07)
+
+**Características**:
+- Listado de productos con paginación
+- Registro con código automático (MAX + 1)
+- Edición de productos (código no modificable)
+- Eliminación con verificación de préstamos asociados
+- Campos: código, nombre, cronograma, moneda, max cuotas, monto min, monto max, requiere garante, estado
+- Tabla f31_productos usada correctamente
+- CSRF token en todas las operaciones
+- Mensajes de éxito/error
+- Sidebar consistente
+
+**Estructura de la tabla f31_productos**:
+- f31_codigo
+- f31_nombre
+- f31_cronograma
+- f31_moneda
+- f31_max_cuotas
+- f31_monto_min
+- f31_monto_max
+- f31_conGarante
+- f31_estado
+
+#### 25.2 Tarifarios (Fase 2)
+
+**Archivos creados**:
+- `src/Services/TarifariosServicio.php` - Servicio de tarifarios con métodos CRUD
+- `views/tarifarios/listado.php` - Listado de tarifarios
+- `views/tarifarios/registro.php` - Registro de tarifario
+- `views/tarifarios/editar.php` - Edición de tarifario
+- `views/tarifarios/eliminar.php` - Eliminación de tarifario
+
+**Archivos modificados**:
+- `public/index.php` - Rutas GET/POST para tarifarios
+
+**Características**:
+- Listado de tarifarios
+- Registro con código automático
+- Edición de tarifarios (código no modificable)
+- Eliminación de tarifarios
+- Campos: código, concepto, valor, fechas, estado, producto
+- Tabla f19_tarifario usada correctamente
+- Integración con productos de préstamos (dropdown)
+- CSRF token en todas las operaciones
+- Mensajes de éxito/error
+- Sidebar consistente
+
+**Estructura de la tabla f19_tarifario**:
+- f19_codigo
+- f19_concepto
+- f19_valor
+- f19_fechaDesde
+- f19_fechaHasta
+- f19_estado
+- f19_producto
+
+#### 25.3 Tarifas de Aportes (Fase 3)
+
+**Archivos creados**:
+- `views/tarifas_aportes/listado.php` - Listado de tarifas de aportes
+- `views/tarifas_aportes/registro.php` - Registro de tarifa de aporte
+- `views/tarifas_aportes/editar.php` - Edición de tarifa de aporte
+- `views/tarifas_aportes/eliminar.php` - Eliminación de tarifa de aporte
+
+**Archivos modificados**:
+- `src/Services/TarifariosServicio.php` - Actualizado para soportar producto = null
+- `public/index.php` - Rutas GET/POST para tarifas de aportes
+- Sidebars de vistas de productos y tarifarios - Enlace a tarifas de aportes
+
+**Características**:
+- Listado de tarifas de aportes (solo tarifas sin producto)
+- Registro con código automático
+- Edición de tarifas (código no modificable)
+- Eliminación de tarifas
+- Campos: concepto, valor, fechas, estado
+- Reutiliza tabla f19_tarifario con producto = null
+- Sin dropdown de producto (tarifas de aportes son independientes)
+- CSRF token en todas las operaciones
+- Mensajes de éxito/error
+- Sidebar consistente
+
+#### 25.4 Tarifas de Beneficios (Fase 4)
+
+**Archivos creados**:
+- `views/tarifas_beneficios/listado.php` - Listado de tarifas de beneficios
+- `views/tarifas_beneficios/registro.php` - Registro de tarifa de beneficio
+- `views/tarifas_beneficios/editar.php` - Edición de tarifa de beneficio
+- `views/tarifas_beneficios/eliminar.php` - Eliminación de tarifa de beneficio
+
+**Archivos modificados**:
+- `public/index.php` - Rutas GET/POST para tarifas de beneficios
+- Sidebars de todas las vistas de configuración - Enlace a tarifas de beneficios
+
+**Características**:
+- Listado de tarifas de beneficios (solo tarifas con producto = "6")
+- Registro con código automático
+- Edición de tarifas (código no modificable)
+- Eliminación de tarifas
+- Campos: concepto, valor, fechas, estado
+- Reutiliza tabla f19_tarifario con producto = "6"
+- Sin dropdown de producto (tarifas de beneficios usan producto fijo)
+- CSRF token en todas las operaciones
+- Mensajes de éxito/error
+- Sidebar consistente
+
+#### 25.5 Integración Final (Fase 5)
+
+**Archivos verificados**:
+- Servicios: ProductosServicio.php, TarifariosServicio.php
+- Vistas de Productos: 4 archivos
+- Vistas de Tarifarios: 4 archivos
+- Vistas de Tarifas de Aportes: 4 archivos
+- Vistas de Tarifas de Beneficios: 4 archivos
+
+**Características**:
+- PHP lint en todos los archivos sin errores
+- Sidebars consistentes en todas las vistas
+- Navegación completa entre módulos de configuración
+- Documentación actualizada
+
+**Resumen del módulo**:
+- Total de rutas agregadas: 28 (7 productos + 7 tarifarios + 7 tarifas aportes + 7 tarifas beneficios)
+- Total de vistas creadas: 16 (4 por cada submódulo)
+- Total de servicios creados: 2 (ProductosServicio, TarifariosServicio)
+- Reutilización inteligente de tabla f19_tarifario para tarifarios, tarifas de aportes y tarifas de beneficios mediante filtrado por producto
+
+**Estado del módulo**: 100% completado y verificado ✅
 - Mantener mensajes y flujo familiar para usuarios en operaciones reales.
