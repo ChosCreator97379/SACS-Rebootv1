@@ -102,7 +102,8 @@ $supervisor = $user['supervisor'] === 'S';
             <a class="nav-link" href="index.php?module=usuarios&action=listado"><span class="nav-icon">05</span>Usuarios</a>
             <a class="nav-link" href="index.php?module=caja&action=diario_contable"><span class="nav-icon">06</span>Diario Contable</a>
             <a class="nav-link" href="index.php?module=productos&action=listado"><span class="nav-icon">07</span>Configuración</a>
-            <a class="nav-link" href="#reportes"><span class="nav-icon">08</span>Reportes</a>
+            <a class="nav-link" href="index.php?module=tramites&action=listar"><span class="nav-icon">08</span>Trámites</a>
+            <a class="nav-link" href="#reportes"><span class="nav-icon">09</span>Reportes</a>
         </nav>
 
         <div class="sidebar-footer">
@@ -138,6 +139,16 @@ $supervisor = $user['supervisor'] === 'S';
             <form class="quick-form" method="get" action="index.php">
                 <input type="hidden" name="module" value="caja">
                 <input name="client" inputmode="numeric" maxlength="11" required placeholder="Código de cliente" aria-label="Código de cliente">
+                <button type="submit">Consultar</button>
+            </form>
+        </section>
+
+        <section class="quick-search" aria-labelledby="quick-prestamo-title">
+            <div class="quick-copy"><h2 class="quick-title" id="quick-prestamo-title">Consulta rápida de Préstamos</h2><p class="quick-note">Busca el detalle completo de un préstamo por su código.</p></div>
+            <form class="quick-form" method="get" action="index.php">
+                <input type="hidden" name="module" value="prestamos">
+                <input type="hidden" name="action" value="detalle_completo">
+                <input name="codigo" inputmode="numeric" maxlength="11" required placeholder="Código de préstamo" aria-label="Código de préstamo">
                 <button type="submit">Consultar</button>
             </form>
         </section>

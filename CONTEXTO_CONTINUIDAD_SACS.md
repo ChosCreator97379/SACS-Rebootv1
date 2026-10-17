@@ -1,6 +1,6 @@
 # Contexto de continuidad: reconstruccion SACS
 
-Fecha de corte: 2026-10-08 (actualizado - Módulo de Configuración del Sistema al 100% completado)
+Fecha de corte: 2026-10-13 (actualizado - Correcciones de amortización/sobregiro y visualización completa de préstamos)
 
 ## 1. Objetivo del proyecto
 
@@ -3113,4 +3113,178 @@ php -r "require 'C:/xampp/htdocs/sacs_nuevo/config/bootstrap.php'; Sacs\Core\Dat
 - Reutilización inteligente de tabla f19_tarifario para tarifarios, tarifas de aportes y tarifas de beneficios mediante filtrado por producto
 
 **Estado del módulo**: 100% completado y verificado ✅
+
+---
+
+## 26. Correcciones de Actualización de Préstamos (Amortización y Sobregiro)
+
+Fecha de implementación: 2026-10-13
+
+### Objetivo
+
+Corregir la lógica de actualización de préstamos en las operaciones de amortización y sobregiro para que:
+- Los campos de f16_prestamo se actualicen correctamente según el legacy
+- Las cuotas pendientes se reduzcan solo cuando el pago cubre completamente una cuota
+- El saldo del préstamo se actualice correctamente con cada pago
+
+### Problemas Identificados
+
+1. **Amortización (AmortizacionServicio.php)**:
+   - Usaba campos incorrectos en `actualizarPrestamo()`: `f16_mov`, `f16_am`, `f16_acuotasp`, `f16_aimportep`
+   - No actualizaba los campos correctos del legacy: `f16_saldo`, `f16_gastosa`, `f16_gastosm`, `f16_otros`, `f16_otros2`, `f16_fechaUP`, `f16_cuotasPend`
+
+2. **Sobregiro de Préstamo (SobregiroPrestamoServicio.php)**:
+   - No actualizaba `f16_saldo` cuando había amortización adicional
+   - No actualizaba `f16_cuotasPend` cuando la amortización adicional cubría una cuota
+   - No actualizaba `f16_fechaUP` (fecha de última actualización)
+
+3. **Reducción de cuotas pendientes (AmortizacionCalculadora.php)**:
+   - Siempre reducía cuotas pendientes en 1, sin verificar si el pago cubría completamente la cuota
+   - Debe reducir solo si amortización >= saldo de la cuota
+
+4. **Cronograma de cuotas (PrestamosServicio.php)**:
+   - El saldo de cada cuota no se calculaba correctamente
+   - Debe ser decreciente según el capital pendiente
+
+### Correcciones Aplicadas
+
+#### 26.1 Amortización
+
+**Archivo modificado**: `src/Services/AmortizacionServicio.php`
+
+**Método**: `actualizarPrestamo()`
+
+**Cambio**: Actualizar campos correctos según el legacy (`actualizarSaldo4` en PrestamosDAOImpl.java líneas 1978-1993):
+
+```php
+// Antes (incorrecto):
+SET f16_mov = ?, f16_am = ?, f16_acuotasp = ?, f16_aimportep = ?
+
+// Ahora (correcto):
+SET f16_cuotasPend = ?, f16_saldo = ?, f16_gastosa = ?, 
+    f16_gastosm = ?, f16_otros = ?, f16_otros2 = ?, 
+    f16_fechaUP = ?, f16_sobre = ?
+```
+
+**Valores provenientes de**: `AmortizacionCalculadora::calcularAmortizacionAEE()`
+
+#### 26.2 Sobregiro de Préstamo
+
+**Archivo modificado**: `src/Services/SobregiroPrestamoServicio.php`
+
+**Método**: `actualizarPrestamo()`
+
+**Cambios**:
+1. Agregar actualización de `f16_saldo` cuando hay amortización adicional
+2. Agregar reducción de `f16_cuotasPend` si la amortización adicional cubre completamente una cuota
+3. Agregar actualización de `f16_fechaUP` con la fecha actual
+
+**Lógica de reducción de cuotas pendientes**:
+```php
+// Obtener la primera cuota pendiente
+$sqlCuota = "SELECT f17_saldo FROM f17_cuotasprestamo 
+              WHERE f17_prestamo = :prestamo AND f17_estado = 'VIGENTE' 
+              ORDER BY f17_ncuota ASC LIMIT 1";
+
+if ($descuenta >= saldoCuota) {
+    // Reducir cuotas pendientes en 1
+    UPDATE f16_prestamo SET f16_cuotasPend = f16_cuotasPend - 1
+}
+```
+
+#### 26.3 Reducción de Cuotas Pendientes
+
+**Archivo modificado**: `src/Services/AmortizacionCalculadora.php`
+
+**Método**: `calcularAmortizacionAEE()`
+
+**Cambio**: Línea 198-204
+
+```php
+// Antes (incorrecto):
+$nuevasCuotasPend = $cuotasPend - 1;
+
+// Ahora (correcto):
+$saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
+if ($amortiza >= $saldoCuota) {
+    $nuevasCuotasPend = $cuotasPend - 1;
+} else {
+    $nuevasCuotasPend = $cuotasPend; // No reducir si es pago parcial
+}
+```
+
+#### 26.4 Cronograma de Cuotas
+
+**Archivo modificado**: `src/Services/PrestamosServicio.php`
+
+**Métodos**: `calcularCronograma()` y `generarCronograma()`
+
+**Cambio**: Calcular saldo decreciente según capital pendiente
+
+```php
+// Antes:
+'saldo' => $cuota['total']  // Incorrecto: mismo total para todas las cuotas
+
+// Ahora:
+$saldoPendiente -= $capitalPorCuota;
+'saldo' => max(0, $saldoPendiente)  // Decreciente según capital
+```
+
+**Método agregado**: `regenerarCronogramaExistente()` - Permite regenerar cronograma de préstamo existente
+
+**Cronograma regenerado**: Préstamo 43415 (corrección aplicada)
+
+### 27. Visualización Completa de Préstamos con Historial de Movimientos
+
+Fecha de implementación: 2026-10-13
+
+### Objetivo
+
+Crear una vista completa que muestre toda la información de un préstamo, incluyendo:
+- Información del préstamo
+- Saldos pendientes por componente
+- Cronograma completo de cuotas
+- Historial de movimientos con desglose de componentes
+
+### Archivos Creados
+
+1. **`src/Services/PrestamosServicio.php`**
+   - Método agregado: `obtenerDetalleCompletoPrestamo()`
+   - Retorna: prestamo, cronograma completo, movimientos con desglose
+
+2. **`views/prestamos/detalle_completo.php`**
+   - Vista con información completa del préstamo
+   - Secciones: Información, Saldos Pendientes, Cronograma, Historial de Movimientos
+   - Sidebar con enlaces a operaciones
+
+### Archivos Modificados
+
+1. **`views/dashboard.php`**
+   - Agregada sección "Consulta rápida de Préstamos" similar a consulta de caja
+   - Formulario para ingresar código de préstamo y redirigir a detalle completo
+
+2. **`public/index.php`**
+   - Ruta GET: `module=prestamos&action=detalle_completo&codigo=XXX`
+
+3. **`views/prestamos/listado.php`**
+   - Agregado botón "Detalle Completo" en tabla de listado
+
+4. **`views/prestamos/resumen.php`**
+   - Agregado botón "Ver Detalle Completo"
+
+### Características
+
+- ✅ Búsqueda rápida desde dashboard
+- ✅ Información completa del préstamo
+- ✅ Saldos pendientes por componente (sobregiro, gastos administrativos, gastos de mora, otros1, otros2)
+- ✅ Cronograma con saldo decreciente
+- ✅ Historial de movimientos con desglose (amortización, desembolso, gastos, otros)
+- ✅ Total calculado por movimiento
+- ✅ PHP lint verificado sin errores
+
+**Estado del módulo**: 100% completado y verificado ✅
+
+---
+
+Fecha de corte: 2026-10-13 (actualizado - Correcciones de amortización/sobregiro y visualización completa de préstamos)
 - Mantener mensajes y flujo familiar para usuarios en operaciones reales.

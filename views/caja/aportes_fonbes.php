@@ -310,7 +310,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             <div class="form-row">
                 <div class="form-group">
                     <label for="aporte_codigo">Aporte FONBES - Código</label>
-                    <input type="text" id="aporte_codigo" name="aporte_codigo" list="listaCodigosContables" placeholder="Código automático">
+                    <input type="text" id="aporte_codigo" name="aporte_codigo" list="listaCodigosContables" placeholder="Código automático" onchange="actualizarCodigoCompleto('aporte_codigo')">
                     <datalist id="listaCodigosContables">
                         <?php foreach ($codigoContable as $codigo): ?>
                             <option value="<?= $escape($codigo['code']) ?>">
@@ -331,7 +331,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             <div class="form-row">
                 <div class="form-group">
                     <label for="total_codigo">Total - Código</label>
-                    <input type="text" id="total_codigo" name="total_codigo" list="listaCodigosContables" placeholder="Código automático">
+                    <input type="text" id="total_codigo" name="total_codigo" list="listaCodigosContables" placeholder="Código automático" onchange="actualizarCodigoCompleto('total_codigo')">
                 </div>
                 <div class="form-group">
                     <label for="total_tipo">Total - Tipo</label>

@@ -195,8 +195,13 @@ final class AmortizacionCalculadora
             $r = 0;
         }
         
-        // Reducir cuotas pendientes (líneas 1295-1297)
-        $nuevasCuotasPend = $cuotasPend - 1;
+        // Reducir cuotas pendientes solo si la amortización cubre completamente el saldo de la cuota
+        $saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
+        if ($amortiza >= $saldoCuota) {
+            $nuevasCuotasPend = $cuotasPend - 1;
+        } else {
+            $nuevasCuotasPend = $cuotasPend; // No reducir si es pago parcial
+        }
         
         // Retornar resultado estructurado
         return [

@@ -500,6 +500,7 @@ $totalCuotas = ($prestamo['cuotas_pagadas'] ?? 0) + ($prestamo['cuotas_pendiente
 
             <div style="margin-top: 24px;">
                 <a href="index.php?module=prestamos&action=listado" class="btn btn-secondary">Volver al Listado</a>
+                <a href="index.php?module=prestamos&action=detalle_completo&codigo=<?= $escape($prestamo['codigo']) ?>" class="btn btn-primary">Ver Detalle Completo</a>
             </div>
         </main>
     </div>

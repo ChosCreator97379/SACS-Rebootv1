@@ -99,10 +99,27 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php?module=socios&action=info&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn btn-secondary">Cancelar</a>
             </div>
 
-            <form method="POST" action="index.php?module=socios&action=actualizar" class="panel">
+            <?php if (isset($error)): ?>
+                <div style="background: #fee; border: 1px solid #fcc; color: #c33; padding: 12px; border-radius: 4px; margin-bottom: 20px;">
+                    <strong>Error:</strong> <?= $escape($error) ?>
+                </div>
+            <?php endif; ?>
+
+            <form method="POST" action="index.php" class="panel">
+                <input type="hidden" name="module" value="socios">
+                <input type="hidden" name="action" value="actualizar">
                 <input type="hidden" name="csrf_token" value="<?= $escape($_SESSION['csrf_token'] ?? '') ?>">
                 <input type="hidden" name="id_persona" value="<?= $escape($socio['F01_ID_PERSONA']) ?>">
                 <input type="hidden" name="cliente_codigo" value="<?= $escape($socio['F02_ID_CLIENTE']) ?>">
+                <!-- Campos ocultos para mantener valores existentes -->
+                <input type="hidden" name="id_nacionalidad" value="<?= $escape($socio['F01_ID_NACIONALIDAD']) ?>">
+                <input type="hidden" name="id_instruccion" value="<?= $escape($socio['F01_ID_INSTRUCCION']) ?>">
+                <input type="hidden" name="id_profesion" value="<?= $escape($socio['F01_ID_PROFESION']) ?>">
+                <input type="hidden" name="dpto_nac" value="<?= $escape($socio['F01_DPTO_NAC']) ?>">
+                <input type="hidden" name="prov_nac" value="<?= $escape($socio['F01_PROV_NAC']) ?>">
+                <input type="hidden" name="distri_nac" value="<?= $escape($socio['F01_DISTRI_NAC']) ?>">
+                <input type="hidden" name="desc_coment" value="<?= htmlspecialchars($socio['F01_DESC_COMENT'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="documento" value="<?= $escape($socio['F01_DOCUMENTO']) ?>">
 
                 <h2>Información Personal</h2>
                 <div class="form-grid">
@@ -140,7 +157,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                     </div>
                     <div class="form-group">
                         <label>Fecha Nacimiento</label>
-                        <input type="date" name="fe_nac" value="<?= $escape($socio['F01_FE_NAC']) ?>">
+                        <input type="date" name="fe_nac" value="<?= \Sacs\Services\SociosServicio::formatearFechaParaInput($socio['F01_FE_NAC']) ?>">
                     </div>
                     <div class="form-group">
                         <label>Estado Civil</label>
@@ -235,8 +252,8 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                         <input type="number" step="0.01" name="saldo" value="<?= $escape($socio['F01_SALDO']) ?>">
                     </div>
                     <div class="form-group">
-                        <label>Edad</label>
-                        <input type="number" name="edad" value="<?= $escape($socio['F01_EDAD']) ?>">
+                        <label>Edad (calculada automáticamente)</label>
+                        <input type="number" name="edad" value="<?= \Sacs\Services\SociosServicio::calcularEdad($socio['F01_FE_NAC']) ?>" readonly>
                     </div>
                 </div>
 

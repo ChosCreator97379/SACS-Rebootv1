@@ -98,6 +98,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                 <a href="index.php?module=socios&action=aportes_coopam&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
                 <a href="index.php?module=socios&action=gestion_estado&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Gestión de Estado</a>
                 <a href="index.php?module=socios&action=beneficios&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Beneficios</a>
+                <a href="index.php?module=tramites&action=listar&socio=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Trámites</a>
                 <a href="index.php?module=socios&action=familiares&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Familiares</a>
                 <a href="index.php?module=socios&action=rifas&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Rifas</a>
                 <a href="index.php?module=socios&action=multas&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Multas</a>
@@ -154,11 +155,11 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                     </div>
                     <div class="info-item">
                         <span class="info-label">Fecha de Nacimiento</span>
-                        <span class="info-value"><?= $escape($socio['F01_FE_NAC']) ?></span>
+                        <span class="info-value"><?= \Sacs\Services\SociosServicio::formatearFechaParaMostrar($socio['F01_FE_NAC']) ?></span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Edad</span>
-                        <span class="info-value"><?= $escape($socio['F01_EDAD']) ?> años</span>
+                        <span class="info-value"><?= \Sacs\Services\SociosServicio::calcularEdad($socio['F01_FE_NAC']) ?> años</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Estado Civil</span>

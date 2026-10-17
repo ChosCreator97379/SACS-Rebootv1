@@ -246,21 +246,32 @@ class AmortizacionServicio
 
     /**
      * Actualiza préstamo en f16_prestamo
+     * Basado en actualizarSaldo4() del legacy (líneas 1978-1993)
      */
     private function actualizarPrestamo(PDO $pdo, array $prestamo, array $calculo): void
     {
+        $prestamoActualizado = $calculo['prestamo_actualizado'];
+
         $sql = "UPDATE f16_prestamo 
-                SET f16_mov = ?, 
-                    f16_am = ?,
-                    f16_acuotasp = ?,
-                    f16_aimportep = ?
+                SET f16_cuotasPend = ?, 
+                    f16_saldo = ?,
+                    f16_gastosa = ?,
+                    f16_gastosm = ?,
+                    f16_otros = ?,
+                    f16_otros2 = ?,
+                    f16_fechaUP = ?,
+                    f16_sobre = ?
                 WHERE f16_codigo = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            $calculo['movimiento']['monto'],
-            $calculo['movimiento']['gastosa'],
-            $calculo['movimiento']['gastosm'],
-            $calculo['movimiento']['gastos1'],
+            $prestamoActualizado['cuotas_pendientes'],
+            $prestamoActualizado['saldo'],
+            $prestamoActualizado['gastosa'],
+            $prestamoActualizado['gastosm'],
+            $prestamoActualizado['otros'],
+            $prestamoActualizado['otros2'],
+            $prestamoActualizado['fechaUP'],
+            $prestamoActualizado['sobre'],
             $prestamo['f16_codigo'],
         ]);
     }

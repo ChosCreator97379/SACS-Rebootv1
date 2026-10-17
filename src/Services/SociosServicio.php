@@ -17,6 +17,56 @@ class SociosServicio
     }
 
     /**
+     * Calcular edad a partir de la fecha de nacimiento
+     */
+    public static function calcularEdad(?string $fechaNacimiento): int
+    {
+        if (empty($fechaNacimiento)) {
+            return 0;
+        }
+
+        $fechaNac = new \DateTime($fechaNacimiento);
+        $hoy = new \DateTime();
+        $edad = $hoy->diff($fechaNac)->y;
+
+        return $edad;
+    }
+
+    /**
+     * Formatear fecha para input de tipo date (YYYY-MM-DD)
+     */
+    public static function formatearFechaParaInput(?string $fecha): ?string
+    {
+        if (empty($fecha)) {
+            return null;
+        }
+
+        try {
+            $fechaObj = new \DateTime($fecha);
+            return $fechaObj->format('Y-m-d');
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Formatear fecha para mostrar (dd/mm/YYYY)
+     */
+    public static function formatearFechaParaMostrar(?string $fecha): string
+    {
+        if (empty($fecha)) {
+            return 'No registrada';
+        }
+
+        try {
+            $fechaObj = new \DateTime($fecha);
+            return $fechaObj->format('d/m/Y');
+        } catch (\Exception $e) {
+            return 'Fecha inválida';
+        }
+    }
+
+    /**
      * Registrar un nuevo socio
      */
     public function registrarSocio(array $datosPersona, array $datosCliente, string $usuario = 'SISTEMA'): array
@@ -91,7 +141,7 @@ class SociosServicio
                 ':provincia' => $datosPersona['provincia'] ?? null,
                 ':distrito' => $datosPersona['distrito'] ?? null,
                 ':observacion' => $datosPersona['observacion'] ?? null,
-                ':edad' => $datosPersona['edad'] ?? null,
+                ':edad' => self::calcularEdad($datosPersona['fe_nac'] ?? ''),
                 ':centro' => $datosPersona['centro'] ?? null,
                 ':condicion' => $datosPersona['condicion'] ?? null,
                 ':cuenta' => $datosPersona['cuenta'] ?? null,
@@ -163,93 +213,70 @@ class SociosServicio
         try {
             $this->db->beginTransaction();
 
-            // Actualizar f01_persona
-            $sql = "UPDATE f01_persona SET
-                F01_TPO_DOC = :tpo_doc,
-                F01_NUM_DOC = :num_doc,
-                F01_APE_PAT = :ape_pat,
-                F01_APE_MAT = :ape_mat,
-                F01_NOMB_PRI = :nomb_pri,
-                F01_NOMB_SEG = :nomb_seg,
-                F01_SEXO = :sexo,
-                F01_FE_NAC = :fe_nac,
-                F01_STDO_CIVIL = :stdo_civil,
-                F01_STDO_PERSN = :stdo_persn,
-                F01_CTA_CORREO = :cta_correo,
-                F01_ID_NACIONALIDAD = :id_nacionalidad,
-                F01_ID_INSTRUCCION = :id_instruccion,
-                F01_ID_PROFESION = :id_profesion,
-                F01_DPTO_NAC = :dpto_nac,
-                F01_PROV_NAC = :prov_nac,
-                F01_DISTRI_NAC = :distri_nac,
-                F01_TELF_FIJO = :telf_fijo,
-                F01_TELF_CEL = :telf_cel,
-                F01_DESC_COMENT = :desc_coment,
-                F01_ZONA = :zona,
-                F01_VIA = :via,
-                F01_INT = :int,
-                F01_EXT = :ext,
-                F01_PISO = :piso,
-                F01_DEPARTAMENTO = :departamento,
-                F01_PROVINCIA = :provincia,
-                F01_DISTRITO = :distrito,
-                F01_OBSERVACION = :observacion,
-                F01_EDAD = :edad,
-                F01_CENTRO = :centro,
-                F01_CONDICION = :condicion,
-                F01_CUENTA = :cuenta,
-                F01_INGRESO = :ingreso,
-                F01_APORTACION = :aportacion,
-                F01_SALDO = :saldo,
-                F01_DOCUMENTO = :documento,
-                F01_SITUACION = :situacion,
-                F01_ID_USUA_MODI = :id_usua_modi,
-                F01_FE_USUA_MODI = NOW()
-            WHERE F01_ID_PERSONA = :id_persona";
+            // Construir SQL dinámicamente solo con campos proporcionados
+            $campos = [];
+            $params = ['id_persona' => $idPersona];
+
+            $mapeoCampos = [
+                'tpo_doc' => 'F01_TPO_DOC',
+                'num_doc' => 'F01_NUM_DOC',
+                'ape_pat' => 'F01_APE_PAT',
+                'ape_mat' => 'F01_APE_MAT',
+                'nomb_pri' => 'F01_NOMB_PRI',
+                'nomb_seg' => 'F01_NOMB_SEG',
+                'sexo' => 'F01_SEXO',
+                'fe_nac' => 'F01_FE_NAC',
+                'stdo_civil' => 'F01_STDO_CIVIL',
+                'stdo_persn' => 'F01_STDO_PERSN',
+                'cta_correo' => 'F01_CTA_CORREO',
+                'id_nacionalidad' => 'F01_ID_NACIONALIDAD',
+                'id_instruccion' => 'F01_ID_INSTRUCCION',
+                'id_profesion' => 'F01_ID_PROFESION',
+                'dpto_nac' => 'F01_DPTO_NAC',
+                'prov_nac' => 'F01_PROV_NAC',
+                'distri_nac' => 'F01_DISTRI_NAC',
+                'telf_fijo' => 'F01_TELF_FIJO',
+                'telf_cel' => 'F01_TELF_CEL',
+                'desc_coment' => 'F01_DESC_COMENT',
+                'zona' => 'F01_ZONA',
+                'via' => 'F01_VIA',
+                'int' => 'F01_INT',
+                'ext' => 'F01_EXT',
+                'piso' => 'F01_PISO',
+                'departamento' => 'F01_DEPARTAMENTO',
+                'provincia' => 'F01_PROVINCIA',
+                'distrito' => 'F01_DISTRITO',
+                'observacion' => 'F01_OBSERVACION',
+                'centro' => 'F01_CENTRO',
+                'condicion' => 'F01_CONDICION',
+                'cuenta' => 'F01_CUENTA',
+                'ingreso' => 'F01_INGRESO',
+                'aportacion' => 'F01_APORTACION',
+                'saldo' => 'F01_SALDO',
+                'documento' => 'F01_DOCUMENTO',
+                'situacion' => 'F01_SITUACION',
+            ];
+
+            foreach ($mapeoCampos as $key => $campo) {
+                if (array_key_exists($key, $datosPersona)) {
+                    $campos[] = "$campo = :$key";
+                    $params[$key] = $datosPersona[$key];
+                }
+            }
+
+            // Siempre actualizar edad y campos de auditoría
+            $campos[] = "F01_EDAD = :edad";
+            $campos[] = "F01_ID_USUA_MODI = :id_usua_modi";
+            $campos[] = "F01_FE_USUA_MODI = NOW()";
+
+            $params['edad'] = self::calcularEdad($datosPersona['fe_nac'] ?? null);
+            $params['id_usua_modi'] = $usuario;
+
+            $sql = "UPDATE f01_persona SET " . implode(', ', $campos) . " WHERE F01_ID_PERSONA = :id_persona";
 
             $stmt = $this->db->prepare($sql);
-            $stmt->execute([
-                ':id_persona' => $idPersona,
-                ':tpo_doc' => $datosPersona['tpo_doc'] ?? null,
-                ':num_doc' => $datosPersona['num_doc'] ?? null,
-                ':ape_pat' => $datosPersona['ape_pat'] ?? null,
-                ':ape_mat' => $datosPersona['ape_mat'] ?? null,
-                ':nomb_pri' => $datosPersona['nomb_pri'] ?? null,
-                ':nomb_seg' => $datosPersona['nomb_seg'] ?? null,
-                ':sexo' => $datosPersona['sexo'] ?? null,
-                ':fe_nac' => $datosPersona['fe_nac'] ?? null,
-                ':stdo_civil' => $datosPersona['stdo_civil'] ?? null,
-                ':stdo_persn' => $datosPersona['stdo_persn'] ?? null,
-                ':cta_correo' => $datosPersona['cta_correo'] ?? null,
-                ':id_nacionalidad' => $datosPersona['id_nacionalidad'] ?? null,
-                ':id_instruccion' => $datosPersona['id_instruccion'] ?? null,
-                ':id_profesion' => $datosPersona['id_profesion'] ?? null,
-                ':dpto_nac' => $datosPersona['dpto_nac'] ?? null,
-                ':prov_nac' => $datosPersona['prov_nac'] ?? null,
-                ':distri_nac' => $datosPersona['distri_nac'] ?? null,
-                ':telf_fijo' => $datosPersona['telf_fijo'] ?? null,
-                ':telf_cel' => $datosPersona['telf_cel'] ?? null,
-                ':desc_coment' => $datosPersona['desc_coment'] ?? null,
-                ':zona' => $datosPersona['zona'] ?? null,
-                ':via' => $datosPersona['via'] ?? null,
-                ':int' => $datosPersona['int'] ?? null,
-                ':ext' => $datosPersona['ext'] ?? null,
-                ':piso' => $datosPersona['piso'] ?? null,
-                ':departamento' => $datosPersona['departamento'] ?? null,
-                ':provincia' => $datosPersona['provincia'] ?? null,
-                ':distrito' => $datosPersona['distrito'] ?? null,
-                ':observacion' => $datosPersona['observacion'] ?? null,
-                ':edad' => $datosPersona['edad'] ?? null,
-                ':centro' => $datosPersona['centro'] ?? null,
-                ':condicion' => $datosPersona['condicion'] ?? null,
-                ':cuenta' => $datosPersona['cuenta'] ?? null,
-                ':ingreso' => $datosPersona['ingreso'] ?? null,
-                ':aportacion' => $datosPersona['aportacion'] ?? null,
-                ':saldo' => $datosPersona['saldo'] ?? null,
-                ':documento' => $datosPersona['documento'] ?? null,
-                ':situacion' => $datosPersona['situacion'] ?? null,
-                ':id_usua_modi' => $usuario
-            ]);
+            $stmt->execute($params);
+
 
             $this->db->commit();
             $this->log('Socio actualizado exitosamente: ' . $idPersona);
@@ -568,7 +595,7 @@ class SociosServicio
             $params[':estado'] = $estado;
         }
 
-        $sql = "SELECT 
+        $sql = "SELECT
                     c.F02_ID_CLIENTE,
                     p.F01_ID_PERSONA,
                     p.F01_APE_PAT,
@@ -579,6 +606,7 @@ class SociosServicio
                     p.F01_TELF_FIJO,
                     p.F01_TELF_CEL,
                     p.F01_CTA_CORREO,
+                    p.F01_CUENTA,
                     p.F01_CONDICION,
                     p.F01_SITUACION,
                     p.F01_FECHA_RETIRO,

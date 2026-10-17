@@ -516,6 +516,7 @@ $profile = 'Administrador';
                                                     <a href="index.php?module=prestamos&action=gestion_estado&codigo=<?= $escape($row['codigo']) ?>" class="btn btn-sm btn-warning">Estado</a>
                                                 <?php endif; ?>
                                                 <a href="index.php?module=prestamos&action=resumen&codigo=<?= $escape($row['codigo']) ?>" class="btn btn-sm btn-secondary">Resumen</a>
+                                                <a href="index.php?module=prestamos&action=detalle_completo&codigo=<?= $escape($row['codigo']) ?>" class="btn btn-sm btn-primary">Detalle Completo</a>
                                                 <a href="index.php?module=prestamos&action=cronograma&codigo=<?= $escape($row['codigo']) ?>" class="btn btn-sm btn-secondary">Cronograma</a>
                                                 <a href="index.php?module=prestamos&action=editar&codigo=<?= $escape($row['codigo']) ?>" class="btn btn-sm btn-secondary">Editar</a>
                                             </div>

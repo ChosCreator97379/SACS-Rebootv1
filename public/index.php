@@ -94,6 +94,12 @@ if ($module === 'prestamos') {
         exit;
     }
 
+    // GET: Detalle Completo
+    if ($action === 'detalle_completo') {
+        require dirname(__DIR__) . '/views/prestamos/detalle_completo.php';
+        exit;
+    }
+
     // GET: Reporte General
     if ($action === 'reporte_general') {
         require dirname(__DIR__) . '/views/prestamos/reporte_general.php';
@@ -274,23 +280,135 @@ if ($module === 'prestamos') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim((string) ($_POST['username'] ?? ''));
-    $password = (string) ($_POST['password'] ?? '');
-    $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+    // Solo procesar login si hay username y password (formulario de login)
+    if (isset($_POST['username']) && isset($_POST['password'])) {
+        $username = trim((string) ($_POST['username'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
 
-    if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
-        $error = 'La solicitud no es valida.';
-    } elseif ($username === '' || $password === '') {
-        $error = 'Ingrese usuario y clave.';
-    } else {
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $error = 'La solicitud no es valida.';
+        } elseif ($username === '' || $password === '') {
+            $error = 'Ingrese usuario y clave.';
+        } else {
+            try {
+                if ($auth->attempt($username, $password)) {
+                    header('Location: index.php');
+                    exit;
+                }
+                $error = 'Usuario o clave incorrectos.';
+            } catch (Throwable $exception) {
+                $error = 'No fue posible validar el acceso en este momento.';
+            }
+        }
+    }
+
+    // Procesar POST de trámites (fuera del bloque de autenticación)
+    $module = trim((string) ($_POST['module'] ?? ''));
+    $action = trim((string) ($_POST['action'] ?? ''));
+
+    if ($module === 'tramites' && $action === 'registrar') {
+        $tramitesServicio = new \Sacs\Services\TramitesServicio();
+        $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+        if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+            $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => 'La solicitud no es válida.']);
+            header('Location: index.php?' . $query);
+            exit;
+        }
+
         try {
-            if ($auth->attempt($username, $password)) {
-                header('Location: index.php');
+            $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+            $tipo = trim((string) ($_POST['tipo'] ?? ''));
+
+            $numero = trim((string) ($_POST['numero'] ?? ''));
+            if (empty($numero) && !empty($tipo)) {
+                $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
+                if ($resultadoNumero['success']) {
+                    $numero = $resultadoNumero['numero'];
+                } else {
+                    throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
+                }
+            }
+
+            if (!empty($numero) && !empty($tipo) && $tramitesServicio->verificarTramiteExiste($numero, $tipo)) {
+                $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
+                if ($resultadoNumero['success']) {
+                    $numero = $resultadoNumero['numero'];
+                } else {
+                    throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
+                }
+            }
+
+            if (empty($numero)) {
+                throw new Exception('El número de trámite es requerido');
+            }
+
+            $rutas = ['ruta' => null, 'ruta2' => null, 'ruta3' => null];
+            if (isset($_FILES['archivo1']) && $_FILES['archivo1']['error'] === UPLOAD_ERR_OK) {
+                $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo1'], 'ruta');
+                if ($resultado['success']) {
+                    $rutas['ruta'] = $resultado['ruta'];
+                }
+            }
+            if (isset($_FILES['archivo2']) && $_FILES['archivo2']['error'] === UPLOAD_ERR_OK) {
+                $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo2'], 'ruta2');
+                if ($resultado['success']) {
+                    $rutas['ruta2'] = $resultado['ruta'];
+                }
+            }
+            if (isset($_FILES['archivo3']) && $_FILES['archivo3']['error'] === UPLOAD_ERR_OK) {
+                $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo3'], 'ruta3');
+                if ($resultado['success']) {
+                    $rutas['ruta3'] = $resultado['ruta'];
+                }
+            }
+
+            $datos = [
+                'numero' => $numero,
+                'tipo' => $tipo,
+                'descripcion' => trim((string) ($_POST['descripcion'] ?? '')),
+                'fisico' => trim((string) ($_POST['fisico'] ?? 'NO')),
+                'destino' => trim((string) ($_POST['destino'] ?? '')),
+                'fecha' => trim((string) ($_POST['fecha'] ?? date('Y-m-d'))),
+                'obs' => trim((string) ($_POST['obs'] ?? '')),
+                'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                'obs3' => trim((string) ($_POST['obs3'] ?? '')),
+                'referencia' => trim((string) ($_POST['referencia'] ?? '')),
+                'respuesta' => trim((string) ($_POST['respuesta'] ?? '')),
+                'nombres' => trim((string) ($_POST['nombres'] ?? '')),
+                'socio' => trim((string) ($_POST['socio'] ?? '')),
+                'socio_dni' => trim((string) ($_POST['socio_dni'] ?? '')),
+                'importe' => trim((string) ($_POST['importe'] ?? '')),
+                'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+                'tramitante' => trim((string) ($_POST['tramitante'] ?? '')),
+                'ref_documento' => trim((string) ($_POST['ref_documento'] ?? '')),
+                'tramitante_cel' => trim((string) ($_POST['tramitante_cel'] ?? '')),
+                'tramitante_email' => trim((string) ($_POST['tramitante_email'] ?? '')),
+                'tramitante_email2' => trim((string) ($_POST['tramitante_email2'] ?? '')),
+                'cuenta' => trim((string) ($_POST['cuenta'] ?? '')),
+                'interno' => '1',
+                'hora' => date('H:i:s'),
+                'adjunto' => 'NO'
+            ];
+
+            $datos = array_merge($datos, $rutas);
+
+            $resultado = $tramitesServicio->registrarTramite($datos, $usuario);
+
+            if ($resultado['success']) {
+                $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
+                header('Location: index.php?' . $query);
+                exit;
+            } else {
+                $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => $resultado['message']]);
+                header('Location: index.php?' . $query);
                 exit;
             }
-            $error = 'Usuario o clave incorrectos.';
-        } catch (Throwable $exception) {
-            $error = 'No fue posible validar el acceso en este momento.';
+
+        } catch (Exception $e) {
+            $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => 'Error al registrar trámite: ' . $e->getMessage()]);
+            header('Location: index.php?' . $query);
+            exit;
         }
     }
 }
@@ -544,10 +662,10 @@ if ($auth->check()) {
                         'tipo' => trim((string) ($_POST['sobregiro_tipo'] ?? '')),
                         'monto' => $datos['sobregiro']
                     ],
-                    'descuenta' => [
-                        'codigo' => trim((string) ($_POST['descuenta_codigo'] ?? '')),
-                        'tipo' => trim((string) ($_POST['descuenta_tipo'] ?? '')),
-                        'monto' => $datos['descuenta']
+                    'amortizacion' => [
+                        'codigo' => trim((string) ($_POST['amortizacion_codigo'] ?? '')),
+                        'tipo' => trim((string) ($_POST['amortizacion_tipo'] ?? '')),
+                        'monto' => $datos['amortizacion']
                     ],
                     'gastosAdm' => [
                         'codigo' => trim((string) ($_POST['gastosAdm_codigo'] ?? '')),
@@ -5018,17 +5136,27 @@ if (($_GET['module'] ?? '') === 'caja') {
 
         // POST: Actualizar socio
         if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            error_log("POST actualizar socio recibido");
             $csrfToken = (string) ($_POST['csrf_token'] ?? '');
             if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                error_log("Error CSRF en actualizar socio");
                 $error = 'La solicitud no es válida.';
-                require dirname(__DIR__) . '/views/home.php';
+                $clienteCodigo = trim((string) ($_POST['cliente_codigo'] ?? ''));
+                $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+                require dirname(__DIR__) . '/views/socios/editar.php';
                 exit;
             }
 
             try {
                 $idPersona = (int) ($_POST['id_persona'] ?? 0);
                 $clienteCodigo = trim((string) ($_POST['cliente_codigo'] ?? ''));
-                
+
+                error_log("idPersona: $idPersona, clienteCodigo: $clienteCodigo");
+
+                if ($idPersona === 0 || $clienteCodigo === '') {
+                    throw new Exception('ID de persona o código de cliente no especificado');
+                }
+
                 $datosPersona = [
                     'ape_pat' => trim((string) ($_POST['ape_pat'] ?? '')),
                     'ape_mat' => trim((string) ($_POST['ape_mat'] ?? '')),
@@ -5058,9 +5186,35 @@ if (($_GET['module'] ?? '') === 'caja') {
                     'ingreso' => trim((string) ($_POST['ingreso'] ?? '')),
                     'aportacion' => trim((string) ($_POST['aportacion'] ?? '')),
                     'saldo' => trim((string) ($_POST['saldo'] ?? '')),
-                    'edad' => trim((string) ($_POST['edad'] ?? '')),
                     'observacion' => trim((string) ($_POST['observacion'] ?? '')),
                 ];
+
+                // Solo enviar campos con claves foráneas si tienen valores válidos
+                if (!empty($_POST['id_nacionalidad'])) {
+                    $datosPersona['id_nacionalidad'] = trim((string) ($_POST['id_nacionalidad']));
+                }
+                if (!empty($_POST['id_instruccion'])) {
+                    $datosPersona['id_instruccion'] = trim((string) ($_POST['id_instruccion']));
+                }
+                if (!empty($_POST['id_profesion'])) {
+                    $datosPersona['id_profesion'] = trim((string) ($_POST['id_profesion']));
+                }
+                if (!empty($_POST['dpto_nac'])) {
+                    $datosPersona['dpto_nac'] = trim((string) ($_POST['dpto_nac']));
+                }
+                if (!empty($_POST['prov_nac'])) {
+                    $datosPersona['prov_nac'] = trim((string) ($_POST['prov_nac']));
+                }
+                if (!empty($_POST['distri_nac'])) {
+                    $datosPersona['distri_nac'] = trim((string) ($_POST['distri_nac']));
+                }
+                if (!empty($_POST['desc_coment'])) {
+                    $datosPersona['desc_coment'] = trim((string) ($_POST['desc_coment']));
+                }
+                if (!empty($_POST['documento'])) {
+                    $datosPersona['documento'] = trim((string) ($_POST['documento']));
+                }
+
 
                 $resultado = $sociosServicio->actualizarSocio($idPersona, $datosPersona, $_SESSION['user']['username'] ?? 'SISTEMA');
 
@@ -5070,8 +5224,9 @@ if (($_GET['module'] ?? '') === 'caja') {
 
             } catch (Exception $e) {
                 $error = 'Error al actualizar socio: ' . $e->getMessage();
-                $query = http_build_query(['module' => 'socios', 'action' => 'editar', 'client' => $clienteCodigo, 'error' => $error]);
-                header('Location: index.php?' . $query);
+                $clienteCodigo = trim((string) ($_POST['cliente_codigo'] ?? ''));
+                $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+                require dirname(__DIR__) . '/views/socios/editar.php';
                 exit;
             }
         }
@@ -5267,9 +5422,360 @@ if (($_GET['module'] ?? '') === 'caja') {
         }
     }
 
+    // Módulo Trámites
+    if ($module === 'tramites') {
+        $tramitesServicio = new \Sacs\Services\TramitesServicio();
+        // Si es POST, tomar action solo de POST, si no, de GET
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? '';
+        } else {
+            $action = $_GET['action'] ?? '';
+        }
+
+        // GET: Listado de trámites
+        if ($action === 'listar') {
+            $pagina = (int) ($_GET['pagina'] ?? 1);
+            $porPagina = 25;
+
+            // Construir filtros solo con valores no vacíos
+            $filtros = [];
+            if (!empty(trim($_GET['busqueda'] ?? ''))) {
+                $filtros['busqueda'] = trim($_GET['busqueda']);
+            }
+            if (!empty(trim($_GET['tipo'] ?? ''))) {
+                $filtros['tipo'] = trim($_GET['tipo']);
+            }
+            if (!empty(trim($_GET['estado'] ?? ''))) {
+                $filtros['estado'] = trim($_GET['estado']);
+            }
+            if (!empty(trim($_GET['socio'] ?? ''))) {
+                $filtros['socio'] = trim($_GET['socio']);
+            }
+
+            $resultado = $tramitesServicio->listarTramites($filtros, $pagina, $porPagina);
+            $tiposDocumentos = $tramitesServicio->obtenerTiposDocumentos();
+
+            $tramites = $resultado['tramites'];
+            $totalPaginas = $resultado['totalPaginas'];
+            $paginaActual = $resultado['pagina'];
+            
+            require dirname(__DIR__) . '/views/tramites/listado.php';
+            exit;
+        }
+
+        // GET: Ver detalle de trámite
+        if ($action === 'ver') {
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+            
+            if ($codigo === '') {
+                http_response_code(400);
+                $error = 'Código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
+            $historico = $tramitesServicio->obtenerHistorico((int) $codigo);
+            
+            if (empty($tramite)) {
+                http_response_code(404);
+                $error = 'Trámite no encontrado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/tramites/ver.php';
+            exit;
+        }
+
+        // GET: Registrar trámite
+        if ($action === 'registrar') {
+            $tiposDocumentos = $tramitesServicio->obtenerTiposDocumentos();
+            $correlativos = $tramitesServicio->obtenerTodosCorrelativos();
+
+            require dirname(__DIR__) . '/views/tramites/registrar.php';
+            exit;
+        }
+
+        // GET: Buscar socio AJAX
+        if ($action === 'buscar_socio_ajax') {
+            header('Content-Type: application/json');
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+
+            if ($codigo === '') {
+                echo json_encode(['success' => false, 'message' => 'Código no especificado']);
+                exit;
+            }
+
+            $sociosServicio = new \Sacs\Services\SociosServicio();
+            $socio = $sociosServicio->obtenerSocioDetalle($codigo);
+
+            if ($socio) {
+                echo json_encode(['success' => true, 'socio' => $socio]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Socio no encontrado']);
+            }
+            exit;
+        }
+
+        // GET: Editar trámite
+        if ($action === 'editar') {
+            $codigo = trim((string) ($_GET['codigo'] ?? ''));
+            
+            if ($codigo === '') {
+                http_response_code(400);
+                $error = 'Código no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
+            
+            if (empty($tramite)) {
+                http_response_code(404);
+                $error = 'Trámite no encontrado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            if (($tramite['estado'] ?? '') === 'ELIMINADO') {
+                http_response_code(400);
+                $error = 'No se puede editar un trámite eliminado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            require dirname(__DIR__) . '/views/tramites/editar.php';
+            exit;
+        }
+
+        // POST: Registrar trámite
+        if ($module === 'tramites' && $action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                require dirname(__DIR__) . '/views/tramites/registrar.php';
+                exit;
+            }
+
+            try {
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $tipo = trim((string) ($_POST['tipo'] ?? ''));
+                
+                // Verificar y generar número si no se proporcionó o ya existe
+                $numero = trim((string) ($_POST['numero'] ?? ''));
+                if (empty($numero) && !empty($tipo)) {
+                    $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
+                    if ($resultadoNumero['success']) {
+                        $numero = $resultadoNumero['numero'];
+                    } else {
+                        throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
+                    }
+                }
+                
+                // Si el número ya existe (generado por JavaScript), generar uno nuevo
+                if (!empty($numero) && !empty($tipo) && $tramitesServicio->verificarTramiteExiste($numero, $tipo)) {
+                    $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
+                    if ($resultadoNumero['success']) {
+                        $numero = $resultadoNumero['numero'];
+                    } else {
+                        throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
+                    }
+                }
+                
+                if (empty($numero)) {
+                    throw new Exception('El número de trámite es requerido');
+                }
+                
+                // Procesar archivos adjuntos
+                $rutas = ['ruta' => null, 'ruta2' => null, 'ruta3' => null];
+                if (isset($_FILES['archivo1']) && $_FILES['archivo1']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo1'], 'ruta');
+                    if ($resultado['success']) {
+                        $rutas['ruta'] = $resultado['ruta'];
+                    }
+                }
+                if (isset($_FILES['archivo2']) && $_FILES['archivo2']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo2'], 'ruta2');
+                    if ($resultado['success']) {
+                        $rutas['ruta2'] = $resultado['ruta'];
+                    }
+                }
+                if (isset($_FILES['archivo3']) && $_FILES['archivo3']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo3'], 'ruta3');
+                    if ($resultado['success']) {
+                        $rutas['ruta3'] = $resultado['ruta'];
+                    }
+                }
+
+                $datos = [
+                    'numero' => $numero,
+                    'tipo' => $tipo,
+                    'descripcion' => trim((string) ($_POST['descripcion'] ?? '')),
+                    'fisico' => trim((string) ($_POST['fisico'] ?? 'NO')),
+                    'destino' => trim((string) ($_POST['destino'] ?? '')),
+                    'fecha' => trim((string) ($_POST['fecha'] ?? date('Y-m-d'))),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'obs3' => trim((string) ($_POST['obs3'] ?? '')),
+                    'referencia' => trim((string) ($_POST['referencia'] ?? '')),
+                    'respuesta' => trim((string) ($_POST['respuesta'] ?? '')),
+                    'nombres' => trim((string) ($_POST['nombres'] ?? '')),
+                    'socio' => trim((string) ($_POST['socio'] ?? '')),
+                    'importe' => trim((string) ($_POST['importe'] ?? '')),
+                    'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+                    'tramitante' => trim((string) ($_POST['tramitante'] ?? '')),
+                    'tramitante_dni' => trim((string) ($_POST['tramitante_dni'] ?? '')),
+                    'tramitante_cel' => trim((string) ($_POST['tramitante_cel'] ?? '')),
+                    'tramitante_email' => trim((string) ($_POST['tramitante_email'] ?? '')),
+                    'tramitante_email2' => trim((string) ($_POST['tramitante_email2'] ?? '')),
+                    'ref_documento' => trim((string) ($_POST['ref_documento'] ?? '')),
+                    'interno' => '1',
+                    'hora' => date('H:i:s'),
+                    'adjunto' => 'NO'
+                ];
+                
+                // Agregar rutas de archivos
+                $datos = array_merge($datos, $rutas);
+
+                $resultado = $tramitesServicio->registrarTramite($datos, $usuario);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = $resultado['message'];
+                    require dirname(__DIR__) . '/views/tramites/registrar.php';
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => 'Error al registrar trámite: ' . $e->getMessage()]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+
+        // POST: Actualizar trámite
+        if ($module === 'tramites' && $action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
+                require dirname(__DIR__) . '/views/tramites/editar.php';
+                exit;
+            }
+
+            try {
+                $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                
+                // Procesar archivos adjuntos (solo si se cargan nuevos)
+                $rutas = ['ruta' => null, 'ruta2' => null, 'ruta3' => null];
+                if (isset($_FILES['archivo1']) && $_FILES['archivo1']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo1'], 'ruta');
+                    if ($resultado['success']) {
+                        $rutas['ruta'] = $resultado['ruta'];
+                    }
+                }
+                if (isset($_FILES['archivo2']) && $_FILES['archivo2']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo2'], 'ruta2');
+                    if ($resultado['success']) {
+                        $rutas['ruta2'] = $resultado['ruta'];
+                    }
+                }
+                if (isset($_FILES['archivo3']) && $_FILES['archivo3']['error'] === UPLOAD_ERR_OK) {
+                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo3'], 'ruta3');
+                    if ($resultado['success']) {
+                        $rutas['ruta3'] = $resultado['ruta'];
+                    }
+                }
+
+                $datos = [
+                    'descripcion' => trim((string) ($_POST['descripcion'] ?? '')),
+                    'fisico' => trim((string) ($_POST['fisico'] ?? 'NO')),
+                    'destino' => trim((string) ($_POST['destino'] ?? '')),
+                    'fecha' => trim((string) ($_POST['fecha'] ?? '')),
+                    'obs' => trim((string) ($_POST['obs'] ?? '')),
+                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'obs3' => trim((string) ($_POST['obs3'] ?? '')),
+                    'referencia' => trim((string) ($_POST['referencia'] ?? '')),
+                    'respuesta' => trim((string) ($_POST['respuesta'] ?? '')),
+                    'importe' => trim((string) ($_POST['importe'] ?? '')),
+                    'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+                    'fechaE' => date('Y-m-d')
+                ];
+                
+                // Agregar rutas de archivos solo si se cargaron nuevos
+                $datos = array_merge($datos, array_filter($rutas, function($v) { return $v !== null; }));
+
+                $resultado = $tramitesServicio->actualizarTramite((int) $codigo, $datos, $usuario);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'tramites', 'action' => 'ver', 'codigo' => $codigo, 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $error = $resultado['message'];
+                    $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
+                    require dirname(__DIR__) . '/views/tramites/editar.php';
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al actualizar trámite: ' . $e->getMessage();
+                $codigo = trim((string) ($_POST['codigo'] ?? ''));
+                $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
+                require dirname(__DIR__) . '/views/tramites/editar.php';
+                exit;
+            }
+        }
+
+        // GET: Eliminar trámite
+        if ($action === 'eliminar') {
+            $csrfToken = (string) ($_GET['csrf_token'] ?? '');
+            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+                $error = 'La solicitud no es válida.';
+                $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+
+            try {
+                $codigo = trim((string) ($_GET['codigo'] ?? ''));
+                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+
+                if ($codigo === '') {
+                    throw new Exception('Código no especificado');
+                }
+
+                $resultado = $tramitesServicio->eliminarTramite((int) $codigo, $usuario);
+
+                if ($resultado['success']) {
+                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                } else {
+                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'error' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
+
+            } catch (Exception $e) {
+                $error = 'Error al eliminar trámite: ' . $e->getMessage();
+                $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'error' => $error]);
+                header('Location: index.php?' . $query);
+                exit;
+            }
+        }
+    }
+
     require dirname(__DIR__) . '/views/dashboard.php';
     exit;
 }
+
 
 $csrfToken = (string) $_SESSION['csrf_token'];
 $databaseStatus = 'No verificada';

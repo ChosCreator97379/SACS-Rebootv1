@@ -248,7 +248,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="codigoContable">Código Contable</label>
-                            <input type="text" id="codigoContable" name="codigoContable" list="listaCodigosContables" value="1651" placeholder="Escriba o seleccione código">
+                            <input type="text" id="codigoContable" name="codigoContable" list="listaCodigosContables" value="1651" placeholder="Escriba o seleccione código" onchange="actualizarCodigoCompleto('codigoContable')">
                             <datalist id="listaCodigosContables">
                                 <?php foreach ($codigoContable as $codigo): ?>
                                     <option value="<?= $escape($codigo['code']) ?>">
@@ -289,5 +289,38 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </section>
         </main>
     </div>
+
+<script>
+    // Función para actualizar el código contable con formato completo "código - nombre"
+    function actualizarCodigoCompleto(codigoInputId) {
+        const codigoInput = document.getElementById(codigoInputId);
+        const codigo = codigoInput.value.trim();
+
+        if (!codigo) {
+            return;
+        }
+
+        // Si el código ya está en formato completo, no hacer nada
+        if (codigo.includes(' - ')) {
+            return;
+        }
+
+        // Buscar el nombre en el datalist
+        const datalist = document.getElementById('listaCodigosContables');
+        let nombreEncontrado = '';
+
+        for (const option of datalist.options) {
+            if (option.value === codigo) {
+                nombreEncontrado = option.textContent.split(' - ')[1] || '';
+                break;
+            }
+        }
+
+        // Si se encontró el nombre, actualizar el valor con formato completo
+        if (nombreEncontrado) {
+            codigoInput.value = codigo + ' - ' + nombreEncontrado;
+        }
+    }
+</script>
 </body>
 </html>

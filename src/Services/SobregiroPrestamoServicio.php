@@ -49,7 +49,7 @@ class SobregiroPrestamoServicio
             $prestamoCodigo = trim($datos['prestamo'] ?? '');
             $montoTotal = (float) ($datos['monto'] ?? 0);
             $sobregiro = (float) ($datos['sobregiro'] ?? 0);
-            $descuenta = (float) ($datos['descuenta'] ?? 0);
+            $amortizacion = (float) ($datos['amortizacion'] ?? 0);
             $gastosAdm = (float) ($datos['gastosAdm'] ?? 0);
             $gastosMora = (float) ($datos['gastosMora'] ?? 0);
             $otros1 = (float) ($datos['otros1'] ?? 0);
@@ -79,6 +79,7 @@ class SobregiroPrestamoServicio
                 $codigoMovimiento,
                 $datos,
                 $sobregiro,
+                $amortizacion,
                 $gastosAdm,
                 $gastosMora,
                 $otros1,
@@ -94,7 +95,7 @@ class SobregiroPrestamoServicio
                 $gastosMora,
                 $otros1,
                 $otros2,
-                $descuenta
+                $amortizacion
             );
 
             $this->pdo->commit();
@@ -170,14 +171,25 @@ class SobregiroPrestamoServicio
 
         foreach ($codigosContables as $componente => $config) {
             // Solo insertar si hay monto mayor a 0 y tiene código contable
-            if ($config['monto'] > 0 && !empty($config['codigo']) && !empty($config['tipo'])) {
-                $tipo = $config['tipo'];
+            if ($config['monto'] > 0 && !empty($config['codigo'])) {
+                // Usar tipo proporcionado o tipo por defecto según el componente
+                if (!empty($config['tipo'])) {
+                    $tipo = $config['tipo'];
+                } else {
+                    // Tipo por defecto según componente
+                    $tipo = $this->obtenerTipoPorDefecto($componente);
+                }
                 $monto = $config['monto'];
 
                 $debe = $tipo === 'debe' ? $monto : 0.00;
                 $haber = $tipo === 'haber' ? $monto : 0.00;
 
                 $descripcion = 'PAGO SOBREGIRO PRESTAMO - ' . strtoupper($componente);
+                
+                // Para amortización, usar nombre más descriptivo
+                if ($componente === 'amortizacion') {
+                    $descripcion = 'PAGO SOBREGIRO PRESTAMO - AMORTIZACION ADICIONAL';
+                }
 
                 $stmt->execute([
                     'movimiento' => $codigoMovimiento,
@@ -191,6 +203,27 @@ class SobregiroPrestamoServicio
                 ]);
             }
         }
+    }
+
+    /**
+     * Obtiene el tipo por defecto según el componente
+     */
+    private function obtenerTipoPorDefecto(string $componente): string
+    {
+        // Amortización adicional: reduce saldo (debe)
+        if ($componente === 'amortizacion') {
+            return 'debe';
+        }
+        // Gastos de mora: ingreso (haber)
+        if ($componente === 'gastosMora') {
+            return 'haber';
+        }
+        // Otros: ingreso (haber)
+        if ($componente === 'otros1' || $componente === 'otros2') {
+            return 'haber';
+        }
+        // Por defecto para el resto
+        return 'haber';
     }
 
     /**
@@ -244,6 +277,7 @@ class SobregiroPrestamoServicio
         int $codigoMovimiento,
         array $datos,
         float $sobregiro,
+        float $amortizacion,
         float $gastosAdm,
         float $gastosMora,
         float $otros1,
@@ -251,6 +285,9 @@ class SobregiroPrestamoServicio
     ): void {
         $prestamoCodigo = trim($datos['prestamo']);
         $prestamoId = $prestamoCodigo !== '' ? (int) $prestamoCodigo : null;
+
+        // Sumar amortización adicional al sobregiro para el movimiento
+        $maprestamoTotal = $sobregiro + $amortizacion;
 
         $sql = "INSERT INTO f15_movimiento
                 (f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_prestamo, f15_maprestamo,
@@ -264,7 +301,7 @@ class SobregiroPrestamoServicio
             'operacion' => 10,
             'cliente' => trim($datos['cliente']),
             'prestamo' => $prestamoId,
-            'maprestamo' => $sobregiro,
+            'maprestamo' => $maprestamoTotal,
             'gastosa' => $gastosAdm,
             'gastosm' => $gastosMora,
             'gastos1' => $otros1,
@@ -337,6 +374,31 @@ class SobregiroPrestamoServicio
                 'descuenta' => $descuenta,
                 'codigo' => $prestamoCodigo,
             ]);
+
+            // Reducir cuotas pendientes si la amortización cubre completamente una cuota
+            // Obtener la primera cuota pendiente
+            $sqlCuota = "SELECT f17_saldo FROM f17_cuotasprestamo 
+                          WHERE f17_prestamo = :prestamo AND f17_estado = 'VIGENTE' 
+                          ORDER BY f17_ncuota ASC LIMIT 1";
+            $stmtCuota = $pdo->prepare($sqlCuota);
+            $stmtCuota->execute(['prestamo' => $prestamoCodigo]);
+            $cuota = $stmtCuota->fetch();
+
+            if ($cuota && $descuenta >= (float) $cuota['f17_saldo']) {
+                // Si la amortización cubre el saldo de la cuota, reducir cuotas pendientes
+                $sqlCuotasPend = "UPDATE f16_prestamo SET f16_cuotasPend = GREATEST(0, f16_cuotasPend - 1) 
+                                     WHERE f16_codigo = :codigo";
+                $stmtCuotasPend = $pdo->prepare($sqlCuotasPend);
+                $stmtCuotasPend->execute(['codigo' => $prestamoCodigo]);
+            }
         }
+
+        // Actualizar fecha de última actualización
+        $sqlFechaUP = "UPDATE f16_prestamo SET f16_fechaUP = :fechaUP WHERE f16_codigo = :codigo";
+        $stmtFechaUP = $pdo->prepare($sqlFechaUP);
+        $stmtFechaUP->execute([
+            'fechaUP' => date('Y-m-d'),
+            'codigo' => $prestamoCodigo,
+        ]);
     }
 }

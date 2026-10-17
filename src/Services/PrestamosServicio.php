@@ -357,22 +357,27 @@ class PrestamosServicio
     {
         $cronograma = [];
         $cuotaMensual = $this->calcularCuotaMensual($importe, $cuotas, $interes);
-        
+        $capitalPorCuota = $importe / $cuotas;
+        $saldoPendiente = $importe;
+
         $fecha = new \DateTime($fechaInicio);
-        
+
         for ($i = 1; $i <= $cuotas; $i++) {
+            $saldoPendiente -= $capitalPorCuota;
+
             $cronograma[] = [
                 'numero' => $i,
                 'fecha' => $fecha->format('Y-m-d'),
-                'capital' => $importe / $cuotas,
+                'capital' => $capitalPorCuota,
                 'interes' => $importe * ($interes / 100),
                 'total' => $cuotaMensual,
+                'saldo' => max(0, $saldoPendiente), // Saldo decreciente según capital pendiente
                 'estado' => 'pendiente'
             ];
-            
+
             $fecha->modify('+1 month');
         }
-        
+
         return $cronograma;
     }
 
@@ -416,7 +421,7 @@ class PrestamosServicio
                     'capital' => $cuota['capital'],
                     'interes' => $cuota['interes'],
                     'total' => $cuota['total'],
-                    'saldo' => $cuota['total'],
+                    'saldo' => $cuota['saldo'], // Usar el saldo calculado (decreciente)
                     'cta' => 0,
                     'estado' => 'VIGENTE',
                     'tramite' => ''
@@ -691,6 +696,59 @@ class PrestamosServicio
                 'message' => 'Cronograma regenerado correctamente'
             ];
             
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            return ['success' => false, 'message' => 'Error al regenerar cronograma: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Regenerar cronograma de un préstamo existente (usando sus datos actuales)
+     */
+    public function regenerarCronogramaExistente(string $codigoPrestamo, string $usuario): array
+    {
+        try {
+            $this->db->beginTransaction();
+
+            // Obtener datos actuales del préstamo
+            $sql = "SELECT f16_importe, f16_cuotas, f16_interes, f16_fechaDes
+                    FROM f16_prestamo
+                    WHERE f16_codigo = :codigo";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute(['codigo' => $codigoPrestamo]);
+            $prestamo = $stmt->fetch();
+
+            if (!$prestamo) {
+                throw new \Exception('Préstamo no encontrado');
+            }
+
+            // Eliminar cronograma existente
+            $sql = "DELETE FROM f17_cuotasprestamo WHERE f17_prestamo = :prestamo";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute(['prestamo' => $codigoPrestamo]);
+
+            // Calcular nuevo cronograma con saldo decreciente
+            $cronograma = $this->calcularCronograma(
+                (float) $prestamo['f16_importe'],
+                (int) $prestamo['f16_cuotas'],
+                (float) $prestamo['f16_interes'],
+                $prestamo['f16_fechaDes']
+            );
+
+            // Generar nuevo cronograma
+            $resultado = $this->generarCronograma($codigoPrestamo, $cronograma, $usuario);
+
+            if (!$resultado['success']) {
+                throw new \Exception($resultado['message']);
+            }
+
+            $this->db->commit();
+
+            return [
+                'success' => true,
+                'message' => 'Cronograma regenerado correctamente con saldo decreciente'
+            ];
+
         } catch (Exception $e) {
             $this->db->rollBack();
             return ['success' => false, 'message' => 'Error al regenerar cronograma: ' . $e->getMessage()];
@@ -1081,6 +1139,69 @@ class PrestamosServicio
         $stmt->execute(['prestamo' => $codigoPrestamo]);
         
         return $stmt->fetchAll();
+    }
+
+    /**
+     * Obtener detalle completo del préstamo con cronograma y movimientos
+     */
+    public function obtenerDetalleCompletoPrestamo(string $codigoPrestamo): ?array
+    {
+        // 1. Obtener información completa del préstamo
+        $prestamo = $this->obtenerResumenPrestamo($codigoPrestamo);
+        if (!$prestamo) {
+            return null;
+        }
+
+        // 2. Obtener cronograma completo de cuotas
+        $sqlCronograma = "SELECT
+                    f17_ncuota as numero,
+                    f17_fecha as fecha,
+                    f17_capital as capital,
+                    f17_interes as interes,
+                    f17_total as total,
+                    f17_saldo as saldo,
+                    f17_cta as cta,
+                    f17_totalA as total_acumulado,
+                    f17_estado as estado,
+                    f17_tramite as tramite
+                FROM f17_cuotasprestamo
+                WHERE f17_prestamo = :prestamo
+                ORDER BY f17_ncuota ASC";
+
+        $stmtCronograma = $this->db->prepare($sqlCronograma);
+        $stmtCronograma->execute(['prestamo' => $codigoPrestamo]);
+        $cronograma = $stmtCronograma->fetchAll();
+
+        // 3. Obtener todos los movimientos del préstamo (sin límite)
+        $sqlMovimientos = "SELECT
+                    f15_codigo as codigo,
+                    f15_fecha as fecha,
+                    f15_operacion as operacion,
+                    f15_maprestamo as amortizacion,
+                    f15_mdesembolso as desembolso,
+                    f15_gastosa as gastos_administrativos,
+                    f15_gastosm as gastos_mora,
+                    f15_gastos1 as otros1,
+                    f15_gastos2 as otros2,
+                    f15_obs as observaciones,
+                    f15_obs2 as observaciones2,
+                    f15_formaPago as forma_pago,
+                    f15_usuaCrea as usuario_crea,
+                    f15_fechaCrea as fecha_crea
+                FROM f15_movimiento
+                WHERE f15_prestamo = :prestamo
+                ORDER BY f15_fecha DESC";
+
+        $stmtMovimientos = $this->db->prepare($sqlMovimientos);
+        $stmtMovimientos->execute(['prestamo' => $codigoPrestamo]);
+        $movimientos = $stmtMovimientos->fetchAll();
+
+        // 4. Retornar estructura completa
+        return [
+            'prestamo' => $prestamo,
+            'cronograma' => $cronograma,
+            'movimientos' => $movimientos,
+        ];
     }
 
     /**

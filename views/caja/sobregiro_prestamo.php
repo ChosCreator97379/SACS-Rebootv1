@@ -262,7 +262,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="sobregiro_codigo">Código</label>
-                                <input type="text" id="sobregiro_codigo" name="sobregiro_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="sobregiro_codigo" name="sobregiro_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('sobregiro_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -283,12 +283,12 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="descuenta">Amortización Adicional (opcional)</label>
-                                <input type="number" id="descuenta" name="descuenta" step="0.01" placeholder="0.00">
+                                <label for="amortizacion">Amortización Adicional (opcional)</label>
+                                <input type="number" id="amortizacion" name="amortizacion" step="0.01" placeholder="0.00">
                             </div>
                             <div class="form-group">
-                                <label for="descuenta_codigo">Código</label>
-                                <input type="text" id="descuenta_codigo" name="descuenta_codigo" list="listaCodigosContables" placeholder="Código">
+                                <label for="amortizacion_codigo">Código</label>
+                                <input type="text" id="amortizacion_codigo" name="amortizacion_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('amortizacion_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -298,8 +298,8 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 </datalist>
                             </div>
                             <div class="form-group">
-                                <label for="descuenta_tipo">Tipo</label>
-                                <select id="descuenta_tipo" name="descuenta_tipo">
+                                <label for="amortizacion_tipo">Tipo</label>
+                                <select id="amortizacion_tipo" name="amortizacion_tipo">
                                     <option value="">-</option>
                                     <option value="debe">Debe</option>
                                     <option value="haber">Haber</option>
@@ -314,7 +314,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="gastosAdm_codigo">Código</label>
-                                <input type="text" id="gastosAdm_codigo" name="gastosAdm_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="gastosAdm_codigo" name="gastosAdm_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('gastosAdm_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -340,7 +340,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="gastosMora_codigo">Código</label>
-                                <input type="text" id="gastosMora_codigo" name="gastosMora_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="gastosMora_codigo" name="gastosMora_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('gastosMora_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -366,7 +366,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="otros1_codigo">Código</label>
-                                <input type="text" id="otros1_codigo" name="otros1_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="otros1_codigo" name="otros1_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('otros1_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -392,7 +392,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="otros2_codigo">Código</label>
-                                <input type="text" id="otros2_codigo" name="otros2_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="otros2_codigo" name="otros2_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('otros2_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -418,7 +418,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             </div>
                             <div class="form-group">
                                 <label for="monto_codigo">Código</label>
-                                <input type="text" id="monto_codigo" name="monto_codigo" list="listaCodigosContables" placeholder="Código">
+                                <input type="text" id="monto_codigo" name="monto_codigo" list="listaCodigosContables" placeholder="Código" onchange="actualizarCodigoCompleto('monto_codigo')">
                                 <datalist id="listaCodigosContables">
                                     <?php foreach ($codigoContable as $codigo): ?>
                                         <option value="<?= $escape($codigo['code']) ?>">
@@ -491,13 +491,13 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 
         function calcularMontoTotal() {
             const sobregiro = parseFloat(document.getElementById('sobregiro').value) || 0;
-            const descuenta = parseFloat(document.getElementById('descuenta').value) || 0;
+            const amortizacion = parseFloat(document.getElementById('amortizacion').value) || 0;
             const gastosAdm = parseFloat(document.getElementById('gastosAdm').value) || 0;
             const gastosMora = parseFloat(document.getElementById('gastosMora').value) || 0;
             const otros1 = parseFloat(document.getElementById('otros1').value) || 0;
             const otros2 = parseFloat(document.getElementById('otros2').value) || 0;
 
-            const total = sobregiro + descuenta + gastosAdm + gastosMora + otros1 + otros2;
+            const total = sobregiro + amortizacion + gastosAdm + gastosMora + otros1 + otros2;
             document.getElementById('monto').value = total.toFixed(2);
         }
 
@@ -600,7 +600,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         // Función para cargar códigos contables automáticamente
         function cargarCodigosContables() {
             const sobregiro = parseFloat(document.getElementById('sobregiro').value) || 0;
-            const descuenta = parseFloat(document.getElementById('descuenta').value) || 0;
+            const amortizacion = parseFloat(document.getElementById('amortizacion').value) || 0;
             const gastosAdm = parseFloat(document.getElementById('gastosAdm').value) || 0;
             const gastosMora = parseFloat(document.getElementById('gastosMora').value) || 0;
             const otros1 = parseFloat(document.getElementById('otros1').value) || 0;
@@ -618,15 +618,15 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 console.log('Sobregiro código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
             }
 
-            // Amortización/Descuenta - Código 1651 si monto > 0
-            if (descuenta > 0) {
+            // Amortización Adicional - Código 1651 si monto > 0
+            if (amortizacion > 0) {
                 const codigoBase = '1651';
                 const codigoFinal = obtenerCodigoSegunCondicion(codigoBase);
                 const codigoCompleto = obtenerNombreCodigoContable(codigoFinal);
-                document.getElementById('descuenta_codigo').value = codigoCompleto;
-                document.getElementById('descuenta_tipo').value = 'haber';
-                actualizarCodigoCompleto('descuenta_codigo'); // Mostrar nombre completo
-                console.log('Descuenta código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
+                document.getElementById('amortizacion_codigo').value = codigoCompleto;
+                document.getElementById('amortizacion_tipo').value = 'haber';
+                actualizarCodigoCompleto('amortizacion_codigo'); // Mostrar nombre completo
+                console.log('Amortización código cargado:', codigoCompleto, '(Condición:', clienteCondicion, ')');
             }
 
             // Gastos Administrativos - Código 7021 si monto > 0
@@ -694,7 +694,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
         }
 
         // Agregar event listeners para recalcular monto
-        ['sobregiro', 'descuenta', 'gastosAdm', 'gastosMora', 'otros1', 'otros2'].forEach(id => {
+        ['sobregiro', 'amortizacion', 'gastosAdm', 'gastosMora', 'otros1', 'otros2'].forEach(id => {
             document.getElementById(id).addEventListener('input', calcularMontoTotal);
         });
 
