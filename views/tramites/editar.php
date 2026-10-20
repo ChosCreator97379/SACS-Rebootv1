@@ -4,7 +4,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
 $tramitesServicio = new \Sacs\Services\TramitesServicio();
 $sociosServicio = new \Sacs\Services\SociosServicio();
 
-$usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+$usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 $displayName = substr($usuario, 0, 2);
 $profile = 'Administrador';
 
@@ -145,6 +145,17 @@ $tramite = $tramite ?? null;
                             <div class="form-group">
                                 <label>Fecha</label>
                                 <input type="date" name="fecha" value="<?= $escape($tramite['fecha']) ?>">
+                            </div>
+                            <div class="form-group">
+                                <label>Estado</label>
+                                <select name="estado">
+                                    <option value="REGISTRADO" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'REGISTRADO' ? 'selected' : '' ?>>Registrado</option>
+                                    <option value="PENDIENTE" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'PENDIENTE' ? 'selected' : '' ?>>Pendiente</option>
+                                    <option value="DERIVADO" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'DERIVADO' ? 'selected' : '' ?>>Derivado</option>
+                                    <option value="APROBADO" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'APROBADO' ? 'selected' : '' ?>>Aprobado</option>
+                                    <option value="FINALIZADO" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'FINALIZADO' ? 'selected' : '' ?>>Finalizado</option>
+                                    <option value="ELIMINADO" <?= ($tramite['estado'] ?? 'REGISTRADO') === 'ELIMINADO' ? 'selected' : '' ?>>Eliminado</option>
+                                </select>
                             </div>
                         </div>
 

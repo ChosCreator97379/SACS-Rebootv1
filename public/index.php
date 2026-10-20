@@ -118,6 +118,12 @@ if ($module === 'prestamos') {
         exit;
     }
 
+    // GET: Popup Trámite después de registrar préstamo
+    if ($action === 'popup_tramite') {
+        require dirname(__DIR__) . '/views/prestamos/popup_tramite.php';
+        exit;
+    }
+
     // POST: Registrar Préstamo
     if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $csrfToken = (string) ($_POST['csrf_token'] ?? '');
@@ -129,7 +135,7 @@ if ($module === 'prestamos') {
         }
 
         $prestamosServicio = new \Sacs\Services\PrestamosServicio();
-        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
         $datos = [
             'cliente' => trim((string) ($_POST['cliente'] ?? '')),
@@ -168,7 +174,7 @@ if ($module === 'prestamos') {
         }
 
         $prestamosServicio = new \Sacs\Services\PrestamosServicio();
-        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
         $codigo = trim((string) ($_POST['codigo'] ?? ''));
 
         $datos = [
@@ -215,7 +221,7 @@ if ($module === 'prestamos') {
         }
 
         $prestamosServicio = new \Sacs\Services\PrestamosServicio();
-        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
         $codigo = trim((string) ($_POST['codigo'] ?? ''));
         $accion = trim((string) ($_POST['accion'] ?? ''));
 
@@ -249,7 +255,7 @@ if ($module === 'prestamos') {
         }
 
         $prestamosServicio = new \Sacs\Services\PrestamosServicio();
-        $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+        $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
         $codigo = trim((string) ($_POST['codigo'] ?? ''));
         $accion = trim((string) ($_POST['accion'] ?? ''));
         $motivo = trim((string) ($_POST['motivo'] ?? ''));
@@ -317,7 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+            $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
             $tipo = trim((string) ($_POST['tipo'] ?? ''));
 
             $numero = trim((string) ($_POST['numero'] ?? ''));
@@ -396,9 +402,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resultado = $tramitesServicio->registrarTramite($datos, $usuario);
 
             if ($resultado['success']) {
-                $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
-                header('Location: index.php?' . $query);
-                exit;
+                // Verificar si es modo popup
+                $popupMode = ($_POST['popup'] ?? '') === '1';
+
+                if ($popupMode) {
+                    // Renderizar vista de éxito con el número de trámite
+                    $_GET['tramite_numero'] = $resultado['numero'];
+                    require dirname(__DIR__) . '/views/tramites/popup_success.php';
+                    exit;
+                } else {
+                    // Redirigir al listado normal
+                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
+                    header('Location: index.php?' . $query);
+                    exit;
+                }
             } else {
                 $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => $resultado['message']]);
                 header('Location: index.php?' . $query);
@@ -653,6 +670,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 // Códigos contables por componente
@@ -741,7 +759,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -798,7 +816,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -854,7 +872,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -909,7 +927,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -963,7 +981,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1016,7 +1034,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1069,7 +1087,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1122,7 +1140,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1175,7 +1193,7 @@ if ($auth->check()) {
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1231,7 +1249,7 @@ if ($auth->check()) {
                     'montoLetras' => trim((string) ($_POST['montoLetras'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -1289,7 +1307,7 @@ if ($auth->check()) {
                     'montoLetras' => trim((string) ($_POST['montoLetras'] ?? '')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'usuario' => trim((string) ($_POST['usuario'] ?? 'SISTEMA')),
+                    'usuario' => $user['username'] ?? 'SISTEMA',
                 ];
 
                 $datosContables = [
@@ -2703,7 +2721,7 @@ if ($module === 'usuarios') {
 
         $usuariosServicio = new \Sacs\Services\UsuariosServicio(\Sacs\Core\Database::connection());
 
-        $usuarioActual = $_SESSION['usuario'] ?? 'SISTEMA';
+        $usuarioActual = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
         $passwordActual = trim((string) ($_POST['password_actual'] ?? ''));
         $nuevaPassword = trim((string) ($_POST['nueva_password'] ?? ''));
         $confirmarPassword = trim((string) ($_POST['confirmar_password'] ?? ''));
@@ -3978,7 +3996,7 @@ if (($_GET['module'] ?? '') === 'caja') {
                 $carta = trim((string) ($_POST['carta'] ?? ''));
                 $fechaBanco = trim((string) ($_POST['fecha_banco'] ?? ''));
                 $obsCarta = trim((string) ($_POST['obs_carta'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
                 if (empty($clienteCodigo)) {
                     throw new Exception('El código de cliente es requerido');
@@ -4059,7 +4077,7 @@ if (($_GET['module'] ?? '') === 'caja') {
                 $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
                 $modo = trim((string) ($_POST['modo'] ?? 'nuevo'));
                 $periodo = trim((string) ($_POST['periodo'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
                 if (empty($clienteCodigo)) {
                     throw new Exception('El código de cliente es requerido');
@@ -4140,7 +4158,7 @@ if (($_GET['module'] ?? '') === 'caja') {
                 $sociosServicio = new \Sacs\Services\SociosServicio();
                 $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
                 $periodo = trim((string) ($_GET['periodo'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
                 if (empty($clienteCodigo) || empty($periodo)) {
                     throw new Exception('Parámetros inválidos');
@@ -4214,7 +4232,7 @@ if (($_GET['module'] ?? '') === 'caja') {
                 $clienteCodigo = trim((string) ($_POST['client'] ?? ''));
                 $titulo = trim((string) ($_POST['titulo'] ?? ''));
                 $observacion = trim((string) ($_POST['observacion'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
                 if (empty($clienteCodigo)) {
                     throw new Exception('El código de cliente es requerido');
@@ -5521,144 +5539,36 @@ if (($_GET['module'] ?? '') === 'caja') {
         // GET: Editar trámite
         if ($action === 'editar') {
             $codigo = trim((string) ($_GET['codigo'] ?? ''));
-            
+
             if ($codigo === '') {
                 http_response_code(400);
                 $error = 'Código no especificado';
                 require dirname(__DIR__) . '/views/home.php';
                 exit;
             }
-            
+
             $tramite = $tramitesServicio->obtenerTramite((int) $codigo);
-            
+
             if (empty($tramite)) {
                 http_response_code(404);
                 $error = 'Trámite no encontrado';
                 require dirname(__DIR__) . '/views/home.php';
                 exit;
             }
-            
+
             if (($tramite['estado'] ?? '') === 'ELIMINADO') {
                 http_response_code(400);
                 $error = 'No se puede editar un trámite eliminado';
                 require dirname(__DIR__) . '/views/home.php';
                 exit;
             }
-            
+
             require dirname(__DIR__) . '/views/tramites/editar.php';
             exit;
         }
 
-        // POST: Registrar trámite
-        if ($module === 'tramites' && $action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-            $csrfToken = (string) ($_POST['csrf_token'] ?? '');
-            if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
-                $error = 'La solicitud no es válida.';
-                require dirname(__DIR__) . '/views/tramites/registrar.php';
-                exit;
-            }
-
-            try {
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
-                $tipo = trim((string) ($_POST['tipo'] ?? ''));
-                
-                // Verificar y generar número si no se proporcionó o ya existe
-                $numero = trim((string) ($_POST['numero'] ?? ''));
-                if (empty($numero) && !empty($tipo)) {
-                    $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
-                    if ($resultadoNumero['success']) {
-                        $numero = $resultadoNumero['numero'];
-                    } else {
-                        throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
-                    }
-                }
-                
-                // Si el número ya existe (generado por JavaScript), generar uno nuevo
-                if (!empty($numero) && !empty($tipo) && $tramitesServicio->verificarTramiteExiste($numero, $tipo)) {
-                    $resultadoNumero = $tramitesServicio->generarNumeroTramite((int) $tipo);
-                    if ($resultadoNumero['success']) {
-                        $numero = $resultadoNumero['numero'];
-                    } else {
-                        throw new Exception('Error al generar número de trámite: ' . $resultadoNumero['message']);
-                    }
-                }
-                
-                if (empty($numero)) {
-                    throw new Exception('El número de trámite es requerido');
-                }
-                
-                // Procesar archivos adjuntos
-                $rutas = ['ruta' => null, 'ruta2' => null, 'ruta3' => null];
-                if (isset($_FILES['archivo1']) && $_FILES['archivo1']['error'] === UPLOAD_ERR_OK) {
-                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo1'], 'ruta');
-                    if ($resultado['success']) {
-                        $rutas['ruta'] = $resultado['ruta'];
-                    }
-                }
-                if (isset($_FILES['archivo2']) && $_FILES['archivo2']['error'] === UPLOAD_ERR_OK) {
-                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo2'], 'ruta2');
-                    if ($resultado['success']) {
-                        $rutas['ruta2'] = $resultado['ruta'];
-                    }
-                }
-                if (isset($_FILES['archivo3']) && $_FILES['archivo3']['error'] === UPLOAD_ERR_OK) {
-                    $resultado = $tramitesServicio->cargarArchivo($_FILES['archivo3'], 'ruta3');
-                    if ($resultado['success']) {
-                        $rutas['ruta3'] = $resultado['ruta'];
-                    }
-                }
-
-                $datos = [
-                    'numero' => $numero,
-                    'tipo' => $tipo,
-                    'descripcion' => trim((string) ($_POST['descripcion'] ?? '')),
-                    'fisico' => trim((string) ($_POST['fisico'] ?? 'NO')),
-                    'destino' => trim((string) ($_POST['destino'] ?? '')),
-                    'fecha' => trim((string) ($_POST['fecha'] ?? date('Y-m-d'))),
-                    'obs' => trim((string) ($_POST['obs'] ?? '')),
-                    'obs2' => trim((string) ($_POST['obs2'] ?? '')),
-                    'obs3' => trim((string) ($_POST['obs3'] ?? '')),
-                    'referencia' => trim((string) ($_POST['referencia'] ?? '')),
-                    'respuesta' => trim((string) ($_POST['respuesta'] ?? '')),
-                    'nombres' => trim((string) ($_POST['nombres'] ?? '')),
-                    'socio' => trim((string) ($_POST['socio'] ?? '')),
-                    'importe' => trim((string) ($_POST['importe'] ?? '')),
-                    'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
-                    'tramitante' => trim((string) ($_POST['tramitante'] ?? '')),
-                    'tramitante_dni' => trim((string) ($_POST['tramitante_dni'] ?? '')),
-                    'tramitante_cel' => trim((string) ($_POST['tramitante_cel'] ?? '')),
-                    'tramitante_email' => trim((string) ($_POST['tramitante_email'] ?? '')),
-                    'tramitante_email2' => trim((string) ($_POST['tramitante_email2'] ?? '')),
-                    'ref_documento' => trim((string) ($_POST['ref_documento'] ?? '')),
-                    'interno' => '1',
-                    'hora' => date('H:i:s'),
-                    'adjunto' => 'NO'
-                ];
-                
-                // Agregar rutas de archivos
-                $datos = array_merge($datos, $rutas);
-
-                $resultado = $tramitesServicio->registrarTramite($datos, $usuario);
-
-                if ($resultado['success']) {
-                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
-                    header('Location: index.php?' . $query);
-                    exit;
-                } else {
-                    $error = $resultado['message'];
-                    require dirname(__DIR__) . '/views/tramites/registrar.php';
-                    exit;
-                }
-
-            } catch (Exception $e) {
-                $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => 'Error al registrar trámite: ' . $e->getMessage()]);
-                header('Location: index.php?' . $query);
-                exit;
-            }
-        }
-
-        // POST: Actualizar trámite
-        if ($module === 'tramites' && $action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        // POST: Actualizar trámite (dentro del bloque de trámites)
+        if ($action === 'actualizar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $csrfToken = (string) ($_POST['csrf_token'] ?? '');
             if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
                 $error = 'La solicitud no es válida.';
@@ -5670,7 +5580,7 @@ if (($_GET['module'] ?? '') === 'caja') {
 
             try {
                 $codigo = trim((string) ($_POST['codigo'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
                 
                 // Procesar archivos adjuntos (solo si se cargan nuevos)
                 $rutas = ['ruta' => null, 'ruta2' => null, 'ruta3' => null];
@@ -5698,6 +5608,7 @@ if (($_GET['module'] ?? '') === 'caja') {
                     'fisico' => trim((string) ($_POST['fisico'] ?? 'NO')),
                     'destino' => trim((string) ($_POST['destino'] ?? '')),
                     'fecha' => trim((string) ($_POST['fecha'] ?? '')),
+                    'estado' => trim((string) ($_POST['estado'] ?? 'REGISTRADO')),
                     'obs' => trim((string) ($_POST['obs'] ?? '')),
                     'obs2' => trim((string) ($_POST['obs2'] ?? '')),
                     'obs3' => trim((string) ($_POST['obs3'] ?? '')),
@@ -5705,6 +5616,13 @@ if (($_GET['module'] ?? '') === 'caja') {
                     'respuesta' => trim((string) ($_POST['respuesta'] ?? '')),
                     'importe' => trim((string) ($_POST['importe'] ?? '')),
                     'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+                    'tramitante' => trim((string) ($_POST['tramitante'] ?? '')),
+                    'tramitante_dni' => trim((string) ($_POST['tramitante_dni'] ?? '')),
+                    'tramitante_cel' => trim((string) ($_POST['tramitante_cel'] ?? '')),
+                    'tramitante_email' => trim((string) ($_POST['tramitante_email'] ?? '')),
+                    'tramitante_email2' => trim((string) ($_POST['tramitante_email2'] ?? '')),
+                    'ref_docu' => trim((string) ($_POST['ref_docu'] ?? '')),
+                    'cuenta' => trim((string) ($_POST['cuenta'] ?? '')),
                     'fechaE' => date('Y-m-d')
                 ];
                 
@@ -5745,7 +5663,7 @@ if (($_GET['module'] ?? '') === 'caja') {
 
             try {
                 $codigo = trim((string) ($_GET['codigo'] ?? ''));
-                $usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+                $usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 
                 if ($codigo === '') {
                     throw new Exception('Código no especificado');

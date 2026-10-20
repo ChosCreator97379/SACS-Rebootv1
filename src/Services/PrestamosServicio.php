@@ -72,12 +72,12 @@ class PrestamosServicio
             $sql .= " AND p.F01_APE_PAT LIKE :apellido_titular";
             $params['apellido_titular'] = '%' . $filtros['apellido_titular'] . '%';
         }
-        
+
         // Filtro por estado
         if (!empty($filtros['estado']) && $filtros['estado'] !== '0') {
             $sql .= " AND f16_estado = :estado";
             $params['estado'] = $filtros['estado'];
-        } elseif ($filtros['estado'] === '0') {
+        } elseif (isset($filtros['estado']) && $filtros['estado'] === '0') {
             $sql .= " AND f16_estado <> 0";
         }
         
@@ -98,8 +98,25 @@ class PrestamosServicio
             $sql .= " AND f16_fechaDes <= :fecha_hasta";
             $params['fecha_hasta'] = $filtros['fecha_hasta'];
         }
-        
-        $sql .= " ORDER BY f16_fechaDes DESC LIMIT :limit OFFSET :offset";
+
+        // Si se filtra por cliente, ordenar por estado en orden específico
+        if (!empty($filtros['cliente'])) {
+            $sql .= " ORDER BY
+                CASE f16_estado
+                    WHEN 4 THEN 1  -- Activo
+                    WHEN 2 THEN 2  -- Aprobado
+                    WHEN 1 THEN 3  -- Pendiente
+                    WHEN 3 THEN 4  -- Rechazado
+                    WHEN 5 THEN 5  -- Cancelado
+                    WHEN 0 THEN 6  -- Anulado
+                    ELSE 7
+                END,
+                f16_fechaDes DESC,
+                f16_codigo DESC
+                LIMIT :limit OFFSET :offset";
+        } else {
+            $sql .= " ORDER BY f16_fechaDes DESC LIMIT :limit OFFSET :offset";
+        }
         
         $stmt = $this->db->prepare($sql);
         foreach ($params as $key => $value) {
@@ -143,7 +160,7 @@ class PrestamosServicio
         if (!empty($filtros['estado']) && $filtros['estado'] !== '0') {
             $sql .= " AND f16_estado = :estado";
             $params['estado'] = $filtros['estado'];
-        } elseif ($filtros['estado'] === '0') {
+        } elseif (isset($filtros['estado']) && $filtros['estado'] === '0') {
             $sql .= " AND f16_estado <> 0";
         }
         
@@ -543,11 +560,12 @@ class PrestamosServicio
             }
             
             $this->db->commit();
-            
+
             return [
                 'success' => true,
                 'message' => 'Préstamo registrado correctamente',
-                'codigo' => $codigoPrestamo
+                'codigo' => $codigoPrestamo,
+                'cliente' => $datos['cliente']
             ];
             
         } catch (Exception $e) {
@@ -1212,7 +1230,7 @@ class PrestamosServicio
         $where = ['1=1'];
         $params = [];
         
-        if (!empty($filtros['estado'])) {
+        if (isset($filtros['estado']) && $filtros['estado'] !== '') {
             $where[] = 'f16_estado = :estado';
             $params['estado'] = $filtros['estado'];
         }
@@ -1273,7 +1291,7 @@ class PrestamosServicio
         $where = ['1=1'];
         $params = [];
         
-        if (!empty($filtros['estado'])) {
+        if (isset($filtros['estado']) && $filtros['estado'] !== '') {
             $where[] = 'f16_estado = :estado';
             $params['estado'] = $filtros['estado'];
         }
@@ -1346,17 +1364,22 @@ class PrestamosServicio
     {
         $where = ['1=1'];
         $params = [];
-        
+
+        if (!empty($filtros['socio'])) {
+            $where[] = 'c.F02_ID_CLIENTE = :socio';
+            $params['socio'] = $filtros['socio'];
+        }
+
         if (!empty($filtros['estado_cuota'])) {
             $where[] = 'f17_estado = :estado_cuota';
             $params['estado_cuota'] = $filtros['estado_cuota'];
         }
-        
+
         if (!empty($filtros['fecha_inicio'])) {
             $where[] = 'f17_fecha >= :fecha_inicio';
             $params['fecha_inicio'] = $filtros['fecha_inicio'];
         }
-        
+
         if (!empty($filtros['fecha_fin'])) {
             $where[] = 'f17_fecha <= :fecha_fin';
             $params['fecha_fin'] = $filtros['fecha_fin'];
@@ -1400,33 +1423,54 @@ class PrestamosServicio
      */
     public function contarCuotasReporte(array $filtros = []): int
     {
+        $cacheKey = 'reporte_cuota_count_' . md5(serialize($filtros));
+
+        // Verificar caché por 5 minutos
+        if (isset($_SESSION[$cacheKey]) && $_SESSION[$cacheKey]['time'] > time() - 300) {
+            return $_SESSION[$cacheKey]['count'];
+        }
+
         $where = ['1=1'];
         $params = [];
-        
+
+        if (!empty($filtros['socio'])) {
+            $where[] = 'c.F02_ID_CLIENTE = :socio';
+            $params['socio'] = $filtros['socio'];
+        }
+
         if (!empty($filtros['estado_cuota'])) {
             $where[] = 'f17_estado = :estado_cuota';
             $params['estado_cuota'] = $filtros['estado_cuota'];
         }
-        
+
         if (!empty($filtros['fecha_inicio'])) {
             $where[] = 'f17_fecha >= :fecha_inicio';
             $params['fecha_inicio'] = $filtros['fecha_inicio'];
         }
-        
+
         if (!empty($filtros['fecha_fin'])) {
             $where[] = 'f17_fecha <= :fecha_fin';
             $params['fecha_fin'] = $filtros['fecha_fin'];
         }
-        
+
         $sql = "SELECT COUNT(*) as total
                 FROM f17_cuotasprestamo f17
+                INNER JOIN f16_prestamo f16 ON f17.f17_prestamo = f16.f16_codigo
+                INNER JOIN f02_cliente c ON f16.f16_cliente = c.F02_ID_CLIENTE
                 WHERE " . implode(' AND ', $where);
-        
+
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
-        
+
         $result = $stmt->fetch();
-        
-        return (int) ($result['total'] ?? 0);
+        $count = (int) ($result['total'] ?? 0);
+
+        // Guardar en caché
+        $_SESSION[$cacheKey] = [
+            'count' => $count,
+            'time' => time()
+        ];
+
+        return $count;
     }
 }

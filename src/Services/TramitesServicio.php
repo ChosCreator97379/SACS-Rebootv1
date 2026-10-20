@@ -57,6 +57,24 @@ class TramitesServicio
             'whereClause' => $whereClause
         ]);
 
+        // Si se filtra por socio, ordenar por estado en orden específico
+        if (!empty($filtros['socio'])) {
+            $orderBy = "ORDER BY
+                CASE f29_estado
+                    WHEN 'REGISTRADO' THEN 1
+                    WHEN 'PENDIENTE' THEN 2
+                    WHEN 'APROBADO' THEN 3
+                    WHEN 'DERIVADO' THEN 4
+                    WHEN 'FINALIZADO' THEN 5
+                    WHEN 'ELIMINADO' THEN 6
+                    ELSE 7
+                END,
+                f29_fecha DESC,
+                f29_codigo DESC";
+        } else {
+            $orderBy = "ORDER BY f29_codigo DESC";
+        }
+
         $sql = "SELECT
                     f29_codigo as codigo,
                     f29_numero as numero,
@@ -81,7 +99,7 @@ class TramitesServicio
                     f29_interno as interno
                 FROM f29_tramite
                 $whereClause
-                ORDER BY f29_codigo DESC
+                $orderBy
                 LIMIT :offset, :porPagina";
 
         $stmt = $this->db->prepare($sql);
@@ -503,7 +521,8 @@ class TramitesServicio
             return [
                 'success' => true,
                 'message' => 'Trámite registrado correctamente',
-                'codigo' => $nuevoCodigo
+                'codigo' => $nuevoCodigo,
+                'numero' => $datos['numero']
             ];
 
         } catch (Exception $e) {
@@ -551,7 +570,8 @@ class TramitesServicio
                         f29_tramitante_email = :tramitante_email,
                         f29_tramitante_email2 = :tramitante_email2,
                         f29_cuenta = :cuenta,
-                        f29_hora_edicion = :hora_edicion
+                        f29_hora_edicion = :hora_edicion,
+                        f29_estado = :estado
                     WHERE f29_codigo = :codigo";
 
             $stmt = $this->db->prepare($sql);
@@ -581,7 +601,8 @@ class TramitesServicio
                 'tramitante_email' => $datos['tramitante_email'] ?? null,
                 'tramitante_email2' => $datos['tramitante_email2'] ?? null,
                 'cuenta' => $datos['cuenta'] ?? null,
-                'hora_edicion' => date('H:i:s')
+                'hora_edicion' => date('H:i:s'),
+                'estado' => $datos['estado'] ?? 'REGISTRADO'
             ]);
 
             $this->db->commit();

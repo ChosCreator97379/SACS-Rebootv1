@@ -14,20 +14,28 @@ $filtros = [
     'fecha_hasta' => trim((string) ($_GET['fecha_hasta'] ?? ''))
 ];
 
-// Paginación
-$pagina = max(1, (int) ($_GET['pagina'] ?? 1));
-$porPagina = 10;
+// Limpiar filtros vacíos
+$filtros = array_filter($filtros, fn($v) => $v !== '' && $v !== '0');
 
-// Obtener listado
-$prestamos = $prestamosServicio->listarPrestamos($filtros, $pagina, $porPagina);
-$totalPrestamos = $prestamosServicio->contarPrestamos($filtros);
-$totalPaginas = max(1, ceil($totalPrestamos / $porPagina));
+// Solo ejecutar consulta si hay al menos un filtro
+$prestamos = [];
+$totalPrestamos = 0;
+$totalPaginas = 1;
+$pagina = 1;
+
+if (!empty($filtros)) {
+    $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
+    $porPagina = 10;
+    $prestamos = $prestamosServicio->listarPrestamos($filtros, $pagina, $porPagina);
+    $totalPrestamos = $prestamosServicio->contarPrestamos($filtros);
+    $totalPaginas = max(1, ceil($totalPrestamos / $porPagina));
+}
 
 // Obtener estados y productos para filtros
 $estados = $prestamosServicio->obtenerEstados();
 $productos = $prestamosServicio->obtenerProductos();
 
-$usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+$usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 $displayName = substr($usuario, 0, 2);
 $profile = 'Administrador';
 ?>
@@ -414,22 +422,22 @@ $profile = 'Administrador';
                     <div class="filters">
                         <div class="form-group" style="flex: 1; min-width: 200px;">
                             <label for="cliente">Cliente</label>
-                            <input type="text" id="cliente" name="cliente" value="<?= $escape($filtros['cliente']) ?>" placeholder="Código de cliente">
+                            <input type="text" id="cliente" name="cliente" value="<?= $escape($filtros['cliente'] ?? '') ?>" placeholder="Código de cliente">
                         </div>
                         <div class="form-group" style="flex: 1; min-width: 200px;">
                             <label for="garante">Garante</label>
-                            <input type="text" id="garante" name="garante" value="<?= $escape($filtros['garante']) ?>" placeholder="Código de garante">
+                            <input type="text" id="garante" name="garante" value="<?= $escape($filtros['garante'] ?? '') ?>" placeholder="Código de garante">
                         </div>
                         <div class="form-group" style="flex: 1; min-width: 200px;">
                             <label for="apellido_titular">Apellido Titular</label>
-                            <input type="text" id="apellido_titular" name="apellido_titular" value="<?= $escape($filtros['apellido_titular']) ?>" placeholder="Apellido">
+                            <input type="text" id="apellido_titular" name="apellido_titular" value="<?= $escape($filtros['apellido_titular'] ?? '') ?>" placeholder="Apellido">
                         </div>
                         <div class="form-group" style="flex: 1; min-width: 150px;">
                             <label for="estado">Estado</label>
                             <select id="estado" name="estado">
                                 <option value="0">Todos (excepto eliminados)</option>
                                 <?php foreach ($estados as $estado): ?>
-                                    <option value="<?= $escape($estado['estado']) ?>" <?= $filtros['estado'] === (string)$estado['estado'] ? 'selected' : '' ?>>
+                                    <option value="<?= $escape($estado['estado']) ?>" <?= ($filtros['estado'] ?? '0') === (string)$estado['estado'] ? 'selected' : '' ?>>
                                         <?= $escape($estado['estado_nombre']) ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -440,7 +448,7 @@ $profile = 'Administrador';
                             <select id="producto" name="producto">
                                 <option value="">Todos</option>
                                 <?php foreach ($productos as $producto): ?>
-                                    <option value="<?= $escape($producto['producto']) ?>" <?= $filtros['producto'] === $producto['producto'] ? 'selected' : '' ?>>
+                                    <option value="<?= $escape($producto['producto']) ?>" <?= ($filtros['producto'] ?? '') === $producto['producto'] ? 'selected' : '' ?>>
                                         <?= $escape($producto['producto']) ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -448,11 +456,11 @@ $profile = 'Administrador';
                         </div>
                         <div class="form-group" style="flex: 1; min-width: 150px;">
                             <label for="fecha_desde">Fecha Desde</label>
-                            <input type="date" id="fecha_desde" name="fecha_desde" value="<?= $escape($filtros['fecha_desde']) ?>">
+                            <input type="date" id="fecha_desde" name="fecha_desde" value="<?= $escape($filtros['fecha_desde'] ?? '') ?>">
                         </div>
                         <div class="form-group" style="flex: 1; min-width: 150px;">
                             <label for="fecha_hasta">Fecha Hasta</label>
-                            <input type="date" id="fecha_hasta" name="fecha_hasta" value="<?= $escape($filtros['fecha_hasta']) ?>">
+                            <input type="date" id="fecha_hasta" name="fecha_hasta" value="<?= $escape($filtros['fecha_hasta'] ?? '') ?>">
                         </div>
                         <div class="form-group" style="display: flex; align-items: flex-end;">
                             <button type="submit" class="btn btn-primary">Filtrar</button>
@@ -464,8 +472,10 @@ $profile = 'Administrador';
 
             <section class="panel">
                 <h2>Resultados (<?= $totalPrestamos ?> registros)</h2>
-                <?php if (empty($prestamos)): ?>
-                    <div class="empty">No hay préstamos registrados</div>
+                <?php if (empty($filtros)): ?>
+                    <div class="empty">Ingrese al menos un filtro para ver los préstamos</div>
+                <?php elseif (empty($prestamos)): ?>
+                    <div class="empty">No hay préstamos que coincidan con los filtros</div>
                 <?php else: ?>
                     <div style="overflow-x: auto;">
                         <table class="table">
@@ -527,14 +537,40 @@ $profile = 'Administrador';
                         </table>
                     </div>
                     
-                    <?php if ($totalPaginas > 1): ?>
+                    <?php if (!empty($filtros) && $totalPaginas > 1): ?>
+                        <?php
+                        // Construir query string con todos los filtros
+                        $queryParams = [];
+                        if (isset($filtros['cliente']) && $filtros['cliente'] !== '') {
+                            $queryParams['cliente'] = $filtros['cliente'];
+                        }
+                        if (isset($filtros['garante']) && $filtros['garante'] !== '') {
+                            $queryParams['garante'] = $filtros['garante'];
+                        }
+                        if (isset($filtros['apellido_titular']) && $filtros['apellido_titular'] !== '') {
+                            $queryParams['apellido_titular'] = $filtros['apellido_titular'];
+                        }
+                        if (isset($filtros['estado']) && $filtros['estado'] !== '0') {
+                            $queryParams['estado'] = $filtros['estado'];
+                        }
+                        if (isset($filtros['producto']) && $filtros['producto'] !== '') {
+                            $queryParams['producto'] = $filtros['producto'];
+                        }
+                        if (isset($filtros['fecha_desde']) && $filtros['fecha_desde'] !== '') {
+                            $queryParams['fecha_desde'] = $filtros['fecha_desde'];
+                        }
+                        if (isset($filtros['fecha_hasta']) && $filtros['fecha_hasta'] !== '') {
+                            $queryParams['fecha_hasta'] = $filtros['fecha_hasta'];
+                        }
+                        $queryString = http_build_query($queryParams);
+                        ?>
                         <div class="pagination">
                             <?php if ($pagina > 1): ?>
-                                <a href="index.php?module=prestamos&action=listado&cliente=<?= $escape($filtros['cliente']) ?>&garante=<?= $escape($filtros['garante']) ?>&apellido_titular=<?= $escape($filtros['apellido_titular']) ?>&estado=<?= $escape($filtros['estado']) ?>&producto=<?= $escape($filtros['producto']) ?>&fecha_desde=<?= $escape($filtros['fecha_desde']) ?>&fecha_hasta=<?= $escape($filtros['fecha_hasta']) ?>&pagina=<?= $pagina - 1 ?>">Anterior</a>
+                                <a href="index.php?module=prestamos&action=listado&<?= $queryString ?>&pagina=<?= $pagina - 1 ?>">Anterior</a>
                             <?php endif; ?>
                             <span>Página <?= $pagina ?> de <?= $totalPaginas ?> (<?= $totalPrestamos ?> registros)</span>
                             <?php if ($pagina < $totalPaginas): ?>
-                                <a href="index.php?module=prestamos&action=listado&cliente=<?= $escape($filtros['cliente']) ?>&garante=<?= $escape($filtros['garante']) ?>&apellido_titular=<?= $escape($filtros['apellido_titular']) ?>&estado=<?= $escape($filtros['estado']) ?>&producto=<?= $escape($filtros['producto']) ?>&fecha_desde=<?= $escape($filtros['fecha_desde']) ?>&fecha_hasta=<?= $escape($filtros['fecha_hasta']) ?>&pagina=<?= $pagina + 1 ?>">Siguiente</a>
+                                <a href="index.php?module=prestamos&action=listado&<?= $queryString ?>&pagina=<?= $pagina + 1 ?>">Siguiente</a>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

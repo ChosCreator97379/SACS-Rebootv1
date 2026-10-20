@@ -4,7 +4,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
 $prestamosServicio = new \Sacs\Services\PrestamosServicio();
 $sociosServicio = new \Sacs\Services\SociosServicio();
 
-$usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+$usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 $displayName = substr($usuario, 0, 2);
 $profile = 'Administrador';
 
@@ -378,7 +378,10 @@ $socios = $sociosServicio->listarSocios([], 1, 1000);
                         
                         <div class="form-group">
                             <label for="tramite">Trámite</label>
-                            <input type="text" id="tramite" name="tramite" placeholder="Número de trámite">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="tramite" name="tramite" placeholder="Número de trámite" style="flex: 1;">
+                                <button type="button" onclick="abrirPopupTramite()" class="btn btn-secondary" style="padding: 10px 16px;">Crear Trámite</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -434,7 +437,7 @@ $socios = $sociosServicio->listarSocios([], 1, 1000);
                             </div>
                         </div>
                     </div>
-                    
+
                     <div style="display: flex; gap: 12px; margin-top: 24px;">
                         <button type="submit" class="btn btn-primary">Registrar Préstamo</button>
                         <a href="index.php?module=prestamos&action=listado" class="btn btn-secondary">Cancelar</a>
@@ -443,5 +446,30 @@ $socios = $sociosServicio->listarSocios([], 1, 1000);
             </section>
         </main>
     </div>
+
+    <script>
+        function abrirPopupTramite() {
+            const cliente = document.getElementById('cliente').value.trim();
+
+            if (!cliente) {
+                alert('Primero debe ingresar el código del cliente');
+                return;
+            }
+
+            const url = 'index.php?module=tramites&action=registrar&socio_codigo=' + encodeURIComponent(cliente) + '&popup=1';
+            const popup = window.open(url, 'tramite', 'width=800,height=600,scrollbars=yes,resizable=yes');
+
+            if (!popup) {
+                alert('No se pudo abrir la ventana emergente. Verifique que su navegador permita ventanas emergentes.');
+            }
+        }
+
+        // Escuchar mensajes desde el popup
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.tramiteNumero) {
+                document.getElementById('tramite').value = event.data.tramiteNumero;
+            }
+        });
+    </script>
 </body>
 </html>

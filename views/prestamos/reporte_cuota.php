@@ -9,6 +9,7 @@ $profile = 'Administrador';
 
 // Obtener filtros
 $filtros = [
+    'socio' => trim((string) ($_GET['socio'] ?? '')),
     'estado_cuota' => trim((string) ($_GET['estado_cuota'] ?? '')),
     'fecha_inicio' => trim((string) ($_GET['fecha_inicio'] ?? '')),
     'fecha_fin' => trim((string) ($_GET['fecha_fin'] ?? ''))
@@ -17,13 +18,19 @@ $filtros = [
 // Limpiar filtros vacíos
 $filtros = array_filter($filtros, fn($v) => $v !== '');
 
-// Paginación
-$pagina = max(1, (int) ($_GET['pagina'] ?? 1));
-$porPagina = 10;
-$total = $prestamosServicio->contarCuotasReporte($filtros);
-$totalPaginas = max(1, ceil($total / $porPagina));
+// Solo ejecutar consulta si hay código de socio
+$cuotas = [];
+$total = 0;
+$totalPaginas = 1;
+$pagina = 1;
 
-$cuotas = $prestamosServicio->reportePrestamosCuota($filtros, $pagina, $porPagina);
+if (!empty($filtros['socio'])) {
+    $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
+    $porPagina = 25;
+    $total = $prestamosServicio->contarCuotasReporte($filtros);
+    $totalPaginas = max(1, ceil($total / $porPagina));
+    $cuotas = $prestamosServicio->reportePrestamosCuota($filtros, $pagina, $porPagina);
+}
 ?>
 <!doctype html>
 <html lang="es">
@@ -395,6 +402,10 @@ $cuotas = $prestamosServicio->reportePrestamosCuota($filtros, $pagina, $porPagin
                     
                     <div class="filters">
                         <div class="form-group">
+                            <label for="socio">Código Socio</label>
+                            <input type="text" id="socio" name="socio" value="<?= $escape($filtros['socio'] ?? '') ?>" placeholder="Ingrese código de socio">
+                        </div>
+                        <div class="form-group">
                             <label for="estado_cuota">Estado de Cuota</label>
                             <select id="estado_cuota" name="estado_cuota">
                                 <option value="">Todos</option>
@@ -420,7 +431,9 @@ $cuotas = $prestamosServicio->reportePrestamosCuota($filtros, $pagina, $porPagin
 
             <section class="panel">
                 <h2>Resultados (<?= count($cuotas) ?> registros)</h2>
-                <?php if (empty($cuotas)): ?>
+                <?php if (empty($filtros['socio'])): ?>
+                    <div class="empty">Ingrese el código de socio para ver las cuotas</div>
+                <?php elseif (empty($cuotas)): ?>
                     <div class="empty">No hay cuotas que coincidan con los filtros</div>
                 <?php else: ?>
                     <div style="overflow-x: auto;">
@@ -470,11 +483,11 @@ $cuotas = $prestamosServicio->reportePrestamosCuota($filtros, $pagina, $porPagin
                     <?php if ($totalPaginas > 1): ?>
                         <div class="pagination">
                             <?php if ($pagina > 1): ?>
-                                <a href="index.php?module=prestamos&action=reporte_cuota&estado_cuota=<?= $escape($filtros['estado_cuota'] ?? '') ?>&fecha_inicio=<?= $escape($filtros['fecha_inicio'] ?? '') ?>&fecha_fin=<?= $escape($filtros['fecha_fin'] ?? '') ?>&pagina=<?= $pagina - 1 ?>">Anterior</a>
+                                <a href="index.php?module=prestamos&action=reporte_cuota&socio=<?= $escape($filtros['socio'] ?? '') ?>&estado_cuota=<?= $escape($filtros['estado_cuota'] ?? '') ?>&fecha_inicio=<?= $escape($filtros['fecha_inicio'] ?? '') ?>&fecha_fin=<?= $escape($filtros['fecha_fin'] ?? '') ?>&pagina=<?= $pagina - 1 ?>">Anterior</a>
                             <?php endif; ?>
                             <span>Página <?= $pagina ?> de <?= $totalPaginas ?> (<?= $total ?> registros)</span>
                             <?php if ($pagina < $totalPaginas): ?>
-                                <a href="index.php?module=prestamos&action=reporte_cuota&estado_cuota=<?= $escape($filtros['estado_cuota'] ?? '') ?>&fecha_inicio=<?= $escape($filtros['fecha_inicio'] ?? '') ?>&fecha_fin=<?= $escape($filtros['fecha_fin'] ?? '') ?>&pagina=<?= $pagina + 1 ?>">Siguiente</a>
+                                <a href="index.php?module=prestamos&action=reporte_cuota&socio=<?= $escape($filtros['socio'] ?? '') ?>&estado_cuota=<?= $escape($filtros['estado_cuota'] ?? '') ?>&fecha_inicio=<?= $escape($filtros['fecha_inicio'] ?? '') ?>&fecha_fin=<?= $escape($filtros['fecha_fin'] ?? '') ?>&pagina=<?= $pagina + 1 ?>">Siguiente</a>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

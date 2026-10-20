@@ -3,7 +3,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
 
 $prestamosServicio = new \Sacs\Services\PrestamosServicio();
 
-$usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+$usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 $displayName = substr($usuario, 0, 2);
 $profile = 'Administrador';
 
@@ -480,6 +480,10 @@ $operaciones = [
                     <div class="info-item">
                         <span class="info-label">Producto</span>
                         <span class="info-value"><?= $escape($prestamo['producto'] ?? '-') ?></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Trámite</span>
+                        <span class="info-value"><?= $escape($prestamo['tramite'] ?? '-') ?></span>
                     </div>
                 </div>
             </section>

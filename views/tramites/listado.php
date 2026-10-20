@@ -77,8 +77,11 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         .pagination-info { margin: 0 16px; font-size: 13px; color: var(--muted); }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
         .badge-registrado { background: #d4edda; color: #155724; }
+        .badge-pendiente { background: #fff3cd; color: #856404; }
+        .badge-derivado { background: #cce5ff; color: #004085; }
+        .badge-aprobado { background: #d1ecf1; color: #0c5460; }
+        .badge-finalizado { background: #d4edda; color: #155724; }
         .badge-eliminado { background: #f8d7da; color: #721c24; }
-        .badge-incompleto { background: #fff3cd; color: #856404; }
         @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .sidebar { display: none; } }
     </style>
 </head>
@@ -132,8 +135,11 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                         <select name="estado">
                             <option value="">Todos</option>
                             <option value="REGISTRADO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'REGISTRADO') ? 'selected' : '' ?>>Registrado</option>
+                            <option value="PENDIENTE" <?= (isset($_GET['estado']) && $_GET['estado'] == 'PENDIENTE') ? 'selected' : '' ?>>Pendiente</option>
+                            <option value="DERIVADO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'DERIVADO') ? 'selected' : '' ?>>Derivado</option>
+                            <option value="APROBADO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'APROBADO') ? 'selected' : '' ?>>Aprobado</option>
+                            <option value="FINALIZADO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'FINALIZADO') ? 'selected' : '' ?>>Finalizado</option>
                             <option value="ELIMINADO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'ELIMINADO') ? 'selected' : '' ?>>Eliminado</option>
-                            <option value="INCOMPLETO" <?= (isset($_GET['estado']) && $_GET['estado'] == 'INCOMPLETO') ? 'selected' : '' ?>>Incompleto</option>
                         </select>
                     </div>
                     <div class="filter-group">
@@ -198,16 +204,33 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
 
             <?php if (!empty($tramites) && ($totalPaginas ?? 1) > 1): ?>
                 <div class="pagination">
+                    <?php
+                    // Construir query string con todos los filtros
+                    $queryParams = [];
+                    if (isset($_GET['busqueda']) && $_GET['busqueda'] !== '') {
+                        $queryParams['busqueda'] = $_GET['busqueda'];
+                    }
+                    if (isset($_GET['tipo']) && $_GET['tipo'] !== '') {
+                        $queryParams['tipo'] = $_GET['tipo'];
+                    }
+                    if (isset($_GET['estado']) && $_GET['estado'] !== '') {
+                        $queryParams['estado'] = $_GET['estado'];
+                    }
+                    if (isset($_GET['socio']) && $_GET['socio'] !== '') {
+                        $queryParams['socio'] = $_GET['socio'];
+                    }
+                    $queryString = http_build_query($queryParams);
+                    ?>
                     <?php if ($paginaActual > 1): ?>
-                        <a href="index.php?module=tramites&action=listar&pagina=<?= $paginaActual - 1 ?><?= isset($_GET['busqueda']) ? '&busqueda=' . urlencode($_GET['busqueda']) : '' ?>" class="pagination-btn">Anterior</a>
+                        <a href="index.php?module=tramites&action=listar&pagina=<?= $paginaActual - 1 ?><?= $queryString ? '&' . $queryString : '' ?>" class="pagination-btn">Anterior</a>
                     <?php else: ?>
                         <button class="pagination-btn" disabled>Anterior</button>
                     <?php endif; ?>
-                    
+
                     <span class="pagination-info">Página <?= $paginaActual ?> de <?= $totalPaginas ?></span>
-                    
+
                     <?php if ($paginaActual < $totalPaginas): ?>
-                        <a href="index.php?module=tramites&action=listar&pagina=<?= $paginaActual + 1 ?><?= isset($_GET['busqueda']) ? '&busqueda=' . urlencode($_GET['busqueda']) : '' ?>" class="pagination-btn">Siguiente</a>
+                        <a href="index.php?module=tramites&action=listar&pagina=<?= $paginaActual + 1 ?><?= $queryString ? '&' . $queryString : '' ?>" class="pagination-btn">Siguiente</a>
                     <?php else: ?>
                         <button class="pagination-btn" disabled>Siguiente</button>
                     <?php endif; ?>

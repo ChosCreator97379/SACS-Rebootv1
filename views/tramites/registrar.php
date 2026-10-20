@@ -4,7 +4,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
 $tramitesServicio = new \Sacs\Services\TramitesServicio();
 $sociosServicio = new \Sacs\Services\SociosServicio();
 
-$usuario = $_SESSION['usuario'] ?? 'SISTEMA';
+$usuario = $_SESSION['sacs_user']['username'] ?? 'SISTEMA';
 $displayName = substr($usuario, 0, 2);
 $profile = 'Administrador';
 
@@ -123,6 +123,7 @@ $socioSeleccionado = $socioSeleccionado ?? null;
                 <input type="hidden" name="module" value="tramites">
                 <input type="hidden" name="action" value="registrar">
                 <input type="hidden" name="csrf_token" value="<?= $escape($_SESSION['csrf_token'] ?? '') ?>">
+                <input type="hidden" name="popup" value="<?= $escape($_GET['popup'] ?? '') ?>">
 
                 <div class="form-container">
                     <!-- Búsqueda de Socio -->
@@ -131,13 +132,21 @@ $socioSeleccionado = $socioSeleccionado ?? null;
                         <div class="form-row">
                             <div class="form-group" style="flex: 0 0 200px;">
                                 <label>Código de Socio</label>
-                                <input type="text" name="socio_codigo" id="socio_codigo" placeholder="Código">
+                                <input type="text" name="socio_codigo" id="socio_codigo" placeholder="Código" value="<?= $escape($_GET['socio_codigo'] ?? '') ?>">
                             </div>
                             <div class="form-group">
                                 <label>Acción</label>
                                 <button type="button" onclick="buscarSocio()" class="btn-sm btn-primary" style="padding: 8px 16px;">Buscar</button>
                             </div>
                         </div>
+
+                        <?php if (isset($_GET['popup']) && $_GET['popup'] === '1'): ?>
+                            <div class="form-row" style="margin-top: 16px;">
+                                <div class="form-group" style="grid-column: span 2;">
+                                    <button type="button" onclick="window.close()" class="btn-sm btn-secondary" style="padding: 8px 16px;">Cerrar Ventana</button>
+                                </div>
+                            </div>
+                        <?php endif; ?>
 
                         <div class="socio-info" id="socio_info" style="display: none;">
                             <h4>Datos del Socio</h4>
@@ -310,115 +319,125 @@ $socioSeleccionado = $socioSeleccionado ?? null;
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Cargar correlativos
-            const correlativos = <?= json_encode($correlativos ?? []) ?>;
+        // Definir funciones globalmente antes de DOMContentLoaded
+        window.buscarSocio = function() {
+            const codigo = document.getElementById('socio_codigo').value.trim();
 
-            window.buscarSocio = function() {
-                const codigo = document.getElementById('socio_codigo').value.trim();
+            if (!codigo) {
+                alert('Ingrese un código de socio');
+                return;
+            }
 
-                if (!codigo) {
-                    alert('Ingrese un código de socio');
-                    return;
-                }
+            // Mostrar mensaje de carga
+            const btn = document.querySelector('button[onclick="buscarSocio()"]');
+            const originalText = btn.textContent;
+            btn.textContent = 'Buscando...';
+            btn.disabled = true;
 
-                // Mostrar mensaje de carga
-                const btn = document.querySelector('button[onclick="buscarSocio()"]');
-                const originalText = btn.textContent;
-                btn.textContent = 'Buscando...';
-                btn.disabled = true;
+            // Buscar socio con AJAX
+            fetch('index.php?module=tramites&action=buscar_socio_ajax&codigo=' + encodeURIComponent(codigo))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const socio = data.socio;
 
-                // Buscar socio con AJAX
-                fetch('index.php?module=tramites&action=buscar_socio_ajax&codigo=' + encodeURIComponent(codigo))
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            const socio = data.socio;
+                        // Mostrar datos del socio
+                        const nombreCompleto = (socio.F01_NOMB_PRI || '') + ' ' +
+                                              (socio.F01_NOMB_SEG || '') + ' ' +
+                                              (socio.F01_APE_PAT || '') + ' ' +
+                                              (socio.F01_APE_MAT || '');
 
-                            // Mostrar datos del socio
-                            const nombreCompleto = (socio.F01_NOMB_PRI || '') + ' ' +
-                                                  (socio.F01_NOMB_SEG || '') + ' ' +
-                                                  (socio.F01_APE_PAT || '') + ' ' +
-                                                  (socio.F01_APE_MAT || '');
+                        const nombreFormateado = nombreCompleto.trim() || '-';
 
-                            const nombreFormateado = nombreCompleto.trim() || '-';
-
-                            const socioInfo = document.getElementById('socio_info');
-                            if (socioInfo) {
-                                socioInfo.style.display = 'block';
-                                const parrafos = socioInfo.querySelectorAll('p');
-                                if (parrafos.length >= 6) {
-                                    parrafos[0].innerHTML = '<strong>Nombre:</strong> ' + nombreFormateado;
-                                    parrafos[1].innerHTML = '<strong>Código:</strong> ' + (socio.F02_ID_CLIENTE || '-');
-                                    parrafos[2].innerHTML = '<strong>DNI:</strong> ' + (socio.F01_NUM_DOC || '-');
-                                    parrafos[3].innerHTML = '<strong>Cuenta:</strong> ' + (socio.F01_CUENTA || '-');
-                                    parrafos[4].innerHTML = '<strong>Celular:</strong> ' + (socio.F01_TELF_CEL || '-');
-                                    parrafos[5].innerHTML = '<strong>Email:</strong> ' + (socio.F01_CTA_CORREO || '-');
-                                }
+                        const socioInfo = document.getElementById('socio_info');
+                        if (socioInfo) {
+                            socioInfo.style.display = 'block';
+                            const parrafos = socioInfo.querySelectorAll('p');
+                            if (parrafos.length >= 6) {
+                                parrafos[0].innerHTML = '<strong>Nombre:</strong> ' + nombreFormateado;
+                                parrafos[1].innerHTML = '<strong>Código:</strong> ' + (socio.F02_ID_CLIENTE || '-');
+                                parrafos[2].innerHTML = '<strong>DNI:</strong> ' + (socio.F01_NUM_DOC || '-');
+                                parrafos[3].innerHTML = '<strong>Cuenta:</strong> ' + (socio.F01_CUENTA || '-');
+                                parrafos[4].innerHTML = '<strong>Celular:</strong> ' + (socio.F01_TELF_CEL || '-');
+                                parrafos[5].innerHTML = '<strong>Email:</strong> ' + (socio.F01_CTA_CORREO || '-');
                             }
-
-                            // Actualizar campos ocultos
-                            document.querySelector('input[name="socio"]').value = socio.F02_ID_CLIENTE || '';
-                            document.querySelector('input[name="nombres"]').value = nombreFormateado;
-                            document.querySelector('input[name="socio_dni"]').value = socio.F01_NUM_DOC || '';
-                            document.querySelector('input[name="cuenta"]').value = socio.F01_CUENTA || '';
-                        } else {
-                            alert(data.message || 'Socio no encontrado');
                         }
-                    })
-                    .catch(error => {
-                        alert('Error al buscar socio: ' + error);
-                    })
-                    .finally(() => {
-                        btn.textContent = originalText;
-                        btn.disabled = false;
-                    });
-            };
 
-            window.generarNumero = function() {
-                const tipo = document.getElementById('tipo').value;
-                const numeroInput = document.getElementById('numero');
-
-                if (!tipo) {
-                    numeroInput.value = '';
-                    return;
-                }
-
-                // Buscar correlativo del tipo seleccionado
-                const correlativo = correlativos.find(c => c.tipo_doc == tipo);
-
-                if (correlativo) {
-                    const numeroActual = parseInt(correlativo.numero_actual);
-                    const numeroInicio = parseInt(correlativo.numero_inicio);
-                    const numeroFin = parseInt(correlativo.numero_fin);
-                    const anioActual = new Date().getFullYear();
-
-                    // Incrementar número actual
-                    let nuevoNumero = numeroActual + 1;
-
-                    // Si excede el rango, reiniciar al inicio
-                    if (nuevoNumero > numeroFin) {
-                        nuevoNumero = numeroInicio;
-                    }
-
-                    // Tipos 22, 23, 24 necesitan formato con cero a la izquierda (4 dígitos)
-                    const tiposConCero = [22, 23, 24];
-                    let numeroFormateado;
-                    if (tiposConCero.includes(parseInt(tipo))) {
-                        numeroFormateado = String(nuevoNumero).padStart(4, '0');
+                        // Actualizar campos ocultos
+                        document.querySelector('input[name="socio"]').value = socio.F02_ID_CLIENTE || '';
+                        document.querySelector('input[name="nombres"]').value = nombreFormateado;
+                        document.querySelector('input[name="socio_dni"]').value = socio.F01_NUM_DOC || '';
+                        document.querySelector('input[name="cuenta"]').value = socio.F01_CUENTA || '';
                     } else {
-                        numeroFormateado = String(nuevoNumero);
+                        alert(data.message || 'Socio no encontrado');
                     }
+                })
+                .catch(error => {
+                    alert('Error al buscar socio: ' + error);
+                })
+                .finally(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                });
+        };
 
-                    // Combinar número y año (formato: NUMERO-AÑO)
-                    const numeroTramite = numeroFormateado + '-' + anioActual;
+        window.generarNumero = function() {
+            const tipo = document.getElementById('tipo').value;
+            const numeroInput = document.getElementById('numero');
 
-                    numeroInput.value = numeroTramite;
-                } else {
-                    numeroInput.value = '';
-                    alert('No existe correlativo para este tipo de documento');
+            if (!tipo) {
+                numeroInput.value = '';
+                return;
+            }
+
+            // Buscar correlativo del tipo seleccionado
+            const correlativo = window.correlativos?.find(c => c.tipo_doc == tipo);
+
+            if (correlativo) {
+                const numeroActual = parseInt(correlativo.numero_actual);
+                const numeroInicio = parseInt(correlativo.numero_inicio);
+                const numeroFin = parseInt(correlativo.numero_fin);
+                const anioActual = new Date().getFullYear();
+
+                // Incrementar número actual
+                let nuevoNumero = numeroActual + 1;
+
+                // Si excede el rango, reiniciar al inicio
+                if (nuevoNumero > numeroFin) {
+                    nuevoNumero = numeroInicio;
                 }
-            };
+
+                // Tipos 22, 23, 24 necesitan formato con cero a la izquierda (4 dígitos)
+                const tiposConCero = [22, 23, 24];
+                let numeroFormateado;
+                if (tiposConCero.includes(parseInt(tipo))) {
+                    numeroFormateado = String(nuevoNumero).padStart(4, '0');
+                } else {
+                    numeroFormateado = String(nuevoNumero);
+                }
+
+                // Combinar número y año (formato: NUMERO-AÑO)
+                const numeroTramite = numeroFormateado + '-' + anioActual;
+
+                numeroInput.value = numeroTramite;
+            } else {
+                numeroInput.value = '';
+                alert('No existe correlativo para este tipo de documento');
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cargar correlativos y guardar globalmente
+            window.correlativos = <?= json_encode($correlativos ?? []) ?>;
+
+            // Si es popup y hay código de socio prellenado, buscar automáticamente
+            <?php if (isset($_GET['popup']) && $_GET['popup'] === '1' && !empty($_GET['socio_codigo'])): ?>
+                const codigoSocio = '<?= $escape($_GET['socio_codigo']) ?>';
+                if (codigoSocio) {
+                    // Esperar un momento para que el DOM esté completamente listo
+                    setTimeout(() => buscarSocio(), 100);
+                }
+            <?php endif; ?>
         });
     </script>
 </body>
