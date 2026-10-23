@@ -426,12 +426,14 @@ class SociosServicio
                     p.F01_TITULO,
                     nac.F11_DESC_NACIONALD as nacionalidad_nombre,
                     ins.F10_DESC_INSTRUCC as instruccion_nombre,
-                    prof.F09_DESC_PROF as profesion_nombre
+                    prof.F09_DESC_PROF as profesion_nombre,
+                    td.F35_DOCUMENTO_DESC as tipo_documento_nombre
                 FROM f02_cliente c
                 INNER JOIN f01_persona p ON c.F02_ID_PERSONA = p.F01_ID_PERSONA
                 LEFT JOIN f11_nacionalidad nac ON p.F01_ID_NACIONALIDAD = nac.F11_ID_NACIONALIDAD
                 LEFT JOIN f10_instruccion ins ON p.F01_ID_INSTRUCCION = ins.F10_ID_INSTRUCCION
                 LEFT JOIN f09_profesion prof ON p.F01_ID_PROFESION = prof.F09_ID_PROFESION
+                LEFT JOIN f35_tipo_documento td ON p.F01_TPO_DOC = td.F35_DOCUMENTO_ID
                 WHERE CAST(c.F02_ID_CLIENTE AS UNSIGNED) = CAST(:cliente AS UNSIGNED)
                 LIMIT 1";
         
@@ -443,7 +445,254 @@ class SociosServicio
             return [];
         }
         
+        // Convertir códigos a descripciones
+        $socio = $this->convertirCodigosADescripciones($socio);
+        
         return $socio;
+    }
+
+    /**
+     * Convertir códigos numéricos a descripciones legibles
+     */
+    private function convertirCodigosADescripciones(array $socio): array
+    {
+        // Sexo: 1 = MASCULINO, 2 = FEMENINO
+        $sexos = [1 => 'MASCULINO', 2 => 'FEMENINO'];
+        $socio['F01_SEXO_DESC'] = $sexos[$socio['F01_SEXO']] ?? 'Sin información';
+        
+        // Estado Civil: 1 = SOLTERO, 2 = CASADO, 3 = DIVORCIADO, 4 = VIUDO(A)
+        $estadosCiviles = [1 => 'SOLTERO', 2 => 'CASADO', 3 => 'DIVORCIADO', 4 => 'VIUDO(A)'];
+        $socio['F01_STDO_CIVIL_DESC'] = $estadosCiviles[$socio['F01_STDO_CIVIL']] ?? 'Sin información';
+        
+        // Estado Personal: 1 = HABIL, 0 = BAJA DEFINITIVA, 9 = BAJA PARCIAL, 5 = BAJA CON DEUDA, 7 = ?
+        $estadosPersonales = [
+            1 => 'HABIL',
+            0 => 'BAJA DEFINITIVA',
+            9 => 'BAJA PARCIAL',
+            5 => 'BAJA CON DEUDA',
+            7 => 'Sin definir'
+        ];
+        $socio['F01_STDO_PERSN_DESC'] = $estadosPersonales[$socio['F01_STDO_PERSN']] ?? 'Sin información';
+        
+        // Ubigeo de dirección actual - buscar en f05_ubigeo
+        if (!empty($socio['F01_DEPARTAMENTO']) && !empty($socio['F01_PROVINCIA']) && !empty($socio['F01_DISTRITO'])) {
+            $ubigeoDir = $this->obtenerUbigeoPorCodigo($socio['F01_DEPARTAMENTO'], $socio['F01_PROVINCIA'], $socio['F01_DISTRITO']);
+            if ($ubigeoDir) {
+                $socio['F01_DEPARTAMENTO_DESC'] = $ubigeoDir['ubigeo_departamento'];
+                $socio['F01_PROVINCIA_DESC'] = $ubigeoDir['ubigeo_provincia'];
+                $socio['F01_DISTRITO_DESC'] = $ubigeoDir['ubigeo_distrito'];
+            } else {
+                // Si no encuentra en ubigeo, mostrar los códigos originales
+                $socio['F01_DEPARTAMENTO_DESC'] = $socio['F01_DEPARTAMENTO'];
+                $socio['F01_PROVINCIA_DESC'] = $socio['F01_PROVINCIA'];
+                $socio['F01_DISTRITO_DESC'] = $socio['F01_DISTRITO'];
+            }
+        } else {
+            $socio['F01_DEPARTAMENTO_DESC'] = $socio['F01_DEPARTAMENTO'] ?? 'Sin información';
+            $socio['F01_PROVINCIA_DESC'] = $socio['F01_PROVINCIA'] ?? 'Sin información';
+            $socio['F01_DISTRITO_DESC'] = $socio['F01_DISTRITO'] ?? 'Sin información';
+        }
+        
+        // Ubigeo de nacimiento (códigos de 2 caracteres) - buscar en f05_ubigeo
+        if (!empty($socio['F01_DPTO_NAC']) && !empty($socio['F01_PROV_NAC']) && !empty($socio['F01_DISTRI_NAC'])) {
+            $ubigeoNac = $this->obtenerUbigeoPorCodigo($socio['F01_DPTO_NAC'], $socio['F01_PROV_NAC'], $socio['F01_DISTRI_NAC']);
+            if ($ubigeoNac) {
+                $socio['F01_DPTO_NAC_DESC'] = $ubigeoNac['ubigeo_departamento'];
+                $socio['F01_PROV_NAC_DESC'] = $ubigeoNac['ubigeo_provincia'];
+                $socio['F01_DISTRI_NAC_DESC'] = $ubigeoNac['ubigeo_distrito'];
+            } else {
+                $socio['F01_DPTO_NAC_DESC'] = $socio['F01_DPTO_NAC'];
+                $socio['F01_PROV_NAC_DESC'] = $socio['F01_PROV_NAC'];
+                $socio['F01_DISTRI_NAC_DESC'] = $socio['F01_DISTRI_NAC'];
+            }
+        } else {
+            $socio['F01_DPTO_NAC_DESC'] = $socio['F01_DPTO_NAC'] ?? 'Sin información';
+            $socio['F01_PROV_NAC_DESC'] = $socio['F01_PROV_NAC'] ?? 'Sin información';
+            $socio['F01_DISTRI_NAC_DESC'] = $socio['F01_DISTRI_NAC'] ?? 'Sin información';
+        }
+        
+        return $socio;
+    }
+
+    /**
+     * Obtener ubigeo por códigos de departamento, provincia y distrito
+     */
+    private function obtenerUbigeoPorCodigo(string $dpto, string $prov, string $dist): ?array
+    {
+        // Intentar buscar con código de 6 dígitos (formato ubigeo)
+        $codigo = $dpto . $prov . $dist;
+        
+        $sql = "SELECT ubigeo_departamento, ubigeo_provincia, ubigeo_distrito 
+                FROM f05_ubigeo 
+                WHERE ubigeo_codigo = :codigo 
+                LIMIT 1";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':codigo' => $codigo]);
+        $result = $stmt->fetch();
+        
+        return $result ?: null;
+    }
+
+    /**
+     * Obtener préstamos de un socio
+     */
+    public function obtenerPrestamosSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f16_codigo,
+                    f16_fecha,
+                    f16_importe,
+                    f16_interes,
+                    f16_cuotas,
+                    f16_cuotasPend,
+                    f16_saldo,
+                    f16_estado,
+                    f16_fechaApro,
+                    f16_fechaCancela,
+                    f16_desembolso,
+                    f16_sobre,
+                    f16_gastosa,
+                    f16_gastosm,
+                    f16_otros,
+                    f16_otros2,
+                    f16_cuotaMe,
+                    f16_total,
+                    f16_tramite
+                FROM f16_prestamo
+                WHERE f16_cliente = CAST(:cliente AS UNSIGNED)
+                ORDER BY f16_fecha DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $prestamos = $stmt->fetchAll();
+        
+        return $prestamos ?: [];
+    }
+
+    /**
+     * Obtener aportes FONBES de un socio
+     */
+    public function obtenerAportesFonbesSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f22_aporte_id,
+                    f22_socio,
+                    f22_periodo,
+                    f22_aportacionP,
+                    f22_aportacionD,
+                    f22_diferencia,
+                    f22_fechaPago,
+                    f22_aportacion
+                FROM f22_aportes
+                WHERE f22_socio = CAST(:cliente AS UNSIGNED)
+                ORDER BY f22_periodo DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $aportes = $stmt->fetchAll();
+        
+        return $aportes ?: [];
+    }
+
+    /**
+     * Obtener aportes COOPAM de un socio
+     */
+    public function obtenerAportesCoopamSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f27_aporte_id,
+                    f27_socio,
+                    f27_periodo,
+                    f27_aportacionP,
+                    f27_aportacionD,
+                    f27_diferencia,
+                    f27_fechaPago,
+                    f27_aportacion
+                FROM f27_aportes_cope
+                WHERE f27_socio = CAST(:cliente AS UNSIGNED)
+                ORDER BY f27_periodo DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $aportes = $stmt->fetchAll();
+        
+        return $aportes ?: [];
+    }
+
+    /**
+     * Obtener sobregiro de préstamos de un socio
+     */
+    public function obtenerSobregiroPrestamosSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f16_codigo,
+                    f16_sobre,
+                    f16_saldo,
+                    f16_estado
+                FROM f16_prestamo
+                WHERE f16_cliente = CAST(:cliente AS UNSIGNED)
+                AND f16_sobre > 0
+                ORDER BY f16_sobre DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $prestamosSobregiro = $stmt->fetchAll();
+        
+        return $prestamosSobregiro ?: [];
+    }
+
+    /**
+     * Obtener beneficios de un socio
+     */
+    public function obtenerBeneficiosSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f21_codigo,
+                    f21_nombres,
+                    f21_tipoPa,
+                    f21_fechaFa,
+                    f21_beneficiario,
+                    f21_fecha,
+                    f21_importe,
+                    f21_estado,
+                    f21_tipo,
+                    f21_acredita,
+                    f21_lugar_falle,
+                    f21_tramite
+                FROM f21_beneficios
+                WHERE f21_socio = CAST(:cliente AS UNSIGNED)
+                ORDER BY f21_fecha DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $beneficios = $stmt->fetchAll();
+        
+        return $beneficios ?: [];
+    }
+
+    /**
+     * Obtener multas de un socio
+     */
+    public function obtenerMultasSocio(string $idCliente): array
+    {
+        $sql = "SELECT 
+                    f63_codigo,
+                    f63_periodo,
+                    f63_multap,
+                    f63_multad,
+                    f63_multar,
+                    f63_fechaPago,
+                    f63_formaPago
+                FROM f63_multa
+                WHERE f63_socio = :cliente
+                ORDER BY f63_periodo DESC";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $multas = $stmt->fetchAll();
+        
+        return $multas ?: [];
     }
 
     /**

@@ -85,7 +85,7 @@ $nextPage = min($pages, $page + 1);
                         <td class="date"><?= $escape($entry['date']) ?></td>
                         <td><a class="movement-link" href="?module=caja&amp;movement=<?= $escape($entry['movement_id']) ?>">#<?= $escape($entry['movement_id']) ?></a></td>
                         <td class="operation"><?= $escape($entry['operation_name'] ?? '-') ?><br><span class="muted">Op <?= $escape($entry['operation'] ?? '-') ?></span></td>
-                        <td><?= $escape($entry['accounting_code'] ?? '-') ?></td>
+                        <td><a class="movement-link" href="?module=caja&amp;action=detalle_asientos&amp;movement=<?= $escape($entry['movement_id']) ?>&amp;date_from=<?= $escape($filters['date_from']) ?>&amp;date_to=<?= $escape($filters['date_to']) ?>&amp;operation=<?= $escape($filters['operation']) ?>&amp;client=<?= $escape($filters['client']) ?>&amp;accounting_code=<?= $escape($filters['accounting_code']) ?>"><?= $escape($entry['accounting_code'] ?? '-') ?></a></td>
                         <td><?= $escape($entry['description'] ?? '-') ?></td>
                         <td class="amount debe"><?= $money($entry['debe']) ?></td>
                         <td class="amount haber"><?= $money($entry['haber']) ?></td>

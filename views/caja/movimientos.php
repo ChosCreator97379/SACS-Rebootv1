@@ -196,7 +196,7 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
                                 <td class="muted"><a href="?module=caja&amp;movement=<?= $escape($movement['id']) ?>">#<?= $escape($movement['id']) ?></a></td>
                                 <td class="date"><?= $escape($movement['operation_date']) ?></td>
                                 <td class="operation"><?= $escape($movement['operation_name']) ?><br><span class="muted">Operacion <?= $escape($movement['operation_id']) ?></span></td>
-                                <td><a class="client-link" href="?module=caja&amp;profile=client&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td>
+                                <td><a class="client-link" href="?module=socios&amp;action=consulta_rapida&amp;client=<?= rawurlencode((string) $movement['client_id']) ?>">Cliente #<?= $escape($movement['client_id']) ?></a><br><span class="muted"><?= $escape($clientLabel) ?></span></td>
                                 <td class="amount"><?= $money($movement['loan_payment_amount'] ?? 0) ?></td>
                                 <td class="amount"><?= $money($movement['admin_expense'] ?? 0) ?></td>
                                 <td class="amount"><?= $money($movement['late_fee'] ?? 0) ?></td>

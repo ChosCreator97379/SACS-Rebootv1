@@ -241,7 +241,7 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
                                     <td><?= $escape($socio['F01_SITUACION'] ?: 'Activo') ?></td>
                                     <td>
                                         <div class="actions">
-                                            <a href="index.php?module=caja&profile=client&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-primary">Ver</a>
+                                            <a href="index.php?module=socios&action=consulta_rapida&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-primary">Ver</a>
                                             <a href="index.php?module=socios&action=info&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-secondary">Info</a>
                                             <a href="index.php?module=socios&action=auditoria&client=<?= $escape($socio['F02_ID_CLIENTE']) ?>" class="btn-sm btn-secondary">Auditoría</a>
                                         </div>

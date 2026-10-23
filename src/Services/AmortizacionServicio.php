@@ -112,6 +112,11 @@ class AmortizacionServicio
             file_put_contents($logFile, $logMessage, FILE_APPEND);
             $this->actualizarPrestamo($pdo, $prestamo, $calculo);
 
+            // 8. Actualizar cuota individual (f17_cuotasprestamo)
+            $logMessage = sprintf("[%s] ACTUALIZANDO CUOTA INDIVIDUAL\n", date('Y-m-d H:i:s'));
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
+            $this->actualizarCuota($pdo, (int)$datos['prestamo'], (int)$datos['cuota'], $calculo);
+
             $pdo->commit();
             
             // Registrar éxito
@@ -273,6 +278,33 @@ class AmortizacionServicio
             $prestamoActualizado['fechaUP'],
             $prestamoActualizado['sobre'],
             $prestamo['f16_codigo'],
+        ]);
+    }
+
+    /**
+     * Actualiza cuota individual en f17_cuotasprestamo
+     * Marca la cuota como pagada y actualiza los montos
+     */
+    private function actualizarCuota(PDO $pdo, int $prestamoId, int $numeroCuota, array $calculo): void
+    {
+        $cuotaActualizada = $calculo['cuota_actualizada'] ?? [];
+
+        $sql = "UPDATE f17_cuotasprestamo
+                SET f17_estado = 'PAGADO',
+                    f17_saldo = ?,
+                    f17_capital = ?,
+                    f17_interes = ?,
+                    f17_total = ?
+                WHERE f17_prestamo = ? AND f17_ncuota = ?";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $cuotaActualizada['saldo'] ?? 0,
+            $cuotaActualizada['capital'] ?? 0,
+            $cuotaActualizada['interes'] ?? 0,
+            $cuotaActualizada['total'] ?? 0,
+            $prestamoId,
+            $numeroCuota
         ]);
     }
 

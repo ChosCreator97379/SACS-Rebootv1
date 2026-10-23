@@ -585,6 +585,27 @@ final class CajaRepository
         ];
     }
 
+    public function movementAccountingEntries(int $movementId): array
+    {
+        $query = <<<'SQL'
+            SELECT d.f37_codigo AS id, d.f37_movimiento AS movement_id, d.f37_fecha AS date,
+                   d.f37_codigo_contable AS accounting_code, d.f37_operacion AS operation,
+                   d.f37_descripcion AS description, d.f37_debe AS debe, d.f37_haber AS haber,
+                   d.f37_usuario_crea AS user, d.f37_fecha_crea AS created_at, d.f37_estado AS status,
+                   o.f14_nombre AS operation_name, m.f15_cliente AS client_id
+            FROM f37_diario_contable d
+            LEFT JOIN f14_operacion o ON o.f14_codigo = d.f37_operacion
+            LEFT JOIN f15_movimiento m ON m.f15_codigo = d.f37_movimiento
+            WHERE d.f37_movimiento = :movement_id
+            ORDER BY d.f37_fecha DESC, d.f37_codigo DESC
+        SQL;
+
+        $statement = Database::connection()->prepare($query);
+        $statement->execute(['movement_id' => $movementId]);
+
+        return $statement->fetchAll();
+    }
+
     private function decimal(mixed $value): float
     {
         return $value === null || $value === '' ? 0.0 : (float) $value;

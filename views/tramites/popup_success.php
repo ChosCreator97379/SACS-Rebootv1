@@ -1,5 +1,6 @@
 <?php
 $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value ?? ''), ENT_QUOTES, 'UTF-8');
+$esPopup = ($_GET['popup'] ?? '') === '1';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -70,6 +71,8 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
             cursor: pointer;
             background: #1d7a78;
             color: white;
+            text-decoration: none;
+            display: inline-block;
         }
         .btn:hover {
             background: #166664;
@@ -87,7 +90,11 @@ $escape = static fn (mixed $value): string => htmlspecialchars((string) ($value 
         <div class="success-detail">
             El trámite se ha registrado correctamente.
         </div>
-        <button type="button" onclick="window.close()" class="btn">Cerrar Ventana</button>
+        <?php if ($esPopup): ?>
+            <button type="button" onclick="window.close()" class="btn">Cerrar Ventana</button>
+        <?php else: ?>
+            <a href="index.php?module=tramites&action=listar" class="btn">Volver al Listado</a>
+        <?php endif; ?>
     </div>
 
     <script>

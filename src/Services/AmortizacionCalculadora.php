@@ -238,7 +238,13 @@ final class AmortizacionCalculadora
                 'sobregiro_calculado' => $sobregiro,
                 'sobregiro_existente' => $s,
                 'cuota_mensual' => $cuotaMensual,
-                'amortizacion_cuota' => $amortizacion,
+                'amortizacion_cuota' => $amortiza,
+            ],
+            'cuota_actualizada' => [
+                'saldo' => max(0, $saldoCuota - $amortiza),
+                'capital' => min($amortiza, $saldoCuota),
+                'interes' => 0,
+                'total' => min($amortiza, $saldoCuota),
             ],
         ];
     }

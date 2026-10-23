@@ -134,6 +134,16 @@ $supervisor = $user['supervisor'] === 'S';
             <article class="stat"><div class="stat-label">Identificador</div><div class="stat-value">#<?= $userId ?></div><div class="stat-detail">Base de pruebas SACS</div></article>
         </section>
 
+        <section class="quick-search" aria-labelledby="quick-socio-title">
+            <div class="quick-copy"><h2 class="quick-title" id="quick-socio-title">Consulta rápida de Socio</h2><p class="quick-note">Busca la información completa de un socio por su código.</p></div>
+            <form class="quick-form" method="get" action="index.php">
+                <input type="hidden" name="module" value="socios">
+                <input type="hidden" name="action" value="consulta_rapida">
+                <input name="client" inputmode="numeric" maxlength="11" required placeholder="Código de socio" aria-label="Código de socio">
+                <button type="submit">Consultar</button>
+            </form>
+        </section>
+
         <section class="quick-search" aria-labelledby="quick-caja-title">
             <div class="quick-copy"><h2 class="quick-title" id="quick-caja-title">Consulta rápida de Caja</h2><p class="quick-note">Busca los movimientos de un cliente sin cargar el histórico completo.</p></div>
             <form class="quick-form" method="get" action="index.php">

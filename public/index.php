@@ -405,17 +405,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Verificar si es modo popup
                 $popupMode = ($_POST['popup'] ?? '') === '1';
 
-                if ($popupMode) {
-                    // Renderizar vista de éxito con el número de trámite
-                    $_GET['tramite_numero'] = $resultado['numero'];
-                    require dirname(__DIR__) . '/views/tramites/popup_success.php';
-                    exit;
-                } else {
-                    // Redirigir al listado normal
-                    $query = http_build_query(['module' => 'tramites', 'action' => 'listar', 'success' => $resultado['message']]);
-                    header('Location: index.php?' . $query);
-                    exit;
-                }
+                // Renderizar vista de éxito con el número de trámite (tanto para popup como normal)
+                $_GET['tramite_numero'] = $resultado['numero'];
+                $_GET['popup'] = $popupMode ? '1' : '0';
+                require dirname(__DIR__) . '/views/tramites/popup_success.php';
+                exit;
             } else {
                 $query = http_build_query(['module' => 'tramites', 'action' => 'registrar', 'error' => $resultado['message']]);
                 header('Location: index.php?' . $query);
@@ -2982,6 +2976,18 @@ if (($_GET['module'] ?? '') === 'caja') {
             exit;
         }
 
+        if (($_GET['action'] ?? '') === 'amortizacion') {
+            $loanId = filter_var($_GET['loan'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($clientId !== '' && $loanId !== false && $loanId !== null) {
+                require dirname(__DIR__) . '/views/caja/amortizacion.php';
+                exit;
+            }
+            http_response_code(400);
+            $error = 'Datos inválidos para el formulario de amortización';
+            require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
         if (($_GET['action'] ?? '') === 'desembolso_beneficio_form') {
             $benefitId = filter_var($_GET['benefit'] ?? null, FILTER_VALIDATE_INT);
             if ($clientId !== '' && $benefitId !== false && $benefitId !== null) {
@@ -3061,6 +3067,29 @@ if (($_GET['module'] ?? '') === 'caja') {
 
         if (($_GET['action'] ?? '') === 'cuenta_no_pagable') {
             require dirname(__DIR__) . '/views/caja/cuenta_no_pagable.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'detalle_asientos') {
+            $movementId = filter_var($_GET['movement'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($movementId === false || $movementId === null) {
+                http_response_code(400);
+                $error = 'ID de movimiento no especificado o inválido.';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+
+            $repository = new CajaRepository();
+            $entries = $repository->movementAccountingEntries($movementId);
+
+            // Pasar los filtros a la vista para preservarlos al volver
+            $_GET['date_from'] = $_GET['date_from'] ?? '';
+            $_GET['date_to'] = $_GET['date_to'] ?? '';
+            $_GET['operation'] = $_GET['operation'] ?? '';
+            $_GET['client'] = $_GET['client'] ?? '';
+            $_GET['accounting_code'] = $_GET['accounting_code'] ?? '';
+
+            require dirname(__DIR__) . '/views/caja/detalle_asientos.php';
             exit;
         }
 
@@ -3173,6 +3202,30 @@ if (($_GET['module'] ?? '') === 'caja') {
             $situaciones = $sociosServicio->obtenerSituaciones();
             
             require dirname(__DIR__) . '/views/socios/listado.php';
+            exit;
+        }
+
+        // GET: Consulta rápida de socio (desde dashboard)
+        if ($action === 'consulta_rapida') {
+            $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
+            
+            if ($clienteCodigo === '') {
+                http_response_code(400);
+                $error = 'Cliente no especificado';
+                require dirname(__DIR__) . '/views/home.php';
+                exit;
+            }
+            
+            $socio = $sociosServicio->obtenerSocioDetalle($clienteCodigo);
+            $prestamos = $sociosServicio->obtenerPrestamosSocio($clienteCodigo);
+            $aportesFonbes = $sociosServicio->obtenerAportesFonbesSocio($clienteCodigo);
+            $aportesCoopam = $sociosServicio->obtenerAportesCoopamSocio($clienteCodigo);
+            $sobregiroPrestamos = $sociosServicio->obtenerSobregiroPrestamosSocio($clienteCodigo);
+            $beneficios = $sociosServicio->obtenerBeneficiosSocio($clienteCodigo);
+            $multas = $sociosServicio->obtenerMultasSocio($clienteCodigo);
+            $clienteCodigo = $clienteCodigo;
+            
+            require dirname(__DIR__) . '/views/socios/consulta_rapida.php';
             exit;
         }
 
