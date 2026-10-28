@@ -89,7 +89,7 @@ $selectedClient = trim((string) ($filters['client'] ?? ''));
             <div class="nav-label">Caja</div>
             <nav class="nav">
                 <?php if ($selectedClient !== ''): ?>
-                    <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Perfil Cliente</a>
+                    <a href="index.php?module=socios&action=consulta_rapida&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Perfil Cliente</a>
                     <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes FONBES</a>
                     <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Aportes COOPAM</a>
                     <a href="index.php?module=caja&action=aportes_combinados_form&client=<?= rawurlencode($selectedClient) ?>" class="nav-link">Pago FONBES + COOPAM</a>

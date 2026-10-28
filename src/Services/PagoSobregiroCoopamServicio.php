@@ -219,7 +219,7 @@ final class PagoSobregiroCoopamServicio
     {
         $sql = "INSERT INTO f15_movimiento (
                     f15_codigo, f15_fecha, f15_operacion, f15_cliente,
-                    f15_mretiro, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2
+                    f15_maportacion, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2
                 ) VALUES (
                     :codigo, NOW(), 15, :cliente,
                     :monto, :formaPago, :usuario, NOW(), :obs, :obs2
@@ -241,7 +241,7 @@ final class PagoSobregiroCoopamServicio
      */
     private function insertarDiarioContable(PDO $pdo, int $codigoMovimiento, array $datos, array $datosContables, float $monto): void
     {
-        $tipoAsiento = $datosContables['tipoAsiento'] ?? 'haber';
+        $tipoAsiento = strtolower($datosContables['tipoAsiento'] ?? 'haber');
         
         $sql = "INSERT INTO f37_diario_contable (
                     f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion,

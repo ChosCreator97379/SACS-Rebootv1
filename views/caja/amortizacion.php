@@ -206,7 +206,7 @@ $codigoContablePorFormaPago = [
         </a>
         <div class="nav-label">Caja</div>
         <nav class="nav" aria-label="Navegacion principal">
-            <a class="nav-link" href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>">Perfil Cliente</a>
+            <a class="nav-link" href="index.php?module=socios&action=consulta_rapida&client=<?= rawurlencode($clienteCodigo) ?>">Perfil Cliente</a>
             <a class="nav-link" href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes FONBES</a>
             <a class="nav-link" href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>">Aportes COOPAM</a>
             <a class="nav-link" href="index.php?module=caja&action=aportes_combinados_form&client=<?= rawurlencode($clienteCodigo) ?>">Pago FONBES + COOPAM</a>

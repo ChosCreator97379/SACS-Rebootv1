@@ -348,7 +348,7 @@ class AmortizacionServicio
         foreach ($codigosContables as $componente => $config) {
             // Solo insertar si hay monto mayor a 0 y tiene código contable
             if ($config['monto'] > 0 && !empty($config['codigo']) && !empty($config['tipo'])) {
-                $tipo = $config['tipo'];
+                $tipo = strtolower($config['tipo']);
                 $monto = $config['monto'];
 
                 $debe = $tipo === 'debe' ? $monto : 0.00;

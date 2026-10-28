@@ -174,7 +174,7 @@ class SobregiroPrestamoServicio
             if ($config['monto'] > 0 && !empty($config['codigo'])) {
                 // Usar tipo proporcionado o tipo por defecto según el componente
                 if (!empty($config['tipo'])) {
-                    $tipo = $config['tipo'];
+                    $tipo = strtolower($config['tipo']);
                 } else {
                     // Tipo por defecto según componente
                     $tipo = $this->obtenerTipoPorDefecto($componente);

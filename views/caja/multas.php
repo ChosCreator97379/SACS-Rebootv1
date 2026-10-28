@@ -118,7 +118,7 @@ $money = fn(float $amount): string => number_format($amount, 2, '.', ',');
             </a>
             <div class="nav-label">Caja</div>
             <nav class="nav">
-                <a href="index.php?module=caja&profile=client&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
+                <a href="index.php?module=socios&action=consulta_rapida&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
                 <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
                 <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
                 <a href="index.php?module=caja&action=aportes_combinados_form&client=<?= $escape($clienteCodigo) ?>" class="nav-link">Pago FONBES + COOPAM</a>

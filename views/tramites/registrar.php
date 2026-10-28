@@ -156,6 +156,10 @@ $socioSeleccionado = $socioSeleccionado ?? null;
                             <p><strong>Cuenta:</strong> -</p>
                             <p><strong>Celular:</strong> -</p>
                             <p><strong>Email:</strong> -</p>
+                            <p><strong>Condición:</strong> -</p>
+                            <p><strong>Situación:</strong> -</p>
+                            <p><strong>Sobregiro:</strong> -</p>
+                            <p><strong>Garantes:</strong> -</p>
                         </div>
                         <input type="hidden" name="socio" value="">
                         <input type="hidden" name="nombres" value="">
@@ -353,13 +357,24 @@ $socioSeleccionado = $socioSeleccionado ?? null;
                         if (socioInfo) {
                             socioInfo.style.display = 'block';
                             const parrafos = socioInfo.querySelectorAll('p');
-                            if (parrafos.length >= 6) {
+                            if (parrafos.length >= 9) {
                                 parrafos[0].innerHTML = '<strong>Nombre:</strong> ' + nombreFormateado;
                                 parrafos[1].innerHTML = '<strong>Código:</strong> ' + (socio.F02_ID_CLIENTE || '-');
                                 parrafos[2].innerHTML = '<strong>DNI:</strong> ' + (socio.F01_NUM_DOC || '-');
                                 parrafos[3].innerHTML = '<strong>Cuenta:</strong> ' + (socio.F01_CUENTA || '-');
                                 parrafos[4].innerHTML = '<strong>Celular:</strong> ' + (socio.F01_TELF_CEL || '-');
                                 parrafos[5].innerHTML = '<strong>Email:</strong> ' + (socio.F01_CTA_CORREO || '-');
+                                parrafos[6].innerHTML = '<strong>Condición:</strong> ' + (socio.F01_CONDICION || '-');
+                                parrafos[7].innerHTML = '<strong>Situación:</strong> ' + (socio.F01_SITUACION || '-');
+                                parrafos[8].innerHTML = '<strong>Sobregiro:</strong> ' + (socio.tiene_sobregiro ? 'Sí' : 'No');
+                                
+                                // Mostrar garantes si existen
+                                const garantes = socio.garantes || [];
+                                if (garantes.length > 0) {
+                                    parrafos[9].innerHTML = '<strong>Garantes:</strong> ' + garantes.join(', ');
+                                } else {
+                                    parrafos[9].innerHTML = '<strong>Garantes:</strong> -';
+                                }
                             }
                         }
 

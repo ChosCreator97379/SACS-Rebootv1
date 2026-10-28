@@ -21,7 +21,7 @@ $database = Database::connection();
 $pagoIntegralServicio = new PagoIntegralServicio();
 
 $clienteCodigo = trim((string) ($_GET['client'] ?? ''));
-$prestamosSeleccionados = $_GET['prestamos'] ?? [];
+$prestamosSeleccionados = is_array($_GET['prestamos'] ?? []) ? $_GET['prestamos'] : [$_GET['prestamos'] ?? []];
 
 if ($clienteCodigo === '' || empty($prestamosSeleccionados)) {
     http_response_code(400);
@@ -171,7 +171,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             </a>
             <div class="nav-label">Caja</div>
             <nav class="nav">
-                <a href="index.php?module=caja&profile=client&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
+                <a href="index.php?module=socios&action=consulta_rapida&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Perfil Cliente</a>
                 <a href="index.php?module=caja&action=pago_integral_seleccion&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link active">Pago Integral</a>
                 <a href="index.php?module=caja&action=aportes_fonbes_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes FONBES</a>
                 <a href="index.php?module=caja&action=aportes_coopam_form&client=<?= rawurlencode($clienteCodigo) ?>" class="nav-link">Aportes COOPAM</a>
@@ -206,6 +206,15 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 <div><span class="label">Documento</span><div class="value"><?= $escape($cliente['document'] ?: '-') ?></div></div>
                 <div><span class="label">Condición</span><div class="value"><?= $escape($cliente['condicion'] ?: '-') ?></div></div>
             </section>
+
+            <form action="index.php" method="POST">
+                <input type="hidden" name="csrf_token" value="<?= $escape($csrfToken) ?>">
+                <input type="hidden" name="module" value="caja">
+                <input type="hidden" name="action" value="pago_integral">
+                <input type="hidden" name="cliente" value="<?= $escape($clienteCodigo) ?>">
+                <?php foreach ($prestamosSeleccionados as $prestamoCodigo): ?>
+                    <input type="hidden" name="prestamos[]" value="<?= $escape($prestamoCodigo) ?>">
+                <?php endforeach; ?>
 
             <!-- Componentes Globales -->
             <section class="panel">
@@ -581,13 +590,12 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                         </select>
                                     </td>
                                 </tr>
-                                <?php if ($pendientes['cuotaDetalle']['mora'] > 0): ?>
                                 <tr>
                                     <td>Mora (Cuota)</td>
                                     <td>
                                         <input type="text" name="montos[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_mora]" 
                                                id="monto-amortizacion-mora-<?= $escape($prestamoCodigo) ?>"
-                                               value="<?= $money($pendientes['cuotaDetalle']['mora']) ?>" 
+                                               value="<?= $money($pendientes['cuotaDetalle']['mora'] ?? 0) ?>" 
                                                class="amount-input" step="0.01" onchange="calcularTotales()">
                                     </td>
                                     <td>
@@ -601,7 +609,44 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                         </select>
                                     </td>
                                 </tr>
-                                <?php endif; ?>
+                                <tr>
+                                    <td>Otros 1</td>
+                                    <td>
+                                        <input type="text" name="montos[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros1]" 
+                                               id="monto-amortizacion-otros1-<?= $escape($prestamoCodigo) ?>"
+                                               value="<?= $money($pendientes['prestamoInfo']['otros1'] ?? 0) ?>" 
+                                               class="amount-input" step="0.01" onchange="calcularTotales()">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="codigosContables[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros1][codigo]" 
+                                               list="codigos-contables" value="1663" class="amount-input">
+                                    </td>
+                                    <td>
+                                        <select name="codigosContables[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros1][tipo]" class="amount-input">
+                                            <option value="HABER">Haber</option>
+                                            <option value="DEBE">Debe</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Otros 2</td>
+                                    <td>
+                                        <input type="text" name="montos[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros2]" 
+                                               id="monto-amortizacion-otros2-<?= $escape($prestamoCodigo) ?>"
+                                               value="<?= $money($pendientes['prestamoInfo']['otros2'] ?? 0) ?>" 
+                                               class="amount-input" step="0.01" onchange="calcularTotales()">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="codigosContables[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros2][codigo]" 
+                                               list="codigos-contables" value="1664" class="amount-input">
+                                    </td>
+                                    <td>
+                                        <select name="codigosContables[prestamos][<?= $escape($prestamoCodigo) ?>][amortizacion_otros2][tipo]" class="amount-input">
+                                            <option value="HABER">Haber</option>
+                                            <option value="DEBE">Debe</option>
+                                        </select>
+                                    </td>
+                                </tr>
                                 <tr class="total-row">
                                     <td><strong>Subtotal Amortización</strong></td>
                                     <td class="amount"><strong id="subtotal-amortizacion-<?= $escape($prestamoCodigo) ?>"><?= $money($pendientes['cuotaDetalle']['total']) ?></strong></td>
@@ -653,22 +698,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 
             <section class="panel">
                 <h2>Datos Generales</h2>
-                <form action="index.php" method="POST">
-                    <input type="hidden" name="csrf_token" value="<?= $escape($csrfToken) ?>">
-                    <input type="hidden" name="module" value="caja">
-                    <input type="hidden" name="action" value="pago_integral">
-                    <input type="hidden" name="cliente" value="<?= $escape($clienteCodigo) ?>">
-                    <?php foreach ($prestamosSeleccionados as $prestamoCodigo): ?>
-                        <input type="hidden" name="prestamos[]" value="<?= $escape($prestamoCodigo) ?>">
-                    <?php endforeach; ?>
-
-                    <datalist id="codigos-contables">
-                        <?php foreach ($codigosContables as $codigo): ?>
-                            <option value="<?= $escape($codigo['code']) ?>"><?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?></option>
-                        <?php endforeach; ?>
-                    </datalist>
-
-                    <div class="form-row">
+                <div class="form-row">
                         <div class="form-group">
                             <label>Forma de Pago</label>
                             <select name="formaPago" required>
@@ -678,6 +708,10 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 <option value="TRANSFERENCIA">Transferencia</option>
                                 <option value="CHEQUE">Cheque</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Código Contable (Monto Total - DEBE)</label>
+                            <input type="text" name="codigoContableMontoTotal" list="codigos-contables" placeholder="Código..." value="10612">
                         </div>
                         <div class="form-group">
                             <label>Descripción Contable</label>
@@ -691,11 +725,17 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                         </div>
                     </div>
 
+                    <datalist id="codigos-contables">
+                        <?php foreach ($codigosContables as $codigo): ?>
+                            <option value="<?= $escape($codigo['code']) ?>"><?= $escape($codigo['code']) ?> - <?= $escape($codigo['name']) ?></option>
+                        <?php endforeach; ?>
+                    </datalist>
+
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Procesar Pago Integral</button>
                         <a href="index.php?module=caja&action=pago_integral_seleccion&client=<?= rawurlencode($clienteCodigo) ?>" class="btn btn-secondary">Volver</a>
                     </div>
-                </form>
+            </form>
             </section>
         </main>
     </div>
@@ -745,8 +785,10 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 const amortizacionCapital<?= $escape($prestamoCodigo) ?> = parseMoney(document.getElementById('monto-amortizacion-capital-<?= $escape($prestamoCodigo) ?>')?.value);
                 const amortizacionInteres<?= $escape($prestamoCodigo) ?> = parseMoney(document.getElementById('monto-amortizacion-interes-<?= $escape($prestamoCodigo) ?>')?.value);
                 const amortizacionMora<?= $escape($prestamoCodigo) ?> = parseMoney(document.getElementById('monto-amortizacion-mora-<?= $escape($prestamoCodigo) ?>')?.value) || 0;
+                const amortizacionOtros1<?= $escape($prestamoCodigo) ?> = parseMoney(document.getElementById('monto-amortizacion-otros1-<?= $escape($prestamoCodigo) ?>')?.value) || 0;
+                const amortizacionOtros2<?= $escape($prestamoCodigo) ?> = parseMoney(document.getElementById('monto-amortizacion-otros2-<?= $escape($prestamoCodigo) ?>')?.value) || 0;
                 
-                subtotalAmortizacion<?= $escape($prestamoCodigo) ?> = amortizacionCapital<?= $escape($prestamoCodigo) ?> + amortizacionInteres<?= $escape($prestamoCodigo) ?> + amortizacionMora<?= $escape($prestamoCodigo) ?>;
+                subtotalAmortizacion<?= $escape($prestamoCodigo) ?> = amortizacionCapital<?= $escape($prestamoCodigo) ?> + amortizacionInteres<?= $escape($prestamoCodigo) ?> + amortizacionMora<?= $escape($prestamoCodigo) ?> + amortizacionOtros1<?= $escape($prestamoCodigo) ?> + amortizacionOtros2<?= $escape($prestamoCodigo) ?>;
 
                 const subtotalPrestamo<?= $escape($prestamoCodigo) ?> = subtotalSobregiro<?= $escape($prestamoCodigo) ?> + subtotalAmortizacion<?= $escape($prestamoCodigo) ?>;
                 subtotalPrestamos += subtotalPrestamo<?= $escape($prestamoCodigo) ?>;

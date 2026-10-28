@@ -37,7 +37,7 @@ final class PagoIntegralServicio
                     f16_importe as importe,
                     f16_cuotasPend as cuotas_pendientes,
                     f16_saldo as saldo,
-                    f16_aportacion as sobregiro,
+                    f16_sobre as sobregiro,
                     f16_fechaDes as fecha_desembolso
                 FROM f16_prestamo
                 WHERE f16_cliente = :cliente
@@ -262,90 +262,126 @@ final class PagoIntegralServicio
             );
             file_put_contents($logFile, $logMessage, FILE_APPEND);
 
-            $this->pdo->beginTransaction();
-
+            // NO iniciamos transacción global aquí
+            // Cada servicio individual manejará su propia transacción
             $movimientosGenerados = [];
             $clienteCodigo = $datos['cliente'];
             $prestamosSeleccionados = $datos['prestamos'];
+            $montosGlobales = $datos['montosGlobales'] ?? [];
+            $montosPrestamos = $datos['montosPrestamos'] ?? [];
+            $codigoContableMontoTotal = $codigosContables['codigoContableMontoTotal'] ?? '10612';
 
             // 1. Procesar componentes globales
-            $pendientesGlobales = $this->calcularPendientesGlobales($clienteCodigo);
-
             // Aportes FONBES
-            if ($pendientesGlobales['aportesFonbes'] > 0) {
-                $logMessage = sprintf("[%s] Procesando Aportes FONBES\n", date('Y-m-d H:i:s'));
-                file_put_contents($logFile, $logMessage, FILE_APPEND);
-
-                $aportesServicio = new AportesServicio($this->pdo);
-                $datosAportesFonbes = [
-                    'cliente' => $clienteCodigo,
-                    'anio' => date('Y'),
-                    'periodo' => 1,
-                    'periodo2' => 12,
-                    'monto' => $pendientesGlobales['aportesFonbes'],
-                    'formaPago' => $datos['formaPago'],
-                    'obs' => $datos['observaciones'] ?? '',
-                ];
-
-                if (isset($codigosContables['aportesFonbes'])) {
-                    $resultado = $aportesServicio->ejecutarPagoAportesFonbes(
-                        $datosAportesFonbes,
-                        $codigosContables['aportesFonbes']
-                    );
-                } else {
-                    $resultado = $aportesServicio->ejecutarPagoAportesFonbes($datosAportesFonbes);
+            if (!empty($montosGlobales['aportesFonbes'])) {
+                // Calcular monto total de aportes FONBES
+                $montoTotal = 0;
+                $aportesFonbes = is_array($montosGlobales['aportesFonbes']) ? $montosGlobales['aportesFonbes'] : [$montosGlobales['aportesFonbes']];
+                foreach ($aportesFonbes as $monto) {
+                    $montoTotal += (float) $monto;
                 }
+                
+                // Solo procesar si el monto total es mayor a 0
+                if ($montoTotal > 0) {
+                    $logMessage = sprintf("[%s] Procesando Aportes FONBES - Monto: %.2f\n", date('Y-m-d H:i:s'), $montoTotal);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
 
-                if ($resultado['exito']) {
-                    $movimientosGenerados[] = [
-                        'tipo' => 'Aportes FONBES',
-                        'codigo' => $resultado['codigo_movimiento'],
+                    $aportesServicio = new AportesServicio($this->pdo);
+                    
+                    // Extraer códigos contables específicos para FONBES
+                    $codigosAportesFonbes = $codigosContables['aportesFonbes'] ?? [];
+                    
+                    $datosAportesFonbes = [
+                        'cliente' => $clienteCodigo,
+                        'anio' => date('Y'),
+                        'periodo' => 1,
+                        'periodo2' => 12,
+                        'monto' => $montoTotal,
+                        'formaPago' => $datos['formaPago'],
+                        'obs' => $datos['observaciones'] ?? '',
                     ];
+
+                    if (isset($codigosContables['aportesFonbes'])) {
+                        $resultado = $aportesServicio->ejecutarPagoAportesFonbes(
+                            $datosAportesFonbes,
+                            $codigosContables['aportesFonbes']
+                        );
+                    } else {
+                        $resultado = $aportesServicio->ejecutarPagoAportesFonbes($datosAportesFonbes);
+                    }
+
+                    if ($resultado['exito']) {
+                        $movimientosGenerados[] = [
+                            'tipo' => 'Aportes FONBES',
+                            'codigo' => $resultado['codigo_movimiento'],
+                            'monto' => $montoTotal,
+                            'desglose' => $montosGlobales['aportesFonbes'],
+                        ];
+                    }
+                } else {
+                    $logMessage = sprintf("[%s] OMITIENDO Aportes FONBES - Monto es 0\n", date('Y-m-d H:i:s'));
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
                 }
             }
 
             // Aportes COOPAM
-            if ($pendientesGlobales['aportesCoopam'] > 0) {
-                $logMessage = sprintf("[%s] Procesando Aportes COOPAM\n", date('Y-m-d H:i:s'));
-                file_put_contents($logFile, $logMessage, FILE_APPEND);
-
-                $aportesCoopamServicio = new AportesCoopamServicio($this->pdo);
-                $datosAportesCoopam = [
-                    'cliente' => $clienteCodigo,
-                    'anio' => date('Y'),
-                    'periodo' => 1,
-                    'periodo2' => 12,
-                    'monto' => $pendientesGlobales['aportesCoopam'],
-                    'formaPago' => $datos['formaPago'],
-                    'obs' => $datos['observaciones'] ?? '',
-                ];
-
-                if (isset($codigosContables['aportesCoopam'])) {
-                    $resultado = $aportesCoopamServicio->ejecutarPagoAportesCoopam(
-                        $datosAportesCoopam,
-                        $codigosContables['aportesCoopam']
-                    );
-                } else {
-                    $resultado = $aportesCoopamServicio->ejecutarPagoAportesCoopam($datosAportesCoopam);
+            if (!empty($montosGlobales['aportesCoopam'])) {
+                // Calcular monto total de aportes COOPAM
+                $montoTotal = 0;
+                $aportesCoopam = is_array($montosGlobales['aportesCoopam']) ? $montosGlobales['aportesCoopam'] : [$montosGlobales['aportesCoopam']];
+                foreach ($aportesCoopam as $monto) {
+                    $montoTotal += (float) $monto;
                 }
+                
+                // Solo procesar si el monto total es mayor a 0
+                if ($montoTotal > 0) {
+                    $logMessage = sprintf("[%s] Procesando Aportes COOPAM - Monto: %.2f\n", date('Y-m-d H:i:s'), $montoTotal);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
 
-                if ($resultado['exito']) {
-                    $movimientosGenerados[] = [
-                        'tipo' => 'Aportes COOPAM',
-                        'codigo' => $resultado['codigo_movimiento'],
+                    $aportesCoopamServicio = new AportesCoopamServicio($this->pdo);
+                    
+                    $datosAportesCoopam = [
+                        'cliente' => $clienteCodigo,
+                        'anio' => date('Y'),
+                        'periodo' => 1,
+                        'periodo2' => 12,
+                        'monto' => $montoTotal,
+                        'formaPago' => $datos['formaPago'],
+                        'obs' => $datos['observaciones'] ?? '',
                     ];
+
+                    if (isset($codigosContables['aportesCoopam'])) {
+                        $resultado = $aportesCoopamServicio->ejecutarPagoAportesCoopam(
+                            $datosAportesCoopam,
+                            $codigosContables['aportesCoopam']
+                        );
+                    } else {
+                        $resultado = $aportesCoopamServicio->ejecutarPagoAportesCoopam($datosAportesCoopam);
+                    }
+
+                    if ($resultado['exito']) {
+                        $movimientosGenerados[] = [
+                            'tipo' => 'Aportes COOPAM',
+                            'codigo' => $resultado['codigo_movimiento'],
+                            'monto' => $montoTotal,
+                            'desglose' => $montosGlobales['aportesCoopam'],
+                        ];
+                    }
+                } else {
+                    $logMessage = sprintf("[%s] OMITIENDO Aportes COOPAM - Monto es 0\n", date('Y-m-d H:i:s'));
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
                 }
             }
 
             // Sobregiro FONBES
-            if ($pendientesGlobales['sobregiroFonbes'] > 0) {
-                $logMessage = sprintf("[%s] Procesando Sobregiro FONBES\n", date('Y-m-d H:i:s'));
+            if (!empty($montosGlobales['sobregiroFonbes']) && $montosGlobales['sobregiroFonbes'] > 0) {
+                $logMessage = sprintf("[%s] Procesando Sobregiro FONBES - Monto: %.2f\n", date('Y-m-d H:i:s'), $montosGlobales['sobregiroFonbes']);
                 file_put_contents($logFile, $logMessage, FILE_APPEND);
 
                 $sobregiroFonbesServicio = new PagoSobregiroFonbesServicio($this->pdo);
                 $datosSobregiroFonbes = [
                     'cliente' => $clienteCodigo,
-                    'monto' => $pendientesGlobales['sobregiroFonbes'],
+                    'monto' => $montosGlobales['sobregiroFonbes'],
                     'formaPago' => $datos['formaPago'],
                     'obs' => $datos['observaciones'] ?? '',
                 ];
@@ -363,19 +399,23 @@ final class PagoIntegralServicio
                     $movimientosGenerados[] = [
                         'tipo' => 'Sobregiro FONBES',
                         'codigo' => $resultado['codigo_movimiento'],
+                        'monto' => $montosGlobales['sobregiroFonbes'],
                     ];
                 }
+            } else {
+                $logMessage = sprintf("[%s] OMITIENDO Sobregiro FONBES - Monto es 0 o no especificado\n", date('Y-m-d H:i:s'));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
             }
 
             // Sobregiro COOPAM
-            if ($pendientesGlobales['sobregiroCoopam'] > 0) {
-                $logMessage = sprintf("[%s] Procesando Sobregiro COOPAM\n", date('Y-m-d H:i:s'));
+            if (!empty($montosGlobales['sobregiroCoopam']) && $montosGlobales['sobregiroCoopam'] > 0) {
+                $logMessage = sprintf("[%s] Procesando Sobregiro COOPAM - Monto: %.2f\n", date('Y-m-d H:i:s'), $montosGlobales['sobregiroCoopam']);
                 file_put_contents($logFile, $logMessage, FILE_APPEND);
 
                 $sobregiroCoopamServicio = new PagoSobregiroCoopamServicio($this->pdo);
                 $datosSobregiroCoopam = [
                     'cliente' => $clienteCodigo,
-                    'monto' => $pendientesGlobales['sobregiroCoopam'],
+                    'monto' => $montosGlobales['sobregiroCoopam'],
                     'formaPago' => $datos['formaPago'],
                     'obs' => $datos['observaciones'] ?? '',
                 ];
@@ -393,39 +433,68 @@ final class PagoIntegralServicio
                     $movimientosGenerados[] = [
                         'tipo' => 'Sobregiro COOPAM',
                         'codigo' => $resultado['codigo_movimiento'],
+                        'monto' => $montosGlobales['sobregiroCoopam'],
                     ];
                 }
+            } else {
+                $logMessage = sprintf("[%s] OMITIENDO Sobregiro COOPAM - Monto es 0 o no especificado\n", date('Y-m-d H:i:s'));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
             }
 
             // 2. Procesar componentes por préstamo
             foreach ($prestamosSeleccionados as $prestamoCodigo) {
-                $pendientesPrestamo = $this->calcularPendientesPorPrestamo((int) $prestamoCodigo);
                 $codigosPrestamo = $codigosContables['prestamos'][$prestamoCodigo] ?? [];
+                $montosPrestamo = $montosPrestamos[$prestamoCodigo] ?? [];
 
                 // Sobregiro del préstamo
-                if ($pendientesPrestamo['sobregiro'] > 0) {
-                    $logMessage = sprintf("[%s] Procesando Sobregiro Préstamo #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                if (!empty($montosPrestamo['sobregiro']) && $montosPrestamo['sobregiro'] > 0) {
+                    $logMessage = sprintf("[%s] Procesando Sobregiro Préstamo #%d - Monto: %.2f\n", date('Y-m-d H:i:s'), $prestamoCodigo, $montosPrestamo['sobregiro']);
                     file_put_contents($logFile, $logMessage, FILE_APPEND);
 
                     $sobregiroPrestamoServicio = new SobregiroPrestamoServicio();
                     $datosSobregiroPrestamo = [
                         'cliente' => $clienteCodigo,
                         'prestamo' => $prestamoCodigo,
-                        'monto' => $pendientesPrestamo['sobregiro'],
-                        'sobregiro' => $pendientesPrestamo['sobregiro'],
+                        'monto' => $montoTotalSobregiro,
+                        'sobregiro' => $montosPrestamo['sobregiro'],
                         'descuenta' => 0,
-                        'gastosAdm' => 0,
-                        'gastosMora' => 0,
-                        'otros1' => 0,
-                        'otros2' => 0,
+                        'gastosAdm' => $montosPrestamo['gastos_adm'] ?? 0,
+                        'gastosMora' => $montosPrestamo['gastos_mora'] ?? 0,
+                        'otros1' => $montosPrestamo['otros1'] ?? 0,
+                        'otros2' => $montosPrestamo['otros2'] ?? 0,
                         'formaPago' => $datos['formaPago'],
                         'obs' => $datos['observaciones'] ?? '',
                     ];
 
-                    if (isset($codigosPrestamo['sobregiro'])) {
+                    // Filtrar códigos contables de sobregiro (componentes granulares)
+                    $codigosSobregiro = [];
+                    $mapeoComponentes = [
+                        'sobregiro' => 'sobregiro',
+                        'gastos_adm' => 'gastosAdm',
+                        'gastos_mora' => 'gastosMora',
+                        'otros1' => 'otros1',
+                        'otros2' => 'otros2',
+                    ];
+                    foreach ($mapeoComponentes as $componenteFormulario => $componenteServicio) {
+                        if (isset($codigosPrestamo[$componenteFormulario]) && !empty($codigosPrestamo[$componenteFormulario]['codigo'])) {
+                            $codigosSobregiro[$componenteServicio] = $codigosPrestamo[$componenteFormulario];
+                        }
+                    }
+
+                    // Agregar código contable del monto total (DEBE)
+                    $montoTotalSobregiro = $montosPrestamo['sobregiro'] + $montosPrestamo['gastos_adm'] + $montosPrestamo['gastos_mora'] + $montosPrestamo['otros1'] + $montosPrestamo['otros2'];
+                    if ($montoTotalSobregiro > 0) {
+                        $codigosSobregiro['monto'] = [
+                            'codigo' => $codigoContableMontoTotal,
+                            'tipo' => 'debe',
+                            'monto' => $montoTotalSobregiro,
+                        ];
+                    }
+
+                    if (!empty($codigosSobregiro)) {
                         $resultado = $sobregiroPrestamoServicio->ejecutarPagoSobregiroPrestamo(
                             $datosSobregiroPrestamo,
-                            $codigosPrestamo['sobregiro']
+                            $codigosSobregiro
                         );
                     } else {
                         $resultado = $sobregiroPrestamoServicio->ejecutarPagoSobregiroPrestamo($datosSobregiroPrestamo);
@@ -435,34 +504,86 @@ final class PagoIntegralServicio
                         $movimientosGenerados[] = [
                             'tipo' => "Sobregiro Préstamo #{$prestamoCodigo}",
                             'codigo' => $resultado['codigo_movimiento'],
+                            'monto' => $montoTotalSobregiro,
+                            'desglose' => [
+                                'sobregiro' => $montosPrestamo['sobregiro'],
+                                'gastos_adm' => $montosPrestamo['gastos_adm'] ?? 0,
+                                'gastos_mora' => $montosPrestamo['gastos_mora'] ?? 0,
+                                'otros1' => $montosPrestamo['otros1'] ?? 0,
+                                'otros2' => $montosPrestamo['otros2'] ?? 0,
+                            ],
                         ];
                     }
+                } else {
+                    $logMessage = sprintf("[%s] OMITIENDO Sobregiro Préstamo #%d - Monto es 0 o no especificado\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
                 }
 
                 // Amortización de cuota actual
-                if ($pendientesPrestamo['cuota'] !== null) {
-                    $logMessage = sprintf("[%s] Procesando Amortización Préstamo #%d, Cuota #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo, $pendientesPrestamo['cuota']['numero_cuota']);
+                $montoAmortizacionTotal = ($montosPrestamo['amortizacion_capital'] ?? 0) + 
+                                          ($montosPrestamo['amortizacion_interes'] ?? 0) +
+                                          ($montosPrestamo['amortizacion_mora'] ?? 0) +
+                                          ($montosPrestamo['amortizacion_otros1'] ?? 0) +
+                                          ($montosPrestamo['amortizacion_otros2'] ?? 0);
+                
+                if ($montoAmortizacionTotal > 0) {
+                    $logMessage = sprintf("[%s] Procesando Amortización Préstamo #%d - Monto Total: %.2f\n", date('Y-m-d H:i:s'), $prestamoCodigo, $montoAmortizacionTotal);
                     file_put_contents($logFile, $logMessage, FILE_APPEND);
 
+                    // Obtener cuota actual del préstamo
+                    $cuota = $this->obtenerCuotaActual((int) $prestamoCodigo);
+                    if ($cuota === null) {
+                        $logMessage = sprintf("[%s] ADVERTENCIA - No hay cuota vigente para préstamo #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                        file_put_contents($logFile, $logMessage, FILE_APPEND);
+                        continue;
+                    }
+
                     $amortizacionServicio = new AmortizacionServicio($this->pdo);
+                    
                     $datosAmortizacion = [
                         'cliente' => $clienteCodigo,
                         'prestamo' => $prestamoCodigo,
-                        'cuota' => $pendientesPrestamo['cuota']['numero_cuota'],
-                        'monto' => $pendientesPrestamo['cuota']['total'],
-                        'gastosAdm' => 0,
-                        'gastosMora' => 0,
-                        'otros1' => 0,
-                        'otros2' => 0,
+                        'cuota' => $cuota['numero_cuota'],
+                        'monto' => $montoAmortizacionTotal,
+                        'amortiza' => $montosPrestamo['amortizacion_capital'] ?? 0,
+                        'gastosAdm' => $montosPrestamo['amortizacion_interes'] ?? 0,
+                        'gastosMora' => $montosPrestamo['amortizacion_mora'] ?? 0,
+                        'otros1' => $montosPrestamo['amortizacion_otros1'] ?? 0,
+                        'otros2' => $montosPrestamo['amortizacion_otros2'] ?? 0,
+                        'sobregiro' => 0,
                         'formaPago' => $datos['formaPago'],
                         'obs' => $datos['observaciones'] ?? '',
                     ];
 
-                    if (isset($codigosPrestamo['amortizacion'])) {
+                    // Filtrar códigos contables de amortización (componentes granulares)
+                    $codigosAmortizacion = [];
+                    $mapeoComponentesAmortizacion = [
+                        'amortizacion_capital' => 'amortiza',
+                        'amortizacion_interes' => 'gastosAdm',
+                        'amortizacion_mora' => 'gastosMora',
+                        'amortizacion_otros1' => 'otros1',
+                        'amortizacion_otros2' => 'otros2',
+                    ];
+                    foreach ($mapeoComponentesAmortizacion as $componenteFormulario => $componenteServicio) {
+                        if (isset($codigosPrestamo[$componenteFormulario]) && !empty($codigosPrestamo[$componenteFormulario]['codigo'])) {
+                            $codigosAmortizacion[$componenteServicio] = $codigosPrestamo[$componenteFormulario];
+                        }
+                    }
+
+                    // Agregar código contable del monto total (DEBE)
+                    if ($montoAmortizacionTotal > 0) {
+                        $codigosAmortizacion['monto'] = [
+                            'codigo' => $codigoContableMontoTotal,
+                            'tipo' => 'debe',
+                            'monto' => $montoAmortizacionTotal,
+                        ];
+                    }
+
+                    if (!empty($codigosAmortizacion)) {
                         $resultado = $amortizacionServicio->ejecutarAmortizacionAEE(
                             $datosAmortizacion,
                             [],
-                            $codigosPrestamo['amortizacion']
+                            $codigosAmortizacion
                         );
                     } else {
                         $resultado = $amortizacionServicio->ejecutarAmortizacionAEE($datosAmortizacion);
@@ -472,12 +593,56 @@ final class PagoIntegralServicio
                         $movimientosGenerados[] = [
                             'tipo' => "Amortización Préstamo #{$prestamoCodigo}",
                             'codigo' => $resultado['codigo_movimiento'],
+                            'monto' => $montoAmortizacionTotal,
+                            'desglose' => [
+                                'capital' => $montosPrestamo['amortizacion_capital'] ?? 0,
+                                'interes' => $montosPrestamo['amortizacion_interes'] ?? 0,
+                                'mora' => $montosPrestamo['amortizacion_mora'] ?? 0,
+                                'otros1' => $montosPrestamo['amortizacion_otros1'] ?? 0,
+                                'otros2' => $montosPrestamo['amortizacion_otros2'] ?? 0,
+                            ],
                         ];
                     }
+                } else {
+                    $logMessage = sprintf("[%s] OMITIENDO Amortización Préstamo #%d - Monto total es 0\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
                 }
             }
 
-            $this->pdo->commit();
+            // NO hay commit global ya que cada servicio maneja su propia transacción
+
+            // 3. Insertar asiento contable general con el total de todas las operaciones
+            $totalGeneral = 0;
+            foreach ($movimientosGenerados as $movimiento) {
+                $totalGeneral += $movimiento['monto'];
+            }
+
+            if ($totalGeneral > 0) {
+                $logMessage = sprintf("[%s] Insertando asiento contable general - Total: %.2f\n", date('Y-m-d H:i:s'), $totalGeneral);
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                // Usar el último código de movimiento generado para el asiento general
+                $ultimoMovimiento = end($movimientosGenerados);
+                $codigoMovimientoGeneral = $ultimoMovimiento['codigo'] ?? 0;
+
+                $sql = "INSERT INTO f37_diario_contable
+                        (f37_movimiento, f37_fecha, f37_codigo_contable, f37_operacion, f37_descripcion,
+                         f37_debe, f37_haber, f37_usuario_crea, f37_fecha_crea, f37_estado)
+                        VALUES (:movimiento, :fecha, :codigoContable, :operacion, :descripcion,
+                                :debe, :haber, :usuario, NOW(), 'ACTIVO')";
+
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute([
+                    'movimiento' => $codigoMovimientoGeneral,
+                    'fecha' => date('Y-m-d'),
+                    'codigoContable' => $codigoContableMontoTotal,
+                    'operacion' => 10,
+                    'descripcion' => 'PAGO INTEGRAL - TOTAL GENERAL',
+                    'debe' => $totalGeneral,
+                    'haber' => 0.00,
+                    'usuario' => 'SISTEMA',
+                ]);
+            }
 
             // Registrar éxito
             $logMessage = sprintf(
@@ -495,10 +660,7 @@ final class PagoIntegralServicio
             ];
 
         } catch (RuntimeException $e) {
-            // Rollback ante error
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
+            // NO hay rollback ya que cada servicio maneja su propia transacción
 
             // Registrar error
             $logMessage = sprintf(

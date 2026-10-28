@@ -1350,39 +1350,114 @@ if ($auth->check()) {
             try {
                 $datos = [
                     'cliente' => trim((string) ($_POST['cliente'] ?? '')),
-                    'prestamos' => $_POST['prestamos'] ?? [],
+                    'prestamos' => is_array($_POST['prestamos'] ?? []) ? $_POST['prestamos'] : [$_POST['prestamos'] ?? []],
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'observaciones' => trim((string) ($_POST['observaciones'] ?? '')),
                 ];
 
                 // Procesar códigos contables globales
                 $codigosContables = [];
-                foreach (['aportesFonbes', 'aportesCoopam', 'sobregiroFonbes', 'sobregiroCoopam'] as $componente) {
-                    if (!empty($_POST['codigosContables'][$componente]['codigo'])) {
-                        $codigosContables[$componente] = [
-                            'codigoContable' => trim((string) $_POST['codigosContables'][$componente]['codigo']),
-                            'tipoAsiento' => trim((string) ($_POST['codigosContables'][$componente]['tipo'] ?? 'HABER')),
-                            'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                $codigoContableMontoTotal = trim((string) ($_POST['codigoContableMontoTotal'] ?? '10612'));
+
+                if (!empty($_POST['codigosContables']['globales'])) {
+                    // Aportes FONBES
+                    if (!empty($_POST['codigosContables']['globales']['aportesFonbes']['codigo'])) {
+                        $montoTotal = 0;
+                        if (!empty($montosGlobales['aportesFonbes'])) {
+                            if (is_array($montosGlobales['aportesFonbes'])) {
+                                foreach ($montosGlobales['aportesFonbes'] as $monto) {
+                                    $montoTotal += (float) $monto;
+                                }
+                            } else {
+                                $montoTotal = (float) $montosGlobales['aportesFonbes'];
+                            }
+                        }
+                        $codigosContables['aportesFonbes'] = [
+                            'aporte' => [
+                                'codigo' => trim((string) $_POST['codigosContables']['globales']['aportesFonbes']['codigo']),
+                                'tipo' => strtolower(trim((string) ($_POST['codigosContables']['globales']['aportesFonbes']['tipo'] ?? 'HABER'))),
+                                'monto' => $montoTotal,
+                            ]
                         ];
                     }
-                }
-
-                // Procesar códigos contables por préstamo
-                if (!empty($_POST['codigosContables']['prestamos'])) {
-                    $codigosContables['prestamos'] = [];
-                    foreach ($_POST['codigosContables']['prestamos'] as $prestamoCodigo => $codigos) {
-                        $codigosContables['prestamos'][$prestamoCodigo] = [];
-                        foreach (['sobregiro', 'amortizacion'] as $componente) {
-                            if (!empty($codigos[$componente]['codigo'])) {
-                                $codigosContables['prestamos'][$prestamoCodigo][$componente] = [
-                                    'codigoContable' => trim((string) $codigos[$componente]['codigo']),
-                                    'tipoAsiento' => trim((string) ($codigos[$componente]['tipo'] ?? 'HABER')),
-                                    'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
-                                ];
+                    // Aportes COOPAM
+                    if (!empty($_POST['codigosContables']['globales']['aportesCoopam']['codigo'])) {
+                        $montoTotal = 0;
+                        if (!empty($montosGlobales['aportesCoopam'])) {
+                            if (is_array($montosGlobales['aportesCoopam'])) {
+                                foreach ($montosGlobales['aportesCoopam'] as $monto) {
+                                    $montoTotal += (float) $monto;
+                                }
+                            } else {
+                                $montoTotal = (float) $montosGlobales['aportesCoopam'];
                             }
+                        }
+                        $codigosContables['aportesCoopam'] = [
+                            'aporte' => [
+                                'codigo' => trim((string) $_POST['codigosContables']['globales']['aportesCoopam']['codigo']),
+                                'tipo' => strtolower(trim((string) ($_POST['codigosContables']['globales']['aportesCoopam']['tipo'] ?? 'HABER'))),
+                                'monto' => $montoTotal,
+                            ]
+                        ];
+                    }
+                    // Sobregiro de Aportes
+                    foreach (['sobregiroFonbes', 'sobregiroCoopam'] as $componente) {
+                        if (!empty($_POST['codigosContables']['globales'][$componente]['codigo'])) {
+                            $codigosContables[$componente] = [
+                                'codigoContable' => trim((string) $_POST['codigosContables']['globales'][$componente]['codigo']),
+                                'tipoAsiento' => trim((string) ($_POST['codigosContables']['globales'][$componente]['tipo'] ?? 'HABER')),
+                                'descripcionContable' => trim((string) ($_POST['descripcionContable'] ?? '')),
+                            ];
                         }
                     }
                 }
+
+                // Procesar montos globales
+                $montosGlobales = [];
+                if (!empty($_POST['montos']['globales'])) {
+                    foreach ($_POST['montos']['globales'] as $componente => $valor) {
+                        if (is_array($valor)) {
+                            // Para aportes que tienen múltiples periodos
+                            foreach ($valor as $index => $monto) {
+                                $montosGlobales[$componente][$index] = (float) str_replace(',', '', $monto);
+                            }
+                        } else {
+                            // Para sobregiros que son valores únicos
+                            $montosGlobales[$componente] = (float) str_replace(',', '', $valor);
+                        }
+                    }
+                }
+
+                // Procesar códigos contables y montos por préstamo
+                $codigosContables['prestamos'] = [];
+                $montosPrestamos = [];
+                foreach ($datos['prestamos'] as $prestamoCodigo) {
+                    // Primero procesar montos
+                    if (!empty($_POST['montos']['prestamos'][$prestamoCodigo]) && is_array($_POST['montos']['prestamos'][$prestamoCodigo])) {
+                        foreach ($_POST['montos']['prestamos'][$prestamoCodigo] as $componente => $valor) {
+                            $montosPrestamos[$prestamoCodigo][$componente] = (float) str_replace(',', '', (string) $valor);
+                        }
+                    }
+                    // Luego procesar códigos contables agregando los montos
+                    if (!empty($_POST['codigosContables']['prestamos'][$prestamoCodigo]) && is_array($_POST['codigosContables']['prestamos'][$prestamoCodigo])) {
+                        // Normalizar estructura de códigos contables para el servicio
+                        $codigosPrestamo = [];
+                        foreach ($_POST['codigosContables']['prestamos'][$prestamoCodigo] as $componente => $config) {
+                            if (is_array($config) && !empty($config['codigo'])) {
+                                $codigosPrestamo[$componente] = [
+                                    'codigo' => trim((string) $config['codigo']),
+                                    'tipo' => trim((string) ($config['tipo'] ?? 'HABER')),
+                                    'monto' => $montosPrestamos[$prestamoCodigo][$componente] ?? 0,
+                                ];
+                            }
+                        }
+                        $codigosContables['prestamos'][$prestamoCodigo] = $codigosPrestamo;
+                    }
+                }
+
+                // Agregar montos a los datos
+                $datos['montosGlobales'] = $montosGlobales;
+                $datos['montosPrestamos'] = $montosPrestamos;
 
                 // Validaciones básicas
                 if ($datos['cliente'] === '' || empty($datos['prestamos'])) {
@@ -1394,12 +1469,12 @@ if ($auth->check()) {
                     $resultado = $servicio->ejecutarPagoIntegral($datos, $codigosContables);
 
                     if ($resultado['exito']) {
-                        // Redirigir al perfil del cliente con mensaje de éxito
+                        // Redirigir a la vista de éxito con los movimientos generados
                         $query = http_build_query([
                             'module' => 'caja',
-                            'profile' => 'client',
+                            'action' => 'pago_integral_success',
                             'client' => $datos['cliente'],
-                            'success' => 'Pago integral procesado correctamente. ' . count($resultado['movimientos']) . ' movimientos generados.'
+                            'movimientos' => $resultado['movimientos']
                         ]);
                         header('Location: index.php?' . $query);
                         exit;
@@ -1413,10 +1488,11 @@ if ($auth->check()) {
         }
 
         // Redirigir al formulario con error
-        $prestamosParam = implode('&prestamos[]=', $datos['prestamos']);
         $query = http_build_query(['module' => 'caja', 'action' => 'pago_integral_form', 'client' => $datos['cliente'], 'error' => $error]);
         if (!empty($datos['prestamos'])) {
-            $query .= '&prestamos[]=' . implode('&prestamos[]=', $datos['prestamos']);
+            foreach ($datos['prestamos'] as $prestamo) {
+                $query .= '&prestamos[]=' . $prestamo;
+            }
         }
         header('Location: index.php?' . $query);
         exit;
@@ -3019,6 +3095,11 @@ if (($_GET['module'] ?? '') === 'caja') {
             http_response_code(400);
             $error = 'Datos inválidos para el formulario de pago integral';
             require dirname(__DIR__) . '/views/home.php';
+            exit;
+        }
+
+        if (($_GET['action'] ?? '') === 'pago_integral_success') {
+            require dirname(__DIR__) . '/views/caja/pago_integral_success.php';
             exit;
         }
 

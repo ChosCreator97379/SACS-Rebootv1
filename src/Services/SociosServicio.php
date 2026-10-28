@@ -448,7 +448,57 @@ class SociosServicio
         // Convertir códigos a descripciones
         $socio = $this->convertirCodigosADescripciones($socio);
         
+        // Obtener sobregiro total del socio
+        $socio['tiene_sobregiro'] = $this->obtenerSobregiroTotal($idCliente);
+        
+        // Obtener garantes del socio
+        $socio['garantes'] = $this->obtenerGarantesSocio($idCliente);
+        
         return $socio;
+    }
+
+    /**
+     * Obtener sobregiro total de un socio
+     */
+    private function obtenerSobregiroTotal(string $idCliente): bool
+    {
+        $sql = "SELECT SUM(f16_sobre) as total_sobregiro
+                FROM f16_prestamo
+                WHERE f16_cliente = CAST(:cliente AS UNSIGNED)
+                AND f16_sobre > 0";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $result = $stmt->fetch();
+        
+        return ($result['total_sobregiro'] ?? 0) > 0;
+    }
+
+    /**
+     * Obtener códigos de garantes de un socio
+     */
+    private function obtenerGarantesSocio(string $idCliente): array
+    {
+        $sql = "SELECT DISTINCT f16_garante
+                FROM f16_prestamo
+                WHERE f16_cliente = CAST(:cliente AS UNSIGNED)
+                AND f16_garante IS NOT NULL
+                AND f16_garante != 0
+                AND f16_garante != ''";
+        
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':cliente' => $idCliente]);
+        $garantes = $stmt->fetchAll();
+        
+        // Extraer solo los códigos de garante
+        $codigosGarantes = [];
+        foreach ($garantes as $garante) {
+            if (!empty($garante['f16_garante'])) {
+                $codigosGarantes[] = $garante['f16_garante'];
+            }
+        }
+        
+        return $codigosGarantes;
     }
 
     /**
