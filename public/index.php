@@ -1455,9 +1455,20 @@ if ($auth->check()) {
                     }
                 }
 
+                // Procesar cuotas parciales seleccionadas
+                $cuotasParcialesSeleccionadas = [];
+                if (!empty($_POST['cuotas_parciales']) && is_array($_POST['cuotas_parciales'])) {
+                    foreach ($_POST['cuotas_parciales'] as $prestamoCodigo => $cuotas) {
+                        if (is_array($cuotas)) {
+                            $cuotasParcialesSeleccionadas[$prestamoCodigo] = array_map('intval', $cuotas);
+                        }
+                    }
+                }
+
                 // Agregar montos a los datos
                 $datos['montosGlobales'] = $montosGlobales;
                 $datos['montosPrestamos'] = $montosPrestamos;
+                $datos['cuotasParciales'] = $cuotasParcialesSeleccionadas;
 
                 // Validaciones básicas
                 if ($datos['cliente'] === '' || empty($datos['prestamos'])) {

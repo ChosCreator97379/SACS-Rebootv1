@@ -194,13 +194,33 @@ final class AmortizacionCalculadora
             // Cuando el saldo es menor o igual a la amortización (préstamo cancelado)
             $r = 0;
         }
-        
-        // Reducir cuotas pendientes solo si la amortización cubre completamente el saldo de la cuota
+
+        // Calcular cuotas restantes según el monto pagado
         $saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
-        if ($amortiza >= $saldoCuota) {
+        $totalCuotaProgramada = (float) ($cuota['f17_total'] ?? 0);
+        $totalPagado = $amortiza + $ga + $gm + $o1 + $o2;
+        $escenario = self::determinarEscenario($totalPagado, $totalCuotaProgramada, $cuotaMensual);
+
+        if ($escenario === 'completo' || $escenario === 'mas') {
+            // Pago completo o mayor: reducir cuotas pendientes
             $nuevasCuotasPend = $cuotasPend - 1;
+            
+            // Si pagó más, calcular cuántas cuotas adicionales se pueden eliminar
+            if ($escenario === 'mas' && $r > 0) {
+                $exceso = $amortiza - $saldoCuota;
+                $cuotasEliminadas = floor($exceso / $amortizacion);
+                $nuevasCuotasPend = max(0, $nuevasCuotasPend - $cuotasEliminadas);
+            }
+        } elseif ($escenario === 'menos') {
+            // Pago parcial: mantener cuotas pendientes (no reducir)
+            $nuevasCuotasPend = $cuotasPend;
         } else {
-            $nuevasCuotasPend = $cuotasPend; // No reducir si es pago parcial
+            // Fallback: comportamiento original
+            if ($amortiza >= $saldoCuota) {
+                $nuevasCuotasPend = $cuotasPend - 1;
+            } else {
+                $nuevasCuotasPend = $cuotasPend;
+            }
         }
         
         // Retornar resultado estructurado
@@ -246,7 +266,32 @@ final class AmortizacionCalculadora
                 'interes' => 0,
                 'total' => min($amortiza, $saldoCuota),
             ],
+            'escenario' => $escenario, // Agregar el escenario detectado
         ];
+    }
+    
+    /**
+     * Determina el escenario de pago según el monto pagado vs cuota programada
+     * 
+     * @param float $montoPagadoCapital Monto de capital pagado
+     * @param float $saldoCuota Saldo de la cuota
+     * @param float $cuotaProgramada Cuota mensual programada
+     * @return string 'completo', 'menos', 'mas', o 'parcial'
+     */
+    private static function determinarEscenario(float $montoPagadoCapital, float $totalCuotaProgramada, float $cuotaMensual): string
+    {
+        // Tolerancia de 0.01 para errores de redondeo
+        $tolerancia = 0.01;
+        
+        if (abs($montoPagadoCapital - $totalCuotaProgramada) <= $tolerancia) {
+            return 'completo'; // Pagó exacto
+        } elseif ($montoPagadoCapital > $totalCuotaProgramada + $tolerancia) {
+            return 'mas'; // Pagó más
+        } elseif ($montoPagadoCapital < $saldoCuota - $tolerancia) {
+            return 'menos'; // Pagó menos
+        }
+        
+        return 'parcial'; // Pago parcial cercano al exacto
     }
     
     /**

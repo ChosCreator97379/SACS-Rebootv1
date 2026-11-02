@@ -50,6 +50,45 @@ final class PagoIntegralServicio
     }
 
     /**
+     * Obtiene cuotas parciales de un préstamo (estado PARCIAL)
+     */
+    public function obtenerCuotasParciales(int $prestamoCodigo): array
+    {
+        $sql = "SELECT 
+                    f17_ncuota as numero_cuota,
+                    f17_capital as capital,
+                    f17_interes as interes,
+                    f17_total as total,
+                    f17_saldo as saldo,
+                    f17_fecha as fecha_vencimiento,
+                    f17_estado as estado
+                FROM f17_cuotasprestamo
+                WHERE f17_prestamo = :prestamo
+                AND f17_estado = 'PARCIAL'
+                ORDER BY f17_fecha ASC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(['prestamo' => $prestamoCodigo]);
+        $cuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calcular monto faltante para cada cuota
+        foreach ($cuotas as &$cuota) {
+            // Si el estado es PARCIAL, el faltante es la diferencia entre el total y lo que ya se pagó
+            // Como no tenemos un campo directo de lo pagado, usamos el capital original
+            // Para cuotas PARCIAL, asumimos que faltan completar el capital restante
+            if ($cuota['estado'] === 'PARCIAL') {
+                // Faltante = total original - capital pagado (si se pagó parcialmente)
+                // Por ahora, usamos el capital original como referencia
+                $cuota['faltante'] = $cuota['capital'];
+            } else {
+                $cuota['faltante'] = 0;
+            }
+        }
+
+        return $cuotas;
+    }
+
+    /**
      * Obtiene la cuota actual de un préstamo (la que debe pagarse hoy)
      * Prioridad: vencida hoy -> vencida recientemente -> próxima a vencer
      */
@@ -606,6 +645,85 @@ final class PagoIntegralServicio
                 } else {
                     $logMessage = sprintf("[%s] OMITIENDO Amortización Préstamo #%d - Monto total es 0\n", date('Y-m-d H:i:s'), $prestamoCodigo);
                     file_put_contents($logFile, $logMessage, FILE_APPEND);
+                }
+
+                // Procesar cuotas parciales seleccionadas
+                if (!empty($datos['cuotasParciales'][$prestamoCodigo])) {
+                    $cuotasParciales = $datos['cuotasParciales'][$prestamoCodigo];
+                    $logMessage = sprintf("[%s] Procesando %d cuotas parciales para préstamo #%d\n", date('Y-m-d H:i:s'), count($cuotasParciales), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                    foreach ($cuotasParciales as $numeroCuota) {
+                        // Obtener cuota parcial
+                        $stmt = $this->pdo->prepare("SELECT * FROM f17_cuotasprestamo WHERE f17_prestamo = ? AND f17_ncuota = ?");
+                        $stmt->execute([$prestamoCodigo, $numeroCuota]);
+                        $cuota = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                        $logMessage = sprintf("[%s] Cuota #%d - Estado: %s, Total: %.2f, Saldo: %.2f\n", date('Y-m-d H:i:s'), $numeroCuota, $cuota['f17_estado'] ?? 'N/A', $cuota['f17_total'] ?? 0, $cuota['f17_saldo'] ?? 0);
+                        file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                        if ($cuota && $cuota['f17_estado'] === 'PARCIAL') {
+                            // Calcular monto faltante
+                            $montoFaltante = $cuota['f17_total'] - $cuota['f17_saldo'];
+
+                            if ($montoFaltante > 0) {
+                                $logMessage = sprintf("[%s] Completando cuota parcial #%d - Faltante: %.2f\n", date('Y-m-d H:i:s'), $numeroCuota, $montoFaltante);
+                                file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                                $datosCompletarCuota = [
+                                    'cliente' => $clienteCodigo,
+                                    'prestamo' => $prestamoCodigo,
+                                    'cuota' => $numeroCuota,
+                                    'monto' => $montoFaltante,
+                                    'amortiza' => $montoFaltante, // Todo el faltante va a capital
+                                    'gastosAdm' => 0,
+                                    'gastosMora' => 0,
+                                    'otros1' => 0,
+                                    'otros2' => 0,
+                                    'sobregiro' => 0,
+                                    'formaPago' => $datos['formaPago'],
+                                    'obs' => 'Completar cuota parcial - Pago Integral',
+                                ];
+
+                                // Usar los mismos códigos contables que la amortización
+                                $codigosCompletar = $codigosAmortizacion ?? [];
+                                if (!empty($codigosCompletar)) {
+                                    // Ajustar montos en códigos contables
+                                    foreach ($codigosCompletar as &$codigo) {
+                                        if (isset($codigo['monto'])) {
+                                            $codigo['monto'] = $montoFaltante;
+                                        }
+                                    }
+                                }
+
+                                $logMessage = sprintf("[%s] Llamando a amortización para completar cuota #%d\n", date('Y-m-d H:i:s'), $numeroCuota);
+                                file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                                $resultado = $amortizacionServicio->ejecutarAmortizacionAEE(
+                                    $datosCompletarCuota,
+                                    [],
+                                    $codigosCompletar
+                                );
+
+                                $logMessage = sprintf("[%s] Resultado completar cuota #%d: %s\n", date('Y-m-d H:i:s'), $numeroCuota, $resultado['exito'] ? 'EXITO' : 'ERROR');
+                                file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                                if ($resultado['exito']) {
+                                    $movimientosGenerados[] = [
+                                        'tipo' => "Completar Cuota Parcial #{$numeroCuota} (Préstamo #{$prestamoCodigo})",
+                                        'codigo' => $resultado['codigo_movimiento'],
+                                        'monto' => $montoFaltante,
+                                    ];
+                                }
+                            } else {
+                                $logMessage = sprintf("[%s] OMITIENDO cuota parcial #%d - Faltante es 0\n", date('Y-m-d H:i:s'), $numeroCuota);
+                                file_put_contents($logFile, $logMessage, FILE_APPEND);
+                            }
+                        } else {
+                            $logMessage = sprintf("[%s] OMITIENDO cuota #%d - No es PARCIAL o no existe\n", date('Y-m-d H:i:s'), $numeroCuota);
+                            file_put_contents($logFile, $logMessage, FILE_APPEND);
+                        }
+                    }
                 }
             }
 

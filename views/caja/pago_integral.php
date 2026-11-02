@@ -58,11 +58,15 @@ $subtotalGlobal = $pendientesGlobales['aportesFonbes'] + $pendientesGlobales['ap
 
 // Calcular pendientes por préstamo
 $pendientesPorPrestamo = [];
+$cuotasParcialesPorPrestamo = [];
 $subtotalPrestamos = 0;
 foreach ($prestamosSeleccionados as $prestamoCodigo) {
     $pendientes = $pagoIntegralServicio->calcularPendientesPorPrestamo((int) $prestamoCodigo);
     $pendientesPorPrestamo[$prestamoCodigo] = $pendientes;
     $subtotalPrestamos += $pendientes['subtotal'];
+    
+    // Obtener cuotas parciales
+    $cuotasParcialesPorPrestamo[$prestamoCodigo] = $pagoIntegralServicio->obtenerCuotasParciales((int) $prestamoCodigo);
 }
 
 $totalPagar = $subtotalGlobal + $subtotalPrestamos;
@@ -657,6 +661,41 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                         </table>
                     <?php endif; ?>
 
+                    <!-- Cuotas Parciales -->
+                    <?php if (!empty($cuotasParcialesPorPrestamo[$prestamoCodigo])): ?>
+                        <h3>Cuotas Parciales Pendientes</h3>
+                        <p class="hint">Seleccione las cuotas parciales que desea completar en este pago integral</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    <th>Cuota</th>
+                                    <th>Fecha</th>
+                                    <th>Pagado</th>
+                                    <th>Faltante</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($cuotasParcialesPorPrestamo[$prestamoCodigo] as $cuota): ?>
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox" 
+                                                   name="cuotas_parciales[<?= $escape($prestamoCodigo) ?>][]" 
+                                                   value="<?= $escape($cuota['numero_cuota']) ?>"
+                                                   onchange="calcularTotales()">
+                                        </td>
+                                        <td>#<?= $escape($cuota['numero_cuota']) ?></td>
+                                        <td><?= $escape($cuota['fecha_vencimiento']) ?></td>
+                                        <td class="amount"><?= $money($cuota['saldo']) ?></td>
+                                        <td class="amount"><?= $money($cuota['faltante']) ?></td>
+                                        <td class="amount"><?= $money($cuota['total']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    <?php endif; ?>
+
                     <!-- Resumen Total del Préstamo -->
                     <h3>Resumen Total del Préstamo</h3>
                     <table>
@@ -790,7 +829,18 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 
                 subtotalAmortizacion<?= $escape($prestamoCodigo) ?> = amortizacionCapital<?= $escape($prestamoCodigo) ?> + amortizacionInteres<?= $escape($prestamoCodigo) ?> + amortizacionMora<?= $escape($prestamoCodigo) ?> + amortizacionOtros1<?= $escape($prestamoCodigo) ?> + amortizacionOtros2<?= $escape($prestamoCodigo) ?>;
 
-                const subtotalPrestamo<?= $escape($prestamoCodigo) ?> = subtotalSobregiro<?= $escape($prestamoCodigo) ?> + subtotalAmortizacion<?= $escape($prestamoCodigo) ?>;
+                // Cuotas parciales
+                let subtotalCuotasParciales<?= $escape($prestamoCodigo) ?> = 0;
+                <?php if (!empty($cuotasParcialesPorPrestamo[$prestamoCodigo])): ?>
+                    <?php foreach ($cuotasParcialesPorPrestamo[$prestamoCodigo] as $cuota): ?>
+                        const cuotaParcial<?= $escape($prestamoCodigo) ?>_<?= $escape($cuota['numero_cuota']) ?> = document.querySelector('input[name="cuotas_parciales[<?= $escape($prestamoCodigo) ?>][]"][value="<?= $escape($cuota['numero_cuota']) ?>"]');
+                        if (cuotaParcial<?= $escape($prestamoCodigo) ?>_<?= $escape($cuota['numero_cuota']) ?> && cuotaParcial<?= $escape($prestamoCodigo) ?>_<?= $escape($cuota['numero_cuota']) ?>.checked) {
+                            subtotalCuotasParciales<?= $escape($prestamoCodigo) ?> += <?= $cuota['faltante'] ?>;
+                        }
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                const subtotalPrestamo<?= $escape($prestamoCodigo) ?> = subtotalSobregiro<?= $escape($prestamoCodigo) ?> + subtotalAmortizacion<?= $escape($prestamoCodigo) ?> + subtotalCuotasParciales<?= $escape($prestamoCodigo) ?>;
                 subtotalPrestamos += subtotalPrestamo<?= $escape($prestamoCodigo) ?>;
 
                 // Actualizar displays

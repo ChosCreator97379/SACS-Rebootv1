@@ -283,14 +283,22 @@ class AmortizacionServicio
 
     /**
      * Actualiza cuota individual en f17_cuotasprestamo
-     * Marca la cuota como pagada y actualiza los montos
+     * Marca la cuota según el escenario (completo, parcial, o más)
      */
     private function actualizarCuota(PDO $pdo, int $prestamoId, int $numeroCuota, array $calculo): void
     {
         $cuotaActualizada = $calculo['cuota_actualizada'] ?? [];
+        $escenario = $calculo['escenario'] ?? 'completo';
+        
+        // Determinar el estado según el escenario
+        $estado = match($escenario) {
+            'completo', 'mas' => 'PAGADO',
+            'menos', 'parcial' => 'PARCIAL',
+            default => 'PAGADO'
+        };
 
         $sql = "UPDATE f17_cuotasprestamo
-                SET f17_estado = 'PAGADO',
+                SET f17_estado = ?,
                     f17_saldo = ?,
                     f17_capital = ?,
                     f17_interes = ?,
@@ -299,6 +307,7 @@ class AmortizacionServicio
         
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
+            $estado,
             $cuotaActualizada['saldo'] ?? 0,
             $cuotaActualizada['capital'] ?? 0,
             $cuotaActualizada['interes'] ?? 0,

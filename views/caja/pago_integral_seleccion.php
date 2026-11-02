@@ -202,6 +202,7 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                                 <th>Código</th>
                                 <th>Importe</th>
                                 <th>Cuotas Pendientes</th>
+                                <th>Cuotas Parciales</th>
                                 <th>Saldo</th>
                                 <th>Sobregiro</th>
                                 <th>Fecha Desembolso</th>
@@ -211,14 +212,26 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             <?php foreach ($prestamosActivos as $prestamo): ?>
                                 <?php
                                 $cuotaActual = $pagoIntegralServicio->obtenerCuotaActual((int) $prestamo['codigo']);
+                                $cuotasParciales = $pagoIntegralServicio->obtenerCuotasParciales((int) $prestamo['codigo']);
+                                $totalFaltanteParciales = array_sum(array_column($cuotasParciales, 'faltante'));
                                 ?>
                                 <tr>
                                     <td>
-                                        <input type="checkbox" name="prestamos[]" value="<?= $escape($prestamo['codigo']) ?>" class="prestamo-checkbox">
+                                        <input type="checkbox" name="prestamos[]" value="<?= $escape($prestamo['codigo']) ?>" class="prestamo-checkbox"
+                                               onchange="if (this.checked) mostrarModalCuotas(<?= $escape($prestamo['codigo']) ?>, <?= count($cuotasParciales) ?>, <?= $totalFaltanteParciales ?>)">
                                     </td>
                                     <td><?= $escape($prestamo['codigo']) ?></td>
                                     <td class="amount"><?= $money($prestamo['importe']) ?></td>
                                     <td><?= $escape($prestamo['cuotas_pendientes']) ?></td>
+                                    <td>
+                                        <?php if (count($cuotasParciales) > 0): ?>
+                                            <span class="badge badge-warning"><?= count($cuotasParciales) ?> parciales</span>
+                                            <br>
+                                            <small>Faltante: <?= $money($totalFaltanteParciales) ?></small>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="amount"><?= $money($prestamo['saldo']) ?></td>
                                     <td class="amount"><?= $money($prestamo['sobregiro']) ?></td>
                                     <td><?= $escape($prestamo['fecha_desembolso']) ?></td>
@@ -234,6 +247,18 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                 </section>
             <?php endif; ?>
         </main>
+
+        <!-- Modal de Cuotas Parciales -->
+        <div id="modal-cuotas" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto;">
+                <h3 style="margin-top: 0;">Préstamo #<span id="modal-prestamo-codigo"></span></h3>
+                <div id="modal-contenido"></div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button onclick="cerrarModal()" class="btn btn-secondary">Cerrar</button>
+                    <button onclick="cerrarModal()" class="btn btn-primary">Continuar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -267,6 +292,30 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
             const url = 'index.php?module=caja&action=pago_integral_form&client=<?= rawurlencode($clienteCodigo) ?>' + 
                          prestamos.map(p => '&prestamos[]=' + encodeURIComponent(p)).join('');
             window.location.href = url;
+        }
+
+        function mostrarModalCuotas(prestamoCodigo, numParciales, totalFaltante) {
+            // Guardar datos de cuotas parciales en el objeto window
+            window.cuotasParcialesData = window.cuotasParcialesData || {};
+            window.cuotasParcialesData[prestamoCodigo] = {
+                numParciales: numParciales,
+                totalFaltante: totalFaltante
+            };
+
+            if (numParciales > 0) {
+                // Mostrar modal con información de cuotas parciales
+                document.getElementById('modal-prestamo-codigo').textContent = prestamoCodigo;
+                document.getElementById('modal-contenido').innerHTML = `
+                    <p><strong>Cuotas Parciales Pendientes:</strong> ${numParciales}</p>
+                    <p><strong>Total Faltante:</strong> S/${totalFaltante.toFixed(2)}</p>
+                    <p style="color: #666; margin-top: 10px;">Puede completar estas cuotas parciales junto con la cuota actual en el pago integral.</p>
+                `;
+                document.getElementById('modal-cuotas').style.display = 'block';
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('modal-cuotas').style.display = 'none';
         }
     </script>
 </body>
