@@ -64,9 +64,9 @@ foreach ($prestamosSeleccionados as $prestamoCodigo) {
     $pendientes = $pagoIntegralServicio->calcularPendientesPorPrestamo((int) $prestamoCodigo);
     $pendientesPorPrestamo[$prestamoCodigo] = $pendientes;
     $subtotalPrestamos += $pendientes['subtotal'];
-    
-    // Obtener cuotas parciales
-    $cuotasParcialesPorPrestamo[$prestamoCodigo] = $pagoIntegralServicio->obtenerCuotasParciales((int) $prestamoCodigo);
+
+    // Cuotas parciales se cargarán solo cuando se seleccionen (optimización)
+    $cuotasParcialesPorPrestamo[$prestamoCodigo] = [];
 }
 
 $totalPagar = $subtotalGlobal + $subtotalPrestamos;

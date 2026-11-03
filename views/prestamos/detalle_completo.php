@@ -31,6 +31,35 @@ $prestamo = $detalle['prestamo'];
 $cronograma = $detalle['cronograma'];
 $movimientos = $detalle['movimientos'];
 
+// Cargar cronograma nuevo (f17_cuotasprestamo_nuevo)
+$cronogramaNuevo = [];
+try {
+    $pdo = new PDO(
+        'mysql:host=' . ($_ENV['DB_HOST'] ?? 'localhost') . ';dbname=' . ($_ENV['DB_NAME'] ?? 'sacs') . ';charset=utf8mb4',
+        $_ENV['DB_USER'] ?? 'root',
+        $_ENV['DB_PASS'] ?? '',
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+
+    $sql = "SELECT
+                f17_ncuota as numero,
+                f17_fecha as fecha,
+                f17_capital as capital,
+                f17_interes as interes,
+                f17_total as total,
+                f17_saldo as saldo,
+                f17_estado as estado
+            FROM f17_cuotasprestamo_nuevo
+            WHERE f17_prestamo = :codigo
+            ORDER BY f17_ncuota ASC";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(['codigo' => $codigo]);
+    $cronogramaNuevo = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $cronogramaNuevo = [];
+}
+
 // Total de cuotas
 $totalCuotas = count($cronograma);
 
@@ -437,7 +466,16 @@ $operaciones = [
                     </div>
                     <div class="info-item">
                         <span class="info-label">Saldo</span>
-                        <span class="info-value"><?= number_format($prestamo['saldo'], 2) ?></span>
+                        <span class="info-value">
+                            <?php
+                            $saldoRedondeado = $prestamo['saldo'];
+                            // Solo redondear si termina en .99
+                            if (abs(round($saldoRedondeado * 100) % 100 - 99) < 0.01) {
+                                $saldoRedondeado = round($saldoRedondeado);
+                            }
+                            echo number_format($saldoRedondeado, 2);
+                            ?>
+                        </span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">Cuotas</span>
@@ -515,7 +553,10 @@ $operaciones = [
             </section>
 
             <section class="panel">
-                <h2>Cronograma de Cuotas</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Cronograma de Cuotas</h2>
+                    <a href="#" class="btn btn-secondary" onclick="event.preventDefault(); mostrarCronogramaNuevo(); return false;">Ver Cronograma Nuevo</a>
+                </div>
                 <?php if (empty($cronograma)): ?>
                     <div class="empty">No hay cronograma registrado</div>
                 <?php else: ?>
@@ -615,6 +656,72 @@ $operaciones = [
                 <a href="index.php?module=caja&action=amortizar_form&client=<?= $escape($prestamo['cliente']) ?>&loan=<?= $escape($codigo) ?>" class="btn btn-primary">Amortizar</a>
             </div>
         </main>
-    </div>
+
+        <!-- Modal Cronograma Nuevo -->
+        <div id="modal-cronograma-nuevo" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 900px; max-height: 80vh; overflow-y: auto; width: 90%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Cronograma Nuevo (f17_cuotasprestamo_nuevo)</h3>
+                    <button onclick="cerrarModalCronogramaNuevo()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div id="cronograma-nuevo-contenido">Cargando...</div>
+            </div>
+        </div>
+
+        <script>
+            const cronogramaNuevoData = <?= json_encode($cronogramaNuevo) ?>;
+
+            function mostrarCronogramaNuevo() {
+                document.getElementById('modal-cronograma-nuevo').style.display = 'block';
+                renderizarCronogramaNuevo();
+            }
+
+            function cerrarModalCronogramaNuevo() {
+                document.getElementById('modal-cronograma-nuevo').style.display = 'none';
+            }
+
+            function renderizarCronogramaNuevo() {
+                const contenido = document.getElementById('cronograma-nuevo-contenido');
+
+                if (cronogramaNuevoData.length === 0) {
+                    contenido.innerHTML = '<p>No hay cronograma nuevo registrado</p>';
+                    return;
+                }
+
+                let html = '<div class="table-scroll"><table class="table" style="width: 100%; border-collapse: collapse;">';
+                html += '<thead><tr><th>N°</th><th>Fecha</th><th>Capital</th><th>Interés</th><th>Total</th><th>Saldo</th><th>Estado</th></tr></thead>';
+                html += '<tbody>';
+
+                cronogramaNuevoData.forEach(cuota => {
+                    let estadoClase = 'badge-info';
+                    switch(cuota.estado) {
+                        case 'VIGENTE': estadoClase = 'badge-warning'; break;
+                        case 'PAGADO': estadoClase = 'badge-success'; break;
+                        case 'CANCELADO': estadoClase = 'badge-danger'; break;
+                        case 'PARCIAL': estadoClase = 'badge-info'; break;
+                    }
+
+                    html += '<tr>';
+                    html += '<td>' + cuota.numero + '</td>';
+                    html += '<td>' + cuota.fecha + '</td>';
+                    html += '<td style="text-align: right;">' + Number(cuota.capital).toFixed(2) + '</td>';
+                    html += '<td style="text-align: right;">' + Number(cuota.interes).toFixed(2) + '</td>';
+                    html += '<td style="text-align: right;">' + Number(cuota.total).toFixed(2) + '</td>';
+                    html += '<td style="text-align: right;">' + Number(cuota.saldo).toFixed(2) + '</td>';
+                    html += '<td><span class="badge ' + estadoClase + '">' + cuota.estado + '</span></td>';
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table></div>';
+                contenido.innerHTML = html;
+            }
+
+            // Cerrar modal al hacer clic fuera del contenido
+            document.getElementById('modal-cronograma-nuevo').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    cerrarModalCronogramaNuevo();
+                }
+            });
+        </script>
 </body>
 </html>

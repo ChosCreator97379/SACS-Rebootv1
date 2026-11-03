@@ -107,12 +107,17 @@ class AmortizacionServicio
             file_put_contents($logFile, $logMessage, FILE_APPEND);
             $this->insertarMovimiento($pdo, $codigoMovimiento, $datos, $calculo);
 
-            // 7. Actualizar préstamo (f16_prestamo)
+            // 7. Insertar aplicación en f15_aplicaciones_cuotas (NUEVO)
+            $logMessage = sprintf("[%s] INSERTANDO APLICACIÓN DE CUOTA\n", date('Y-m-d H:i:s'));
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
+            $this->insertarAplicacionCuota($pdo, $codigoMovimiento, $datos, $calculo);
+
+            // 8. Actualizar préstamo (f16_prestamo)
             $logMessage = sprintf("[%s] ACTUALIZANDO PRÉSTAMO\n", date('Y-m-d H:i:s'));
             file_put_contents($logFile, $logMessage, FILE_APPEND);
             $this->actualizarPrestamo($pdo, $prestamo, $calculo);
 
-            // 8. Actualizar cuota individual (f17_cuotasprestamo)
+            // 9. Actualizar cuota individual (f17_cuotasprestamo_nuevo)
             $logMessage = sprintf("[%s] ACTUALIZANDO CUOTA INDIVIDUAL\n", date('Y-m-d H:i:s'));
             file_put_contents($logFile, $logMessage, FILE_APPEND);
             $this->actualizarCuota($pdo, (int)$datos['prestamo'], (int)$datos['cuota'], $calculo);
@@ -219,6 +224,39 @@ class AmortizacionServicio
     }
     
     /**
+     * Inserta aplicación en f15_aplicaciones_cuotas
+     * Registra cómo el pago se distribuye en la cuota
+     */
+    private function insertarAplicacionCuota(PDO $pdo, int $codigoMovimiento, array $datos, array $calculo): void
+    {
+        $distribucion = $calculo['distribucion'] ?? [];
+        $amortiza = $distribucion['capital'] ?? 0;
+        $ga = $distribucion['gastos_administrativos'] ?? 0;
+        $gm = $distribucion['mora'] ?? 0;
+        $o1 = $distribucion['otros1'] ?? 0;
+        $o2 = $distribucion['otros2'] ?? 0;
+
+        $sql = "INSERT INTO f15_aplicaciones_cuotas
+                (f15_codigo, f17_prestamo, f17_ncuota,
+                 f17_capital_aplicado, f17_interes_aplicado, f17_mora_aplicado,
+                 f17_gastos_aplicado, f17_total_aplicado, f17_fechaCrea, f17_usuaCrea)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            $codigoMovimiento,
+            $datos['prestamo'],
+            $datos['cuota'],
+            $amortiza,  // Capital aplicado
+            0,  // Interés aplicado (no se calcula en amortización actual)
+            $gm,  // Mora aplicada
+            $ga + $o1 + $o2,  // Gastos aplicados (sin mora, mora va en su campo)
+            $amortiza + $ga + $gm + $o1 + $o2,  // Total aplicado
+            trim($datos['usuario'] ?? 'SISTEMA'),
+        ]);
+    }
+
+    /**
      * Inserta movimiento en f15_movimiento
      * Basado en registrarMovimiento() para operación 2
      */
@@ -257,6 +295,9 @@ class AmortizacionServicio
     {
         $prestamoActualizado = $calculo['prestamo_actualizado'];
 
+        // Redondear el saldo a 2 decimales para evitar errores de precisión flotante
+        $prestamoActualizado['saldo'] = round($prestamoActualizado['saldo'], 2);
+
         $sql = "UPDATE f16_prestamo 
                 SET f16_cuotasPend = ?, 
                     f16_saldo = ?,
@@ -282,14 +323,21 @@ class AmortizacionServicio
     }
 
     /**
-     * Actualiza cuota individual en f17_cuotasprestamo
+     * Actualiza cuota individual en f17_cuotasprestamo_nuevo y f17_cuotasprestamo (original)
      * Marca la cuota según el escenario (completo, parcial, o más)
+     * NOTA:
+     * - f17_cuotasprestamo_nuevo: solo actualiza estado y total (capital, interés y saldo se mantienen)
+     * - f17_cuotasprestamo (original): solo actualiza estado (para visualización)
+     *
+     * Mantener f17_capital y f17_interes con valores originales para guía
+     * Mantener f17_saldo como guía del monto óptimo
+     * Solo modificar f17_total para indicar estado (0 = pagado, >0 = faltante)
      */
     private function actualizarCuota(PDO $pdo, int $prestamoId, int $numeroCuota, array $calculo): void
     {
-        $cuotaActualizada = $calculo['cuota_actualizada'] ?? [];
         $escenario = $calculo['escenario'] ?? 'completo';
-        
+        $faltanteCuota = $calculo['metadata']['faltante_cuota'] ?? 0;
+
         // Determinar el estado según el escenario
         $estado = match($escenario) {
             'completo', 'mas' => 'PAGADO',
@@ -297,24 +345,75 @@ class AmortizacionServicio
             default => 'PAGADO'
         };
 
-        $sql = "UPDATE f17_cuotasprestamo
+        // Calcular el total según el estado
+        $total = match($escenario) {
+            'completo', 'mas' => 0, // Pago completo: total = 0
+            'menos', 'parcial' => $this->calcularFaltanteCuota($pdo, $prestamoId, $numeroCuota), // Pago parcial: total = faltante
+            default => 0
+        };
+
+        // Actualizar f17_cuotasprestamo_nuevo (cronograma nuevo)
+        // Solo actualiza estado y total, MANTIENE capital, interés y saldo
+        $sqlNuevo = "UPDATE f17_cuotasprestamo_nuevo
                 SET f17_estado = ?,
-                    f17_saldo = ?,
-                    f17_capital = ?,
-                    f17_interes = ?,
                     f17_total = ?
                 WHERE f17_prestamo = ? AND f17_ncuota = ?";
-        
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([
+
+        $stmtNuevo = $pdo->prepare($sqlNuevo);
+        $stmtNuevo->execute([
             $estado,
-            $cuotaActualizada['saldo'] ?? 0,
-            $cuotaActualizada['capital'] ?? 0,
-            $cuotaActualizada['interes'] ?? 0,
-            $cuotaActualizada['total'] ?? 0,
+            $total,
             $prestamoId,
             $numeroCuota
         ]);
+
+        // Actualizar f17_cuotasprestamo (cronograma original - solo estado para visualización)
+        $sqlOriginal = "UPDATE f17_cuotasprestamo
+                SET f17_estado = ?,
+                    f17_fechaCancela = ?
+                WHERE f17_prestamo = ? AND f17_ncuota = ?";
+
+        $stmtOriginal = $pdo->prepare($sqlOriginal);
+        $stmtOriginal->execute([
+            $estado,
+            $estado === 'PAGADO' ? date('Y-m-d') : null,
+            $prestamoId,
+            $numeroCuota
+        ]);
+    }
+
+    /**
+     * Calcula el faltante de una cuota restando el total aplicado del total original
+     */
+    private function calcularFaltanteCuota(PDO $pdo, int $prestamoId, int $numeroCuota): float
+    {
+        // Obtener total original del cronograma original
+        $sqlOriginal = "SELECT f17_total FROM f17_cuotasprestamo
+                       WHERE f17_prestamo = ? AND f17_ncuota = ?";
+        $stmtOriginal = $pdo->prepare($sqlOriginal);
+        $stmtOriginal->execute([$prestamoId, $numeroCuota]);
+        $cuotaOriginal = $stmtOriginal->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cuotaOriginal) {
+            return 0;
+        }
+
+        $totalOriginal = (float) $cuotaOriginal['f17_total'];
+
+        // Obtener total aplicado de las aplicaciones
+        $sqlAplicacion = "SELECT SUM(f17_total_aplicado) as total_aplicado
+                          FROM f15_aplicaciones_cuotas
+                          WHERE f17_prestamo = ? AND f17_ncuota = ?";
+        $stmtAplicacion = $pdo->prepare($sqlAplicacion);
+        $stmtAplicacion->execute([$prestamoId, $numeroCuota]);
+        $aplicacion = $stmtAplicacion->fetch(PDO::FETCH_ASSOC);
+
+        $totalAplicado = (float) ($aplicacion['total_aplicado'] ?? 0);
+
+        // Faltante = total original - total aplicado
+        $faltante = max(0, $totalOriginal - $totalAplicado);
+
+        return $faltante;
     }
 
     /**

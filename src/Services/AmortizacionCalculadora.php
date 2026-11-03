@@ -163,37 +163,96 @@ final class AmortizacionCalculadora
             $montoMovimiento = $j;
         }
         
+        // Calcular cuotas restantes según el monto pagado
+        $saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
+        $totalCuotaProgramada = (float) ($cuota['f17_total'] ?? 0);
+        $totalPagado = $amortiza + $ga + $gm + $o1 + $o2;
+        $escenario = self::determinarEscenario($totalPagado, $totalCuotaProgramada, $cuotaMensual);
+
+        // Cálculo del faltante para pago parcial - ANTES del cálculo del saldo
+        $faltanteCuota = 0;
+        if ($escenario === 'menos') {
+            // Faltante = cuota programada - total pagado
+            $faltanteCuota = $totalCuotaProgramada - $totalPagado;
+            // El faltante se suma al sobregiro existente del préstamo
+            $sobregiro = $sobregiro + $faltanteCuota;
+
+            // Log temporal para debugging
+            $logFile = dirname(__DIR__, 2) . '/logs/amortizacion_calculadora.log';
+            $logMessage = sprintf(
+                "[%s] DEBUG - Cuota: %d, Total programada: %.2f, Total pagado: %.2f, Faltante: %.2f, Sobregiro antes: %.2f, Sobregiro después: %.2f\n",
+                date('Y-m-d H:i:s'),
+                $cuota['f17_ncuota'] ?? 0,
+                $totalCuotaProgramada,
+                $totalPagado,
+                $faltanteCuota,
+                $s,
+                $sobregiro
+            );
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
+        }
+
         // Cálculo del nuevo saldo (líneas 1471-1510)
         $r = 0.0;
         if ($saldo > $amortiza) {
             if ($sobregiro == 0) {
-                $r = $saldo - $amortizacion;
+                // Determinar cuánto descontar del saldo según el caso
+                if ($amortiza >= $amortizacion) {
+                    // Pago exacto o más: descontar capital programado
+                    $r = $saldo - $amortizacion;
+                } else {
+                    // Pago menos: descontar solo capital pagado
+                    $r = $saldo - $amortiza;
+                }
             }
             if ($sobregiro > 0) {
-                $r = $saldo - $amortizacion;
-                $r = $r + $sobregiro;
-                if ($r < $resto) {
-                    $amortizapAportacion = 0;
+                // Solo aplicar lógica legacy si NO es pago parcial
+                // En pago parcial, el sobregiro ya incluye el faltante calculado antes
+                if ($escenario !== 'menos' && $escenario !== 'parcial') {
+                    // Determinar cuánto descontar del saldo según el caso
+                    if ($amortiza >= $amortizacion) {
+                        // Pago exacto o más: descontar capital programado
+                        $r = $saldo - $amortizacion;
+                    } else {
+                        // Pago menos: descontar solo capital pagado
+                        $r = $saldo - $amortiza;
+                    }
+                    $r = $r + $sobregiro;
+                    if ($r < $resto) {
+                        $amortizapAportacion = 0;
+                    } else {
+                        $t = $resto - $r;
+                        $r = $resto;
+                        $sobregiro = -$t;
+                        $amortizapAportacion = $sobregiro;
+                    }
                 } else {
-                    $t = $resto - $r;
-                    $r = $resto;
-                    $sobregiro = -$t;
-                    $amortizapAportacion = $sobregiro;
+                    // En pago parcial, descontar solo capital pagado
+                    $r = $saldo - $amortiza;
                 }
             }
             if ($sobregiro < 0) {
                 // Cuando hay exceso de pago (sobregiro negativo), el legacy
                 // RESTA el sobregiro negativo del saldo (líneas 1500-1507)
                 // pero NO actualiza el campo de aportación del préstamo
-                $sobregiro = -$sobregiro;
-                $r = ($saldo - $amortizacion) - $sobregiro;
-                // NO actualizar amortizapAportacion cuando hay exceso de pago
-                // (el legacy Java no lo hace en este caso)
+                // SOLO si es un pago que realmente generó exceso
+                if ($escenario === 'mas') {
+                    $sobregiro = -$sobregiro;
+                    $r = ($saldo - $amortizacion) - $sobregiro;
+                    // NO actualizar amortizapAportacion cuando hay exceso de pago
+                    // (el legacy Java no lo hace en este caso)
+                } else {
+                    // Si no es escenario 'mas', descontar capital pagado
+                    $r = $saldo - $amortiza;
+                }
             }
         } else {
             // Cuando el saldo es menor o igual a la amortización (préstamo cancelado)
             $r = 0;
         }
+
+        // Redondear el saldo a 2 decimales para evitar errores de precisión flotante
+        $r = round($r, 2);
 
         // Calcular cuotas restantes según el monto pagado
         $saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
@@ -204,7 +263,7 @@ final class AmortizacionCalculadora
         if ($escenario === 'completo' || $escenario === 'mas') {
             // Pago completo o mayor: reducir cuotas pendientes
             $nuevasCuotasPend = $cuotasPend - 1;
-            
+
             // Si pagó más, calcular cuántas cuotas adicionales se pueden eliminar
             if ($escenario === 'mas' && $r > 0) {
                 $exceso = $amortiza - $saldoCuota;
@@ -222,6 +281,53 @@ final class AmortizacionCalculadora
                 $nuevasCuotasPend = $cuotasPend;
             }
         }
+
+        // Retornar resultado estructurado
+        return [
+            'distribucion' => [
+                'monto_pagado' => $montoPagado,
+                'capital' => $amortiza,
+                'gastos_administrativos' => $ga,
+                'mora' => $gm,
+                'otros1' => $o1,
+                'otros2' => $o2,
+                'sobregiro_manejado' => $j,
+                'total_distribuido' => $amortiza + $ga + $gm + $o1 + $o2,
+            ],
+            'movimiento' => [
+                'monto' => $montoMovimiento,
+                'gastosa' => $ga, // Valor ajustado por sobregiro (línea 101)
+                'gastosm' => $gm, // Valor ajustado por sobregiro (línea 116)
+                'gastos1' => $o1, // Valor ajustado por sobregiro (línea 131)
+                'gastos2' => $o2, // Valor ajustado por sobregiro (línea 146)
+            ],
+            'prestamo_actualizado' => [
+                'codigo' => $prestamo['f16_codigo'],
+                'cuotas_pendientes' => $nuevasCuotasPend,
+                'saldo' => $r,
+                'gastosa' => $gami,
+                'gastosm' => $gamo,
+                'otros' => $otros1,
+                'otros2' => $otros2,
+                'sobre' => $sobregiro, // Incluye el faltante en caso de pago parcial
+                'fechaUP' => $cuota['f17_fecha'],
+            ],
+            'metadata' => [
+                'ind' => $ind,
+                'sobregiro_calculado' => $sobregiro,
+                'sobregiro_existente' => $s,
+                'cuota_mensual' => $cuotaMensual,
+                'amortizacion_cuota' => $amortiza,
+                'faltante_cuota' => $faltanteCuota, // Faltante en caso de pago parcial
+            ],
+            'cuota_actualizada' => [
+                'saldo' => max(0, $saldoCuota - $amortiza),
+                'capital' => min($amortiza, $saldoCuota),
+                'interes' => 0,
+                'total' => min($amortiza, $saldoCuota),
+            ],
+            'escenario' => $escenario, // Agregar el escenario detectado
+        ];
         
         // Retornar resultado estructurado
         return [

@@ -51,65 +51,50 @@ final class PagoIntegralServicio
 
     /**
      * Obtiene cuotas parciales de un préstamo (estado PARCIAL)
+     * Usa la vista v_cuotas_pendientes para calcular el faltante automáticamente
      */
     public function obtenerCuotasParciales(int $prestamoCodigo): array
     {
-        $sql = "SELECT 
+        $sql = "SELECT
                     f17_ncuota as numero_cuota,
-                    f17_capital as capital,
-                    f17_interes as interes,
-                    f17_total as total,
-                    f17_saldo as saldo,
+                    capital_original as capital,
+                    interes_original as interes,
+                    total_original as total,
                     f17_fecha as fecha_vencimiento,
-                    f17_estado as estado
-                FROM f17_cuotasprestamo
+                    estado_calculado as estado,
+                    saldo_pendiente as faltante
+                FROM v_cuotas_pendientes
                 WHERE f17_prestamo = :prestamo
-                AND f17_estado = 'PARCIAL'
+                AND estado_calculado = 'PARCIAL'
                 ORDER BY f17_fecha ASC";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(['prestamo' => $prestamoCodigo]);
         $cuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Calcular monto faltante para cada cuota
-        foreach ($cuotas as &$cuota) {
-            // Si el estado es PARCIAL, el faltante es la diferencia entre el total y lo que ya se pagó
-            // Como no tenemos un campo directo de lo pagado, usamos el capital original
-            // Para cuotas PARCIAL, asumimos que faltan completar el capital restante
-            if ($cuota['estado'] === 'PARCIAL') {
-                // Faltante = total original - capital pagado (si se pagó parcialmente)
-                // Por ahora, usamos el capital original como referencia
-                $cuota['faltante'] = $cuota['capital'];
-            } else {
-                $cuota['faltante'] = 0;
-            }
-        }
-
         return $cuotas;
     }
 
     /**
      * Obtiene la cuota actual de un préstamo (la que debe pagarse hoy)
-     * Prioridad: vencida hoy -> vencida recientemente -> próxima a vencer
+     * Usa la vista v_cuotas_pendientes
      */
     public function obtenerCuotaActual(int $prestamoCodigo): ?array
     {
-        $sql = "SELECT 
+        $sql = "SELECT
                     f17_ncuota as numero_cuota,
-                    f17_capital as capital,
-                    f17_interes as interes,
-                    f17_interesSG as interesSG,
-                    f17_mora as mora,
-                    f17_moraSG as moraSG,
-                    f17_total as total,
+                    capital_original as capital,
+                    interes_original as interes,
+                    total_original as total,
                     f17_fecha as fecha_vencimiento,
-                    f17_estado as estado
-                FROM f17_cuotasprestamo
+                    estado_calculado as estado,
+                    saldo_pendiente as faltante
+                FROM v_cuotas_pendientes
                 WHERE f17_prestamo = :prestamo
-                AND f17_estado = 'VIGENTE'
+                AND estado_calculado = 'VIGENTE'
                 AND f17_ncuota > 0
-                ORDER BY 
-                    CASE 
+                ORDER BY
+                    CASE
                         WHEN f17_fecha <= CURDATE() THEN 1
                         ELSE 2
                     END,
@@ -256,17 +241,34 @@ final class PagoIntegralServicio
                 'otros2' => (float) ($prestamo['otros2'] ?? 0),
             ];
 
-            // Obtener cuota actual con desglose
-            $cuota = $this->obtenerCuotaActual($prestamoCodigo);
+            // Obtener cuota actual directamente de f17_cuotasprestamo_nuevo (sin usar vista)
+            $sqlCuota = "SELECT
+                            f17_ncuota as numero_cuota,
+                            f17_capital as capital,
+                            f17_interes as interes,
+                            f17_total as total,
+                            f17_fecha as fecha_vencimiento,
+                            f17_estado as estado
+                        FROM f17_cuotasprestamo_nuevo
+                        WHERE f17_prestamo = :prestamo
+                        AND f17_estado = 'VIGENTE'
+                        ORDER BY f17_fecha ASC
+                        LIMIT 1";
+            $stmtCuota = $this->pdo->prepare($sqlCuota);
+            $stmtCuota->execute(['prestamo' => $prestamoCodigo]);
+            $cuota = $stmtCuota->fetch(PDO::FETCH_ASSOC);
+
             if ($cuota) {
+                // Calcular faltante simplemente como el total (para el formulario inicial)
+                $cuota['faltante'] = $cuota['total'];
                 $pendientes['cuota'] = $cuota;
                 $pendientes['cuotaDetalle'] = [
                     'numero_cuota' => $cuota['numero_cuota'],
                     'capital' => (float) $cuota['capital'],
                     'interes' => (float) $cuota['interes'],
-                    'interesSG' => (float) ($cuota['interesSG'] ?? 0),
-                    'mora' => (float) ($cuota['mora'] ?? 0),
-                    'moraSG' => (float) ($cuota['moraSG'] ?? 0),
+                    'interesSG' => 0,
+                    'mora' => 0,
+                    'moraSG' => 0,
                     'total' => (float) $cuota['total'],
                     'fecha_vencimiento' => $cuota['fecha_vencimiento'],
                 ];
@@ -559,23 +561,73 @@ final class PagoIntegralServicio
                 }
 
                 // Amortización de cuota actual
-                $montoAmortizacionTotal = ($montosPrestamo['amortizacion_capital'] ?? 0) + 
+                $montoAmortizacionTotal = ($montosPrestamo['amortizacion_capital'] ?? 0) +
                                           ($montosPrestamo['amortizacion_interes'] ?? 0) +
                                           ($montosPrestamo['amortizacion_mora'] ?? 0) +
                                           ($montosPrestamo['amortizacion_otros1'] ?? 0) +
                                           ($montosPrestamo['amortizacion_otros2'] ?? 0);
-                
+
+                // Obtener cuota actual del préstamo (se necesita siempre)
+                // Consulta directa a f17_cuotasprestamo_nuevo para evitar vista lenta
+                $sqlCuota = "SELECT
+                                f17_ncuota as numero_cuota,
+                                f17_capital as capital,
+                                f17_interes as interes,
+                                f17_total as total,
+                                f17_fecha as fecha_vencimiento,
+                                f17_estado as estado
+                            FROM f17_cuotasprestamo_nuevo
+                            WHERE f17_prestamo = :prestamo
+                            AND f17_estado = 'VIGENTE'
+                            ORDER BY f17_fecha ASC
+                            LIMIT 1";
+                $stmtCuota = $this->pdo->prepare($sqlCuota);
+                $stmtCuota->execute(['prestamo' => $prestamoCodigo]);
+                $cuota = $stmtCuota->fetch(PDO::FETCH_ASSOC);
+
+                if ($cuota === false) {
+                    $logMessage = sprintf("[%s] ADVERTENCIA - No hay cuota vigente para préstamo #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
+                    continue;
+                }
+
+                // Validar si es cuota 0 con total 0 - no registrar movimiento, solo cambiar estado
+                if ($cuota['numero_cuota'] == 0 && $cuota['total'] == 0) {
+                    $logMessage = sprintf("[%s] OMISIÓN - Cuota 0 con total 0 para préstamo #%d - Solo cambiando estado a PAGADO\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
+
+                    // Cambiar estado a PAGADO en f17_cuotasprestamo_nuevo (cronograma nuevo)
+                    $sqlUpdateNuevo = "UPDATE f17_cuotasprestamo_nuevo
+                                     SET f17_estado = 'PAGADO',
+                                         f17_fechaCancela = CURDATE()
+                                     WHERE f17_prestamo = :prestamo
+                                     AND f17_ncuota = :cuota";
+                    $stmtUpdateNuevo = $this->pdo->prepare($sqlUpdateNuevo);
+                    $stmtUpdateNuevo->execute([
+                        'prestamo' => $prestamoCodigo,
+                        'cuota' => $cuota['numero_cuota']
+                    ]);
+
+                    // Cambiar estado a PAGADO en f17_cuotasprestamo (cronograma original para visualización)
+                    $sqlUpdateOriginal = "UPDATE f17_cuotasprestamo
+                                     SET f17_estado = 'PAGADO',
+                                         f17_fechaCancela = CURDATE()
+                                     WHERE f17_prestamo = :prestamo
+                                     AND f17_ncuota = :cuota";
+                    $stmtUpdateOriginal = $this->pdo->prepare($sqlUpdateOriginal);
+                    $stmtUpdateOriginal->execute([
+                        'prestamo' => $prestamoCodigo,
+                        'cuota' => $cuota['numero_cuota']
+                    ]);
+
+                    $logMessage = sprintf("[%s] Estado cambiado a PAGADO en ambos cronogramas para cuota 0 de préstamo #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo);
+                    file_put_contents($logFile, $logMessage, FILE_APPEND);
+                    continue;
+                }
+
                 if ($montoAmortizacionTotal > 0) {
                     $logMessage = sprintf("[%s] Procesando Amortización Préstamo #%d - Monto Total: %.2f\n", date('Y-m-d H:i:s'), $prestamoCodigo, $montoAmortizacionTotal);
                     file_put_contents($logFile, $logMessage, FILE_APPEND);
-
-                    // Obtener cuota actual del préstamo
-                    $cuota = $this->obtenerCuotaActual((int) $prestamoCodigo);
-                    if ($cuota === null) {
-                        $logMessage = sprintf("[%s] ADVERTENCIA - No hay cuota vigente para préstamo #%d\n", date('Y-m-d H:i:s'), $prestamoCodigo);
-                        file_put_contents($logFile, $logMessage, FILE_APPEND);
-                        continue;
-                    }
 
                     $amortizacionServicio = new AmortizacionServicio($this->pdo);
                     

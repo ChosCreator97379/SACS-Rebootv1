@@ -400,5 +400,124 @@ class SobregiroPrestamoServicio
             'fechaUP' => date('Y-m-d'),
             'codigo' => $prestamoCodigo,
         ]);
+
+        // Procesar cuotas parciales cubiertas por el sobregiro pagado
+        $this->procesarCuotasParcialesSobregiro($pdo, $prestamoCodigo, $sobregiro);
+    }
+
+    /**
+     * Procesa cuotas parciales cuando se paga el sobregiro
+     * Identifica cuántas cuotas parciales cubre el pago y cambia su estado a PAGADO
+     * Distribuye el pago entre capital e interés, y descuenta el saldo según la porción de capital FALTANTE
+     */
+    private function procesarCuotasParcialesSobregiro(PDO $pdo, int $prestamoCodigo, float $sobregiroPagado): void
+    {
+        if ($sobregiroPagado <= 0) {
+            return;
+        }
+
+        // Buscar cuotas en estado PARCIAL en f17_cuotasprestamo_nuevo
+        $sql = "SELECT f17_ncuota, f17_total, f17_capital, f17_interes
+                FROM f17_cuotasprestamo_nuevo
+                WHERE f17_prestamo = :prestamo
+                AND f17_estado = 'PARCIAL'
+                ORDER BY f17_ncuota ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(['prestamo' => $prestamoCodigo]);
+        $cuotasParciales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $sobregiroRestante = $sobregiroPagado;
+        $totalCapitalAplicado = 0; // Para descuento del saldo
+
+        foreach ($cuotasParciales as $cuota) {
+            if ($sobregiroRestante <= 0) {
+                break;
+            }
+
+            $numeroCuota = (int) $cuota['f17_ncuota'];
+            $totalFaltante = (float) $cuota['f17_total'];
+            $capitalOriginal = (float) $cuota['f17_capital'];
+            $interesOriginal = (float) $cuota['f17_interes'];
+
+            // Obtener capital ya aplicado de esta cuota
+            $sqlAplicacion = "SELECT SUM(f17_capital_aplicado) as capital_aplicado
+                              FROM f15_aplicaciones_cuotas
+                              WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+            $stmtAplicacion = $pdo->prepare($sqlAplicacion);
+            $stmtAplicacion->execute(['prestamo' => $prestamoCodigo, 'cuota' => $numeroCuota]);
+            $aplicacion = $stmtAplicacion->fetch(PDO::FETCH_ASSOC);
+            $capitalYaAplicado = (float) ($aplicacion['capital_aplicado'] ?? 0);
+
+            // Calcular capital faltante (lo que falta para completar la cuota)
+            $capitalFaltante = max(0, $capitalOriginal - $capitalYaAplicado);
+
+            if ($sobregiroRestante >= $totalFaltante) {
+                // El sobregiro cubre completamente esta cuota parcial
+                $sobregiroRestante -= $totalFaltante;
+                $totalCapitalAplicado += $capitalFaltante; // Solo descuento el capital faltante
+
+                // Cambiar estado a PAGADO en f17_cuotasprestamo_nuevo
+                // Solo modificar estado y total, MANTENER capital, interés y saldo originales
+                $sqlNuevo = "UPDATE f17_cuotasprestamo_nuevo
+                            SET f17_estado = 'PAGADO',
+                                f17_total = 0,
+                                f17_fechaCancela = CURDATE()
+                            WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtNuevo = $pdo->prepare($sqlNuevo);
+                $stmtNuevo->execute([
+                    'prestamo' => $prestamoCodigo,
+                    'cuota' => $numeroCuota
+                ]);
+
+                // Cambiar estado a PAGADO en f17_cuotasprestamo (original)
+                $sqlOriginal = "UPDATE f17_cuotasprestamo
+                              SET f17_estado = 'PAGADO',
+                                  f17_fechaCancela = CURDATE()
+                              WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtOriginal = $pdo->prepare($sqlOriginal);
+                $stmtOriginal->execute([
+                    'prestamo' => $prestamoCodigo,
+                    'cuota' => $numeroCuota
+                ]);
+            } else {
+                // El sobregiro no cubre completamente esta cuota parcial
+                // Calcular proporción que va a capital e interés
+                $proporcionCapital = $capitalFaltante / $totalFaltante;
+                $proporcionInteres = $interesOriginal / $totalFaltante;
+
+                $capitalAplicado = $sobregiroRestante * $proporcionCapital;
+                $interesAplicado = $sobregiroRestante * $proporcionInteres;
+
+                $totalCapitalAplicado += $capitalAplicado;
+                $nuevoFaltante = $totalFaltante - $sobregiroRestante;
+                $sobregiroRestante = 0;
+
+                // Actualizar solo el total en f17_cuotasprestamo_nuevo
+                // MANTENER capital, interés y saldo originales
+                $sqlNuevo = "UPDATE f17_cuotasprestamo_nuevo
+                            SET f17_total = :total
+                            WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtNuevo = $pdo->prepare($sqlNuevo);
+                $stmtNuevo->execute([
+                    'total' => $nuevoFaltante,
+                    'prestamo' => $prestamoCodigo,
+                    'cuota' => $numeroCuota
+                ]);
+            }
+        }
+
+        // Descuento del saldo según el capital faltante aplicado por el sobregiro
+        if ($totalCapitalAplicado > 0) {
+            // Redondear el capital aplicado a 2 decimales para evitar errores de precisión
+            $totalCapitalAplicado = round($totalCapitalAplicado, 2);
+            
+            $sqlSaldo = "UPDATE f16_prestamo SET f16_saldo = GREATEST(0, f16_saldo - :capitalAplicado) 
+                         WHERE f16_codigo = :codigo";
+            $stmtSaldo = $pdo->prepare($sqlSaldo);
+            $stmtSaldo->execute([
+                'capitalAplicado' => $totalCapitalAplicado,
+                'codigo' => $prestamoCodigo,
+            ]);
+        }
     }
 }
