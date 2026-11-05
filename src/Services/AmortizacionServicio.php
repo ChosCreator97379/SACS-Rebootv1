@@ -122,6 +122,13 @@ class AmortizacionServicio
             file_put_contents($logFile, $logMessage, FILE_APPEND);
             $this->actualizarCuota($pdo, (int)$datos['prestamo'], (int)$datos['cuota'], $calculo);
 
+            // 10. Procesar exceso de pago a siguientes cuotas (si existe)
+            if (isset($calculo['exceso_info'])) {
+                $logMessage = sprintf("[%s] PROCESANDO EXCESO A SIGUIENTES CUOTAS\n", date('Y-m-d H:i:s'));
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
+                $this->procesarExcesoSiguientesCuotas($pdo, $codigoMovimiento, $calculo['exceso_info'], $logFile);
+            }
+
             $pdo->commit();
             
             // Registrar éxito
@@ -201,7 +208,7 @@ class AmortizacionServicio
      */
     private function obtenerCuota(PDO $pdo, int $prestamoId, int $cuota): ?array
     {
-        $sql = "SELECT * FROM f17_cuotasprestamo 
+        $sql = "SELECT * FROM f17_cuotasprestamo_nuevo
                 WHERE f17_prestamo = ? AND f17_ncuota = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$prestamoId, $cuota]);
@@ -235,6 +242,23 @@ class AmortizacionServicio
         $gm = $distribucion['mora'] ?? 0;
         $o1 = $distribucion['otros1'] ?? 0;
         $o2 = $distribucion['otros2'] ?? 0;
+        
+        // Si hay exceso de pago, usar valores programados de la cuota
+        $excesoInfo = $calculo['exceso_info'] ?? [];
+        if (!empty($excesoInfo) && ($excesoInfo['exceso_capital'] > 0 || $excesoInfo['exceso_interes'] > 0)) {
+            // Obtener valores programados de la cuota
+            $sqlCuota = "SELECT f17_capital, f17_interes, f17_total
+                         FROM f17_cuotasprestamo_nuevo
+                         WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+            $stmtCuota = $pdo->prepare($sqlCuota);
+            $stmtCuota->execute(['prestamo' => $datos['prestamo'], 'cuota' => $datos['cuota']]);
+            $cuotaProgramada = $stmtCuota->fetch(PDO::FETCH_ASSOC);
+            
+            if ($cuotaProgramada) {
+                $amortiza = (float) $cuotaProgramada['f17_capital'];
+                $ga = (float) $cuotaProgramada['f17_interes'];
+            }
+        }
 
         $sql = "INSERT INTO f15_aplicaciones_cuotas
                 (f15_codigo, f17_prestamo, f17_ncuota,
@@ -248,9 +272,9 @@ class AmortizacionServicio
             $datos['prestamo'],
             $datos['cuota'],
             $amortiza,  // Capital aplicado
-            0,  // Interés aplicado (no se calcula en amortización actual)
+            $ga,  // Interés aplicado (programado si hay exceso)
             $gm,  // Mora aplicada
-            $ga + $o1 + $o2,  // Gastos aplicados (sin mora, mora va en su campo)
+            $o1 + $o2,  // Gastos aplicados (sin mora, mora va en su campo)
             $amortiza + $ga + $gm + $o1 + $o2,  // Total aplicado
             trim($datos['usuario'] ?? 'SISTEMA'),
         ]);
@@ -262,6 +286,9 @@ class AmortizacionServicio
      */
     private function insertarMovimiento(PDO $pdo, int $codigoMovimiento, array $datos, array $calculo): void
     {
+        // Calcular el total real basado en los componentes del pago
+        $totalPago = ($datos['amortiza'] ?? 0) + ($datos['gastosAdm'] ?? 0) + ($datos['gastosMora'] ?? 0) + ($datos['otros1'] ?? 0) + ($datos['otros2'] ?? 0) + ($datos['sobregiro'] ?? 0);
+
         $sql = "INSERT INTO f15_movimiento
                 (f15_codigo, f15_fecha, f15_operacion, f15_cliente, f15_prestamo, f15_maprestamo,
                  f15_gastosa, f15_gastosm, f15_gastos1, f15_gastos2, f15_formaPago, f15_usuaCrea, f15_fechaCrea, f15_obs, f15_obs2, f15_cheque)
@@ -273,7 +300,7 @@ class AmortizacionServicio
             2,
             trim($datos['cliente']),
             $datos['prestamo'],
-            $datos['amortiza'] ?? 0,  // Amortización directamente del formulario
+            $datos['amortiza'] ?? 0,  // Capital (amortización) solamente
             $datos['gastosAdm'] ?? 0,  // Gastos administrativos directamente del formulario
             $datos['gastosMora'] ?? 0,  // Gastos mora directamente del formulario
             $datos['otros1'] ?? 0,  // Otros 1 directamente del formulario
@@ -475,6 +502,221 @@ class AmortizacionServicio
                     'usuario' => trim($datos['usuario'] ?? 'SISTEMA'),
                 ]);
             }
+        }
+    }
+
+    /**
+     * Procesa el exceso de pago aplicándolo a siguientes cuotas
+     * Aplica primero al capital, luego al interés
+     * Registra aplicaciones y actualiza cuotas
+     */
+    private function procesarExcesoSiguientesCuotas(PDO $pdo, int $codigoMovimiento, array $excesoInfo, string $logFile): void
+    {
+        $prestamoCodigo = $excesoInfo['prestamo_codigo'];
+        $cuotaActual = $excesoInfo['cuota_actual'];
+        $excesoCapital = $excesoInfo['exceso_capital'];
+        $excesoInteres = $excesoInfo['exceso_interes'];
+        
+        $totalCapitalAplicado = 0; // Para descuento del saldo del préstamo
+        
+        // Buscar siguientes cuotas pendientes (VIGENTE o PARCIAL)
+        $sql = "SELECT f17_ncuota, f17_capital, f17_interes, f17_total, f17_estado
+                FROM f17_cuotasprestamo_nuevo
+                WHERE f17_prestamo = :prestamo
+                AND f17_ncuota > :cuotaActual
+                AND f17_estado IN ('VIGENTE', 'PARCIAL')
+                ORDER BY f17_ncuota ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(['prestamo' => $prestamoCodigo, 'cuotaActual' => $cuotaActual]);
+        $cuotas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($cuotas as $cuota) {
+            if ($excesoCapital <= 0 && $excesoInteres <= 0) {
+                break; // No hay más exceso
+            }
+            
+            $numeroCuota = (int) $cuota['f17_ncuota'];
+            $capitalOriginal = (float) $cuota['f17_capital'];
+            $interesOriginal = (float) $cuota['f17_interes'];
+            $totalOriginal = (float) $cuota['f17_total'];
+            
+            // Obtener capital ya aplicado a esta cuota
+            $sqlAplicacion = "SELECT SUM(f17_capital_aplicado) as capital_aplicado
+                              FROM f15_aplicaciones_cuotas
+                              WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+            $stmtAplicacion = $pdo->prepare($sqlAplicacion);
+            $stmtAplicacion->execute(['prestamo' => $prestamoCodigo, 'cuota' => $numeroCuota]);
+            $aplicacion = $stmtAplicacion->fetch(PDO::FETCH_ASSOC);
+            $capitalYaAplicado = (float) ($aplicacion['capital_aplicado'] ?? 0);
+            
+            // Calcular capital faltante
+            $capitalFaltante = max(0, $capitalOriginal - $capitalYaAplicado);
+            
+            // Aplicar exceso de capital primero
+            $capitalAplicadoEstaCuota = 0;
+            if ($excesoCapital > 0 && $capitalFaltante > 0) {
+                $capitalAplicadoEstaCuota = min($excesoCapital, $capitalFaltante);
+                $excesoCapital -= $capitalAplicadoEstaCuota;
+                $totalCapitalAplicado += $capitalAplicadoEstaCuota;
+            }
+            
+            // Aplicar exceso de interés después del capital
+            $interesAplicadoEstaCuota = 0;
+            if ($excesoInteres > 0) {
+                // El usuario pagó interés explícitamente, usar la lógica actual
+                // Calcular interés faltante
+                $sqlInteres = "SELECT SUM(f17_interes_aplicado) as interes_aplicado
+                               FROM f15_aplicaciones_cuotas
+                               WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtInteres = $pdo->prepare($sqlInteres);
+                $stmtInteres->execute(['prestamo' => $prestamoCodigo, 'cuota' => $numeroCuota]);
+                $aplicacionInteres = $stmtInteres->fetch(PDO::FETCH_ASSOC);
+                $interesYaAplicado = (float) ($aplicacionInteres['interes_aplicado'] ?? 0);
+                $interesFaltante = max(0, $interesOriginal - $interesYaAplicado);
+
+                $interesAplicadoEstaCuota = min($excesoInteres, $interesFaltante);
+                $excesoInteres -= $interesAplicadoEstaCuota;
+            } elseif (isset($excesoInfo['usar_exceso_capital_para_interes']) && $excesoInfo['usar_exceso_capital_para_interes'] && $excesoCapital > 0) {
+                // El usuario NO pagó interés pero hay exceso de capital
+                // Usar parte del exceso de capital para pagar interés automáticamente
+                // SOLO si alcanza para completar la cuota (capital + interés)
+
+                // Calcular interés faltante
+                $sqlInteres = "SELECT SUM(f17_interes_aplicado) as interes_aplicado
+                               FROM f15_aplicaciones_cuotas
+                               WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtInteres = $pdo->prepare($sqlInteres);
+                $stmtInteres->execute(['prestamo' => $prestamoCodigo, 'cuota' => $numeroCuota]);
+                $aplicacionInteres = $stmtInteres->fetch(PDO::FETCH_ASSOC);
+                $interesYaAplicado = (float) ($aplicacionInteres['interes_aplicado'] ?? 0);
+                $interesFaltante = max(0, $interesOriginal - $interesYaAplicado);
+
+                // Aplicar interés usando el exceso de capital disponible
+                $interesAplicadoEstaCuota = min($excesoCapital, $interesFaltante);
+                $excesoCapital -= $interesAplicadoEstaCuota; // Reducir el exceso de capital
+            }
+            
+            // Si aplicó algo a esta cuota, registrar la aplicación
+            if ($capitalAplicadoEstaCuota > 0 || $interesAplicadoEstaCuota > 0) {
+                $sqlInsert = "INSERT INTO f15_aplicaciones_cuotas
+                              (f15_codigo, f17_prestamo, f17_ncuota,
+                               f17_capital_aplicado, f17_interes_aplicado, f17_mora_aplicado,
+                               f17_gastos_aplicado, f17_total_aplicado, f17_fechaCrea, f17_usuaCrea)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+                $stmtInsert = $pdo->prepare($sqlInsert);
+                $stmtInsert->execute([
+                    $codigoMovimiento,
+                    $prestamoCodigo,
+                    $numeroCuota,
+                    round($capitalAplicadoEstaCuota, 2),
+                    round($interesAplicadoEstaCuota, 2),
+                    0,
+                    0,
+                    round($capitalAplicadoEstaCuota + $interesAplicadoEstaCuota, 2),
+                    $_SESSION['user_id'] ?? 'SISTEMA'
+                ]);
+                
+                // Calcular nuevo estado de la cuota
+                $nuevoCapitalAplicado = $capitalYaAplicado + $capitalAplicadoEstaCuota;
+                $nuevoInteresAplicado = ($interesYaAplicado ?? 0) + $interesAplicadoEstaCuota;
+
+                // Obtener el estado actual de la cuota
+                $estadoActual = $cuota['f17_estado'] ?? 'VIGENTE';
+
+                // Determinar si la cuota está completamente pagada
+                if ($estadoActual === 'PARCIAL') {
+                    // Para cuotas PARCIAL, verificar que el total aplicado cubra el total del cronograma nuevo
+                    $totalAplicado = $nuevoCapitalAplicado + $nuevoInteresAplicado;
+                    if ($totalAplicado >= $totalOriginal - 0.01) {
+                        $nuevoEstado = 'PAGADO';
+                        $nuevoTotal = 0;
+                    } else {
+                        $nuevoEstado = 'PARCIAL';
+                        $nuevoTotal = max(0, $totalOriginal - $totalAplicado);
+                    }
+                } else {
+                    // Para cuotas VIGENTE, mantener la lógica original (validar capital e interés por separado)
+                    if ($nuevoCapitalAplicado >= $capitalOriginal - 0.01 && $nuevoInteresAplicado >= $interesOriginal - 0.01) {
+                        $nuevoEstado = 'PAGADO';
+                        $nuevoTotal = 0;
+                    } else {
+                        $nuevoEstado = 'PARCIAL';
+                        $nuevoTotal = max(0, $totalOriginal - ($nuevoCapitalAplicado + $nuevoInteresAplicado));
+                    }
+                }
+                
+                // Actualizar estado en cronograma nuevo
+                $sqlUpdate = "UPDATE f17_cuotasprestamo_nuevo
+                             SET f17_estado = :estado, f17_total = :total,
+                                 f17_fechaCancela = CASE WHEN :estado_check = 'PAGADO' THEN CURDATE() ELSE f17_fechaCancela END
+                             WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtUpdate = $pdo->prepare($sqlUpdate);
+                $stmtUpdate->execute([
+                    'estado' => $nuevoEstado,
+                    'estado_check' => $nuevoEstado,
+                    'total' => round($nuevoTotal, 2),
+                    'prestamo' => $prestamoCodigo,
+                    'cuota' => $numeroCuota
+                ]);
+                
+                // Actualizar estado en cronograma original
+                $sqlUpdateOriginal = "UPDATE f17_cuotasprestamo
+                                     SET f17_estado = :estado,
+                                         f17_fechaCancela = CASE WHEN :estado_check = 'PAGADO' THEN CURDATE() ELSE f17_fechaCancela END
+                                     WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+                $stmtUpdateOriginal = $pdo->prepare($sqlUpdateOriginal);
+                $stmtUpdateOriginal->execute([
+                    'estado' => $nuevoEstado,
+                    'estado_check' => $nuevoEstado,
+                    'prestamo' => $prestamoCodigo,
+                    'cuota' => $numeroCuota
+                ]);
+                
+                $logMessage = sprintf("[%s] APLICADO EXCESO A CUOTA %d: Capital=%.2f, Interés=%.2f, Estado=%s\n",
+                    date('Y-m-d H:i:s'),
+                    $numeroCuota,
+                    $capitalAplicadoEstaCuota,
+                    $interesAplicadoEstaCuota,
+                    $nuevoEstado
+                );
+                file_put_contents($logFile, $logMessage, FILE_APPEND);
+            }
+            
+            // Si el exceso se agotó después de aplicar a esta cuota, detener el bucle
+            // Esto asegura que el exceso se concentre en una sola cuota parcial
+            if ($excesoCapital <= 0 && $excesoInteres <= 0) {
+                break;
+            }
+        }
+        
+        // Descuento del saldo del préstamo según el capital total aplicado a siguientes cuotas
+        if ($totalCapitalAplicado > 0) {
+            // Obtener saldo actual del préstamo
+            $sqlSaldoPrestamo = "SELECT f16_saldo FROM f16_prestamo WHERE f16_codigo = :codigo";
+            $stmtSaldoPrestamo = $pdo->prepare($sqlSaldoPrestamo);
+            $stmtSaldoPrestamo->execute(['codigo' => $prestamoCodigo]);
+            $saldoPrestamo = $stmtSaldoPrestamo->fetch(PDO::FETCH_ASSOC);
+            $saldoActual = (float) ($saldoPrestamo['f16_saldo'] ?? 0);
+            
+            // Descuento del saldo: saldo actual - capital total aplicado
+            $nuevoSaldo = max(0, $saldoActual - $totalCapitalAplicado);
+            $nuevoSaldo = round($nuevoSaldo, 2);
+            
+            $sqlSaldo = "UPDATE f16_prestamo SET f16_saldo = :saldo
+                         WHERE f16_codigo = :codigo";
+            $stmtSaldo = $pdo->prepare($sqlSaldo);
+            $stmtSaldo->execute([
+                'saldo' => $nuevoSaldo,
+                'codigo' => $prestamoCodigo,
+            ]);
+            
+            $logMessage = sprintf("[%s] DESCUENTO SALDO POR EXCESO: Saldo actual=%.2f, Capital aplicado=%.2f, Nuevo saldo=%.2f\n",
+                date('Y-m-d H:i:s'),
+                $saldoActual,
+                $totalCapitalAplicado,
+                $nuevoSaldo
+            );
+            file_put_contents($logFile, $logMessage, FILE_APPEND);
         }
     }
 }

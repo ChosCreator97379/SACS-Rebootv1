@@ -95,7 +95,8 @@ class SobregiroPrestamoServicio
                 $gastosMora,
                 $otros1,
                 $otros2,
-                $amortizacion
+                $amortizacion,
+                $codigoMovimiento
             );
 
             $this->pdo->commit();
@@ -324,7 +325,8 @@ class SobregiroPrestamoServicio
         float $gastosMora,
         float $otros1,
         float $otros2,
-        float $descuenta
+        float $amortizacion,
+        int $codigoMovimiento
     ): void {
         // Reducir sobregiro
         $sqlSobregiro = "UPDATE f16_prestamo SET f16_sobre = GREATEST(0, f16_sobre - :sobregiro) WHERE f16_codigo = :codigo";
@@ -367,11 +369,11 @@ class SobregiroPrestamoServicio
         ]);
 
         // Reducir saldo si hay amortización adicional
-        if ($descuenta > 0) {
-            $sqlSaldo = "UPDATE f16_prestamo SET f16_saldo = GREATEST(0, f16_saldo - :descuenta) WHERE f16_codigo = :codigo";
+        if ($amortizacion > 0) {
+            $sqlSaldo = "UPDATE f16_prestamo SET f16_saldo = GREATEST(0, f16_saldo - :amortizacion) WHERE f16_codigo = :codigo";
             $stmtSaldo = $pdo->prepare($sqlSaldo);
             $stmtSaldo->execute([
-                'descuenta' => $descuenta,
+                'amortizacion' => $amortizacion,
                 'codigo' => $prestamoCodigo,
             ]);
 
@@ -402,7 +404,7 @@ class SobregiroPrestamoServicio
         ]);
 
         // Procesar cuotas parciales cubiertas por el sobregiro pagado
-        $this->procesarCuotasParcialesSobregiro($pdo, $prestamoCodigo, $sobregiro);
+        $this->procesarCuotasParcialesSobregiro($pdo, $prestamoCodigo, $sobregiro, $codigoMovimiento, $_SESSION['user_id'] ?? 'system');
     }
 
     /**
@@ -410,7 +412,7 @@ class SobregiroPrestamoServicio
      * Identifica cuántas cuotas parciales cubre el pago y cambia su estado a PAGADO
      * Distribuye el pago entre capital e interés, y descuenta el saldo según la porción de capital FALTANTE
      */
-    private function procesarCuotasParcialesSobregiro(PDO $pdo, int $prestamoCodigo, float $sobregiroPagado): void
+    private function procesarCuotasParcialesSobregiro(PDO $pdo, int $prestamoCodigo, float $sobregiroPagado, int $codigoMovimiento, string $usuarioCrea): void
     {
         if ($sobregiroPagado <= 0) {
             return;
@@ -456,6 +458,25 @@ class SobregiroPrestamoServicio
                 $sobregiroRestante -= $totalFaltante;
                 $totalCapitalAplicado += $capitalFaltante; // Solo descuento el capital faltante
 
+                // Insertar aplicación en f15_aplicaciones_cuotas
+                $sqlAplicacion = "INSERT INTO f15_aplicaciones_cuotas
+                                (f15_codigo, f17_prestamo, f17_ncuota,
+                                 f17_capital_aplicado, f17_interes_aplicado, f17_mora_aplicado,
+                                 f17_gastos_aplicado, f17_total_aplicado, f17_fechaCrea, f17_usuaCrea)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+                $stmtAplicacion = $pdo->prepare($sqlAplicacion);
+                $stmtAplicacion->execute([
+                    $codigoMovimiento,
+                    $prestamoCodigo,
+                    $numeroCuota,
+                    $capitalFaltante,  // Capital aplicado (solo lo faltante)
+                    $interesOriginal,  // Interés aplicado (completo)
+                    0,  // Mora aplicada
+                    0,  // Gastos aplicados
+                    $capitalFaltante + $interesOriginal,  // Total aplicado
+                    $usuarioCrea
+                ]);
+
                 // Cambiar estado a PAGADO en f17_cuotasprestamo_nuevo
                 // Solo modificar estado y total, MANTENER capital, interés y saldo originales
                 $sqlNuevo = "UPDATE f17_cuotasprestamo_nuevo
@@ -489,8 +510,27 @@ class SobregiroPrestamoServicio
                 $interesAplicado = $sobregiroRestante * $proporcionInteres;
 
                 $totalCapitalAplicado += $capitalAplicado;
-                $nuevoFaltante = $totalFaltante - $sobregiroRestante;
+                $nuevoFaltante = round($totalFaltante - $sobregiroRestante, 2); // Redondear para evitar errores de precisión
                 $sobregiroRestante = 0;
+
+                // Insertar aplicación en f15_aplicaciones_cuotas
+                $sqlAplicacion = "INSERT INTO f15_aplicaciones_cuotas
+                                (f15_codigo, f17_prestamo, f17_ncuota,
+                                 f17_capital_aplicado, f17_interes_aplicado, f17_mora_aplicado,
+                                 f17_gastos_aplicado, f17_total_aplicado, f17_fechaCrea, f17_usuaCrea)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)";
+                $stmtAplicacion = $pdo->prepare($sqlAplicacion);
+                $stmtAplicacion->execute([
+                    $codigoMovimiento,
+                    $prestamoCodigo,
+                    $numeroCuota,
+                    round($capitalAplicado, 2),  // Capital aplicado (redondeado)
+                    round($interesAplicado, 2),  // Interés aplicado (redondeado)
+                    0,  // Mora aplicada
+                    0,  // Gastos aplicados
+                    round($capitalAplicado + $interesAplicado, 2),  // Total aplicado (redondeado)
+                    $usuarioCrea
+                ]);
 
                 // Actualizar solo el total en f17_cuotasprestamo_nuevo
                 // MANTENER capital, interés y saldo originales

@@ -59,6 +59,7 @@ $subtotalGlobal = $pendientesGlobales['aportesFonbes'] + $pendientesGlobales['ap
 // Calcular pendientes por préstamo
 $pendientesPorPrestamo = [];
 $cuotasParcialesPorPrestamo = [];
+$cuotasSeleccionablesPorPrestamo = [];
 $subtotalPrestamos = 0;
 foreach ($prestamosSeleccionados as $prestamoCodigo) {
     $pendientes = $pagoIntegralServicio->calcularPendientesPorPrestamo((int) $prestamoCodigo);
@@ -67,6 +68,9 @@ foreach ($prestamosSeleccionados as $prestamoCodigo) {
 
     // Cuotas parciales se cargarán solo cuando se seleccionen (optimización)
     $cuotasParcialesPorPrestamo[$prestamoCodigo] = [];
+    
+    // Cargar cuotas seleccionables (vigentes y parciales)
+    $cuotasSeleccionablesPorPrestamo[$prestamoCodigo] = $pagoIntegralServicio->obtenerCuotasSeleccionables((int) $prestamoCodigo);
 }
 
 $totalPagar = $subtotalGlobal + $subtotalPrestamos;
@@ -388,8 +392,8 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                     <?php if ($pendientes['cuotaDetalle']): ?>
                         <h3>Cuota a Pagar</h3>
                         <div class="summary" style="margin-bottom: 16px;">
-                            <div><span class="label">Número de Cuota</span><div class="value">Cuota #<?= $escape($pendientes['cuotaDetalle']['numero_cuota']) ?></div></div>
-                            <div><span class="label">Fecha Vencimiento</span><div class="value"><?= $escape($pendientes['cuotaDetalle']['fecha_vencimiento']) ?></div></div>
+                            <div><span class="label">Número de Cuota</span><div class="value" id="cuota-numero-<?= $escape($prestamoCodigo) ?>">Cuota #<?= $escape($pendientes['cuotaDetalle']['numero_cuota']) ?></div></div>
+                            <div><span class="label">Fecha Vencimiento</span><div class="value" id="cuota-fecha-<?= $escape($prestamoCodigo) ?>"><?= $escape($pendientes['cuotaDetalle']['fecha_vencimiento']) ?></div></div>
                         </div>
                         <table style="margin-bottom: 20px;">
                             <thead>
@@ -401,26 +405,55 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
                             <tbody>
                                 <tr>
                                     <td>Capital (Amortización)</td>
-                                    <td class="amount"><?= $money($pendientes['cuotaDetalle']['capital']) ?></td>
+                                    <td class="amount" id="cuota-capital-display-<?= $escape($prestamoCodigo) ?>"><?= $money($pendientes['cuotaDetalle']['capital']) ?></td>
                                 </tr>
                                 <tr>
                                     <td>Interés (Gastos Administrativos)</td>
-                                    <td class="amount"><?= $money($pendientes['cuotaDetalle']['interes']) ?></td>
+                                    <td class="amount" id="cuota-interes-display-<?= $escape($prestamoCodigo) ?>"><?= $money($pendientes['cuotaDetalle']['interes']) ?></td>
                                 </tr>
                                 <?php if ($pendientes['cuotaDetalle']['mora'] > 0): ?>
                                 <tr>
                                     <td>Mora</td>
-                                    <td class="amount"><?= $money($pendientes['cuotaDetalle']['mora']) ?></td>
+                                    <td class="amount" id="cuota-mora-display-<?= $escape($prestamoCodigo) ?>"><?= $money($pendientes['cuotaDetalle']['mora']) ?></td>
                                 </tr>
                                 <?php endif; ?>
                                 <tr class="total-row">
                                     <td><strong>Total Cuota</strong></td>
-                                    <td class="amount"><strong><?= $money($pendientes['cuotaDetalle']['total']) ?></strong></td>
+                                    <td class="amount"><strong id="cuota-total-display-<?= $escape($prestamoCodigo) ?>"><?= $money($pendientes['cuotaDetalle']['total']) ?></strong></td>
                                 </tr>
                             </tbody>
                         </table>
                     <?php else: ?>
                         <p class="empty">No hay cuota vigente para pagar</p>
+                    <?php endif; ?>
+
+                    <!-- Selección de Cuota -->
+                    <?php if (!empty($cuotasSeleccionablesPorPrestamo[$prestamoCodigo])): ?>
+                        <div class="section-separator"></div>
+                        <h3>Seleccionar Cuota a Pagar</h3>
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label>Cuota</label>
+                            <select name="cuotas_seleccionadas[<?= $escape($prestamoCodigo) ?>]" id="cuota-seleccionada-<?= $escape($prestamoCodigo) ?>" onchange="cambiarCuota(<?= $escape($prestamoCodigo) ?>)">
+                                <option value="">Seleccione una cuota...</option>
+                                <?php foreach ($cuotasSeleccionablesPorPrestamo[$prestamoCodigo] as $cuota): ?>
+                                    <?php 
+                                        $esCuotaActual = $pendientes['cuotaDetalle'] && $pendientes['cuotaDetalle']['numero_cuota'] == $cuota['numero_cuota'];
+                                        $esParcial = $cuota['estado'] === 'PARCIAL';
+                                        $selected = $esCuotaActual ? 'selected' : '';
+                                    ?>
+                                    <option value="<?= $escape($cuota['numero_cuota']) ?>" 
+                                            data-capital="<?= $escape($cuota['capital']) ?>"
+                                            data-interes="<?= $escape($cuota['interes']) ?>"
+                                            data-total="<?= $escape($cuota['total']) ?>"
+                                            data-estado="<?= $escape($cuota['estado']) ?>"
+                                            data-fecha="<?= $escape($cuota['fecha_vencimiento']) ?>"
+                                            <?= $selected ?>>
+                                        Cuota #<?= $escape($cuota['numero_cuota']) ?> - <?= $escape($cuota['fecha_vencimiento']) ?> 
+                                        (<?= $escape($cuota['estado']) ?>) - Total: <?= $money($cuota['total']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
                     <?php endif; ?>
 
                     <div class="section-separator"></div>
@@ -788,6 +821,77 @@ $money = static fn (mixed $value): string => $value === null || $value === '' ? 
 
         function formatMoney(value) {
             return value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function cambiarCuota(prestamoCodigo) {
+            console.log('cambiarCuota llamado para préstamo:', prestamoCodigo);
+            
+            const select = document.getElementById('cuota-seleccionada-' + prestamoCodigo);
+            console.log('Select encontrado:', select);
+            
+            if (!select) {
+                console.error('No se encontró el select con ID: cuota-seleccionada-' + prestamoCodigo);
+                return;
+            }
+            
+            const selectedOption = select.options[select.selectedIndex];
+            console.log('Opción seleccionada:', selectedOption);
+            
+            if (selectedOption.value === '') {
+                // Si no se seleccionó ninguna cuota, limpiar los campos
+                document.getElementById('monto-amortizacion-capital-' + prestamoCodigo).value = '';
+                document.getElementById('monto-amortizacion-interes-' + prestamoCodigo).value = '';
+                return;
+            }
+            
+            // Actualizar los campos de amortización con los datos de la cuota seleccionada
+            const capital = parseFloat(selectedOption.dataset.capital);
+            const interes = parseFloat(selectedOption.dataset.interes);
+            const total = parseFloat(selectedOption.dataset.total);
+            const estado = selectedOption.dataset.estado;
+            
+            console.log('Datos de cuota:', { capital, interes, total, estado });
+            
+            const campoCapital = document.getElementById('monto-amortizacion-capital-' + prestamoCodigo);
+            const campoInteres = document.getElementById('monto-amortizacion-interes-' + prestamoCodigo);
+            
+            console.log('Campos encontrados:', campoCapital, campoInteres);
+            
+            const capitalFormateado = formatMoney(capital);
+            const interesFormateado = formatMoney(interes);
+            const totalFormateado = formatMoney(total);
+            
+            console.log('Valores formateados:', { capitalFormateado, interesFormateado, totalFormateado });
+            
+            // Actualizar campos de amortización
+            if (campoCapital) {
+                campoCapital.value = capitalFormateado;
+                console.log('Capital actualizado a:', campoCapital.value);
+            }
+            if (campoInteres) {
+                campoInteres.value = interesFormateado;
+                console.log('Interés actualizado a:', campoInteres.value);
+            }
+            
+            // Actualizar la sección "Cuota a Pagar"
+            const cuotaNumero = document.getElementById('cuota-numero-' + prestamoCodigo);
+            const cuotaFecha = document.getElementById('cuota-fecha-' + prestamoCodigo);
+            const cuotaCapitalDisplay = document.getElementById('cuota-capital-display-' + prestamoCodigo);
+            const cuotaInteresDisplay = document.getElementById('cuota-interes-display-' + prestamoCodigo);
+            const cuotaTotalDisplay = document.getElementById('cuota-total-display-' + prestamoCodigo);
+            
+            if (cuotaNumero) cuotaNumero.textContent = 'Cuota #' + selectedOption.value;
+            if (cuotaFecha) cuotaFecha.textContent = selectedOption.dataset.fecha;
+            if (cuotaCapitalDisplay) cuotaCapitalDisplay.textContent = capitalFormateado;
+            if (cuotaInteresDisplay) cuotaInteresDisplay.textContent = interesFormateado;
+            if (cuotaTotalDisplay) cuotaTotalDisplay.textContent = totalFormateado;
+            
+            // Si es PARCIAL, el faltante es el total (ya que está parcialmente pagado)
+            if (estado === 'PARCIAL') {
+                // El faltante ya está en el campo de interés
+            }
+            
+            calcularTotales();
         }
 
         function calcularTotales() {

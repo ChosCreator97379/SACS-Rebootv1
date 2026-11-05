@@ -387,35 +387,68 @@ $socios = $sociosServicio->listarSocios([], 1, 1000);
                             <label for="cliente">Cliente</label>
                             <input type="text" id="cliente" name="cliente" value="<?= $escape($prestamo['cliente']) ?>" disabled>
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="importe">Importe *</label>
                             <input type="number" id="importe" name="importe" step="0.01" min="0" required value="<?= $escape($prestamo['importe']) ?>">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="cuotas">Cuotas *</label>
                             <input type="number" id="cuotas" name="cuotas" min="1" required value="<?= $escape($prestamo['cuotas']) ?>">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="interes">Tasa de Interés (%) *</label>
                             <input type="number" id="interes" name="interes" step="0.01" min="0" required value="<?= $escape($prestamo['interes']) ?>">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="fecha_desembolso">Fecha de Desembolso *</label>
                             <input type="date" id="fecha_desembolso" name="fecha_desembolso" required value="<?= $escape($prestamo['fecha_desembolso']) ?>">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="producto">Producto</label>
                             <input type="text" id="producto" name="producto" value="<?= $escape($prestamo['producto'] ?? '') ?>">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="tramite">Trámite</label>
                             <input type="text" id="tramite" name="tramite" value="<?= $escape($prestamo['tramite'] ?? '') ?>">
+                        </div>
+                    </div>
+
+                    <h3 style="margin-top: 24px; margin-bottom: 16px;">Saldos Pendientes Actuales</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="saldo">Saldo Actual</label>
+                            <input type="number" id="saldo" name="saldo" step="0.01" min="0" value="<?= $escape($prestamo['saldo'] ?? 0) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sobre">Sobregiro</label>
+                            <input type="number" id="sobre" name="sobre" step="0.01" min="0" value="<?= $escape($prestamo['sobre'] ?? 0) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="gastos_activos">Gastos Administrativos</label>
+                            <input type="number" id="gastos_activos" name="gastos_activos" step="0.01" min="0" value="<?= $escape($prestamo['gastos_activos'] ?? 0) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="gastos_mora">Gastos de Mora</label>
+                            <input type="number" id="gastos_mora" name="gastos_mora" step="0.01" min="0" value="<?= $escape($prestamo['gastos_mora'] ?? 0) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="otros">Otros 1</label>
+                            <input type="number" id="otros" name="otros" step="0.01" min="0" value="<?= $escape($prestamo['otros'] ?? 0) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="otros2">Otros 2</label>
+                            <input type="number" id="otros2" name="otros2" step="0.01" min="0" value="<?= $escape($prestamo['otros2'] ?? 0) ?>">
                         </div>
                     </div>
                     

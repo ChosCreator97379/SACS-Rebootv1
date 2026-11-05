@@ -41,6 +41,7 @@ final class AmortizacionCalculadora
         // Datos de la cuota
         $cuotaMensual = (float) ($cuota['f17_total'] ?? 0);
         $amortizacion = (float) ($cuota['f17_capital'] ?? 0);
+        $interesProgramado = (float) ($cuota['f17_interes'] ?? 0);
         $resto = (float) ($cuota['f17_saldo'] ?? 0);
         
         // Valores del formulario
@@ -166,23 +167,33 @@ final class AmortizacionCalculadora
         // Calcular cuotas restantes según el monto pagado
         $saldoCuota = (float) ($cuota['f17_saldo'] ?? 0);
         $totalCuotaProgramada = (float) ($cuota['f17_total'] ?? 0);
+        $estadoCuota = $cuota['f17_estado'] ?? 'VIGENTE';
         $totalPagado = $amortiza + $ga + $gm + $o1 + $o2;
         $escenario = self::determinarEscenario($totalPagado, $totalCuotaProgramada, $cuotaMensual);
 
         // Cálculo del faltante para pago parcial - ANTES del cálculo del saldo
         $faltanteCuota = 0;
-        if ($escenario === 'menos') {
+        if ($escenario === 'menos' || $escenario === 'parcial') {
+            // Si la cuota está en estado PARCIAL, usar el total del cronograma nuevo
+            if ($estadoCuota === 'PARCIAL') {
+                $totalCuotaProgramada = (float) ($cuota['f17_total'] ?? 0); // Total del cronograma nuevo
+            }
             // Faltante = cuota programada - total pagado
             $faltanteCuota = $totalCuotaProgramada - $totalPagado;
-            // El faltante se suma al sobregiro existente del préstamo
-            $sobregiro = $sobregiro + $faltanteCuota;
+            // El faltante se suma al sobregiro existente del préstamo ($s), no al sobregiro calculado en línea 58
+            $sobregiro = $s + $faltanteCuota;
+            // Tolerancia: si el sobregiro es menor o igual a 0.05, se considera 0
+            if (abs($sobregiro) <= 0.05) {
+                $sobregiro = 0;
+            }
 
             // Log temporal para debugging
             $logFile = dirname(__DIR__, 2) . '/logs/amortizacion_calculadora.log';
             $logMessage = sprintf(
-                "[%s] DEBUG - Cuota: %d, Total programada: %.2f, Total pagado: %.2f, Faltante: %.2f, Sobregiro antes: %.2f, Sobregiro después: %.2f\n",
+                "[%s] DEBUG - Cuota: %d, Estado: %s, Total programada: %.2f, Total pagado: %.2f, Faltante: %.2f, Sobregiro existente (s): %.2f, Sobregiro final: %.2f\n",
                 date('Y-m-d H:i:s'),
                 $cuota['f17_ncuota'] ?? 0,
+                $estadoCuota,
                 $totalCuotaProgramada,
                 $totalPagado,
                 $faltanteCuota,
@@ -232,15 +243,12 @@ final class AmortizacionCalculadora
                 }
             }
             if ($sobregiro < 0) {
-                // Cuando hay exceso de pago (sobregiro negativo), el legacy
-                // RESTA el sobregiro negativo del saldo (líneas 1500-1507)
-                // pero NO actualiza el campo de aportación del préstamo
-                // SOLO si es un pago que realmente generó exceso
+                // Cuando hay exceso de pago (sobregiro negativo), en la nueva lógica
+                // NO debe haber sobregiro. El exceso se aplica a siguientes cuotas.
                 if ($escenario === 'mas') {
-                    $sobregiro = -$sobregiro;
-                    $r = ($saldo - $amortizacion) - $sobregiro;
-                    // NO actualizar amortizapAportacion cuando hay exceso de pago
-                    // (el legacy Java no lo hace en este caso)
+                    $sobregiro = 0; // Sin sobregiro en caso de exceso de pago
+                    $r = $saldo - $amortizacion; // Descuento normal por capital programado
+                    // El exceso se manejará en el servicio de amortización
                 } else {
                     // Si no es escenario 'mas', descontar capital pagado
                     $r = $saldo - $amortiza;
@@ -264,11 +272,32 @@ final class AmortizacionCalculadora
             // Pago completo o mayor: reducir cuotas pendientes
             $nuevasCuotasPend = $cuotasPend - 1;
 
-            // Si pagó más, calcular cuántas cuotas adicionales se pueden eliminar
-            if ($escenario === 'mas' && $r > 0) {
-                $exceso = $amortiza - $saldoCuota;
-                $cuotasEliminadas = floor($exceso / $amortizacion);
-                $nuevasCuotasPend = max(0, $nuevasCuotasPend - $cuotasEliminadas);
+            // Si pagó más, aplicar exceso a siguientes cuotas (nueva lógica)
+            if ($escenario === 'mas' && $amortiza > $amortizacion) {
+                // Si el usuario pagó interés explícitamente, usar la lógica actual
+                if ($ga > 0) {
+                    $excesoCapital = $amortiza - $amortizacion;
+                    $excesoInteres = max(0, $ga - $interesProgramado);
+                    $usarExcesoCapitalParaInteres = false;
+                } else {
+                    // Si el usuario NO pagó interés pero hay exceso de capital,
+                    // calcular el exceso usando el total de la cuota (capital + interés)
+                    // para permitir usar parte del exceso de capital para pagar interés
+                    $totalCuotaCompleta = $amortizacion + $interesProgramado;
+                    $excesoCapital = $amortiza - $totalCuotaCompleta;
+                    $excesoInteres = 0; // No hay exceso de interés explícito
+                    $usarExcesoCapitalParaInteres = true; // Bandera para el servicio
+                }
+
+                // Agregar información de exceso al resultado para que el servicio de amortización
+                // pueda registrar las aplicaciones a siguientes cuotas
+                $excesoInfo = [
+                    'exceso_capital' => $excesoCapital,
+                    'exceso_interes' => $excesoInteres,
+                    'usar_exceso_capital_para_interes' => $usarExcesoCapitalParaInteres ?? false,
+                    'cuota_actual' => $cuota['f17_ncuota'],
+                    'prestamo_codigo' => $prestamo['f16_codigo']
+                ];
             }
         } elseif ($escenario === 'menos') {
             // Pago parcial: mantener cuotas pendientes (no reducir)
@@ -283,7 +312,7 @@ final class AmortizacionCalculadora
         }
 
         // Retornar resultado estructurado
-        return [
+        $resultado = [
             'distribucion' => [
                 'monto_pagado' => $montoPagado,
                 'capital' => $amortiza,
@@ -328,6 +357,13 @@ final class AmortizacionCalculadora
             ],
             'escenario' => $escenario, // Agregar el escenario detectado
         ];
+
+        // Agregar información de exceso si existe
+        if (isset($excesoInfo)) {
+            $resultado['exceso_info'] = $excesoInfo;
+        }
+
+        return $resultado;
         
         // Retornar resultado estructurado
         return [

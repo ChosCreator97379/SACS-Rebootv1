@@ -627,9 +627,15 @@ class PrestamosServicio
                         f16_garante2 = :garante2,
                         f16_garante3 = :garante3,
                         f16_garante4 = :garante4,
-                        f16_tramite = :tramite
+                        f16_tramite = :tramite,
+                        f16_saldo = :saldo,
+                        f16_sobre = :sobre,
+                        f16_gastosa = :gastos_activos,
+                        f16_gastosm = :gastos_mora,
+                        f16_otros = :otros,
+                        f16_otros2 = :otros2
                     WHERE f16_codigo = :codigo";
-            
+
             $stmt = $this->db->prepare($sql);
             $stmt->execute([
                 'codigo' => $codigo,
@@ -644,7 +650,13 @@ class PrestamosServicio
                 'garante2' => $datos['garante2'] ?? '',
                 'garante3' => $datos['garante3'] ?? '',
                 'garante4' => $datos['garante4'] ?? '',
-                'tramite' => $datos['tramite'] ?? ''
+                'tramite' => $datos['tramite'] ?? '',
+                'saldo' => (float) ($datos['saldo'] ?? 0),
+                'sobre' => (float) ($datos['sobre'] ?? 0),
+                'gastos_activos' => (float) ($datos['gastos_activos'] ?? 0),
+                'gastos_mora' => (float) ($datos['gastos_mora'] ?? 0),
+                'otros' => (float) ($datos['otros'] ?? 0),
+                'otros2' => (float) ($datos['otros2'] ?? 0)
             ]);
             
             $this->db->commit();

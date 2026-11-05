@@ -593,6 +593,7 @@ $operaciones = [
                                             }
                                             ?>
                                             <span class="badge <?= $estadoClase ?>"><?= $escape($estadoTexto) ?></span>
+                                            <button onclick="abrirModalCambiarEstado(<?= $cuota['numero'] ?>, '<?= $escape($cuota['estado']) ?>')" style="margin-left: 10px; padding: 2px 8px; font-size: 12px; cursor: pointer;">Cambiar</button>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -653,6 +654,7 @@ $operaciones = [
 
             <div style="margin-top: 24px;">
                 <a href="index.php?module=prestamos&action=listado" class="btn btn-secondary">Volver al Listado</a>
+                <a href="index.php?module=prestamos&action=editar&codigo=<?= $escape($codigo) ?>" class="btn btn-primary">Editar Préstamo</a>
                 <a href="index.php?module=caja&action=amortizar_form&client=<?= $escape($prestamo['cliente']) ?>&loan=<?= $escape($codigo) ?>" class="btn btn-primary">Amortizar</a>
             </div>
         </main>
@@ -668,8 +670,36 @@ $operaciones = [
             </div>
         </div>
 
+        <!-- Modal Cambiar Estado -->
+        <div id="modal-cambiar-estado" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; max-width: 400px; width: 90%;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0;">Cambiar Estado de Cuota</h3>
+                    <button onclick="cerrarModalCambiarEstado()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <p><strong>Cuota:</strong> <span id="numero-cuota"></span></p>
+                    <p><strong>Estado actual:</strong> <span id="estado-actual"></span></p>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label for="nuevo-estado"><strong>Nuevo estado:</strong></label>
+                    <select id="nuevo-estado" style="width: 100%; padding: 8px; margin-top: 5px;">
+                        <option value="VIGENTE">VIGENTE</option>
+                        <option value="PARCIAL">PARCIAL</option>
+                        <option value="PAGADO">PAGADO</option>
+                        <option value="CANCELADO">CANCELADO</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="cerrarModalCambiarEstado()" style="padding: 8px 16px; cursor: pointer;">Cancelar</button>
+                    <button onclick="guardarNuevoEstado()" style="padding: 8px 16px; background: #007bff; color: white; border: none; cursor: pointer;">Guardar</button>
+                </div>
+            </div>
+        </div>
+
         <script>
             const cronogramaNuevoData = <?= json_encode($cronogramaNuevo) ?>;
+            let cuotaSeleccionada = null;
 
             function mostrarCronogramaNuevo() {
                 document.getElementById('modal-cronograma-nuevo').style.display = 'block';
@@ -678,6 +708,50 @@ $operaciones = [
 
             function cerrarModalCronogramaNuevo() {
                 document.getElementById('modal-cronograma-nuevo').style.display = 'none';
+            }
+
+            function abrirModalCambiarEstado(numero, estado) {
+                cuotaSeleccionada = numero;
+                document.getElementById('numero-cuota').textContent = numero;
+                document.getElementById('estado-actual').textContent = estado;
+                document.getElementById('nuevo-estado').value = estado;
+                document.getElementById('modal-cambiar-estado').style.display = 'block';
+            }
+
+            function cerrarModalCambiarEstado() {
+                document.getElementById('modal-cambiar-estado').style.display = 'none';
+                cuotaSeleccionada = null;
+            }
+
+            function guardarNuevoEstado() {
+                if (!cuotaSeleccionada) return;
+
+                const nuevoEstado = document.getElementById('nuevo-estado').value;
+                const codigoPrestamo = '<?= $escape($codigo) ?>';
+
+                const formData = new FormData();
+                formData.append('action', 'cambiar_estado_cuota');
+                formData.append('prestamo', codigoPrestamo);
+                formData.append('cuota', cuotaSeleccionada);
+                formData.append('estado', nuevoEstado);
+                formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? '' ?>');
+
+                fetch('index.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Estado actualizado correctamente');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + (data.mensaje || 'No se pudo actualizar el estado'));
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
             }
 
             function renderizarCronogramaNuevo() {

@@ -18,6 +18,61 @@ session_start();
 
 $auth = new Auth(new UserRepository());
 
+// POST: Cambiar estado de cuota (global, antes de procesar módulos)
+if (($_POST['action'] ?? '') === 'cambiar_estado_cuota' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json');
+    $error = null;
+
+    // Validar CSRF
+    $csrfToken = (string) ($_POST['csrf_token'] ?? '');
+    if (!hash_equals((string) $_SESSION['csrf_token'], $csrfToken)) {
+        $error = 'La solicitud no es válida.';
+    } else {
+        try {
+            $prestamoCodigo = (int) ($_POST['prestamo'] ?? 0);
+            $cuotaNumero = (int) ($_POST['cuota'] ?? 0);
+            $nuevoEstado = trim((string) ($_POST['estado'] ?? ''));
+
+            $pdo = Database::connection();
+
+            // Actualizar estado en cronograma original
+            $sqlOriginal = "UPDATE f17_cuotasprestamo
+                          SET f17_estado = :estado,
+                              f17_fechaCancela = CASE WHEN :estado_check = 'PAGADO' THEN CURDATE() ELSE f17_fechaCancela END
+                          WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+            $stmtOriginal = $pdo->prepare($sqlOriginal);
+            $stmtOriginal->execute([
+                'estado' => $nuevoEstado,
+                'estado_check' => $nuevoEstado,
+                'prestamo' => $prestamoCodigo,
+                'cuota' => $cuotaNumero
+            ]);
+
+            // Actualizar estado en cronograma nuevo
+            $sqlNuevo = "UPDATE f17_cuotasprestamo_nuevo
+                        SET f17_estado = :estado,
+                            f17_fechaCancela = CASE WHEN :estado_check = 'PAGADO' THEN CURDATE() ELSE f17_fechaCancela END
+                        WHERE f17_prestamo = :prestamo AND f17_ncuota = :cuota";
+            $stmtNuevo = $pdo->prepare($sqlNuevo);
+            $stmtNuevo->execute([
+                'estado' => $nuevoEstado,
+                'estado_check' => $nuevoEstado,
+                'prestamo' => $prestamoCodigo,
+                'cuota' => $cuotaNumero
+            ]);
+
+            echo json_encode(['success' => true, 'mensaje' => 'Estado actualizado correctamente']);
+        } catch (Throwable $exception) {
+            $error = 'Error inesperado: ' . $exception->getMessage();
+        }
+    }
+
+    if ($error !== null) {
+        echo json_encode(['success' => false, 'mensaje' => $error]);
+    }
+    exit;
+}
+
 if (($_GET['logout'] ?? '') === '1') {
     $auth->logout();
     header('Location: index.php');
@@ -188,7 +243,13 @@ if ($module === 'prestamos') {
             'garante' => trim((string) ($_POST['garante'] ?? '')),
             'garante2' => trim((string) ($_POST['garante2'] ?? '')),
             'garante3' => trim((string) ($_POST['garante3'] ?? '')),
-            'garante4' => trim((string) ($_POST['garante4'] ?? ''))
+            'garante4' => trim((string) ($_POST['garante4'] ?? '')),
+            'saldo' => trim((string) ($_POST['saldo'] ?? '')),
+            'sobre' => trim((string) ($_POST['sobre'] ?? '')),
+            'gastos_activos' => trim((string) ($_POST['gastos_activos'] ?? '')),
+            'gastos_mora' => trim((string) ($_POST['gastos_mora'] ?? '')),
+            'otros' => trim((string) ($_POST['otros'] ?? '')),
+            'otros2' => trim((string) ($_POST['otros2'] ?? ''))
         ];
 
         // Verificar si se debe regenerar el cronograma
@@ -201,9 +262,9 @@ if ($module === 'prestamos') {
         }
 
         if ($resultado['success']) {
-            $query = http_build_query(['module' => 'prestamos', 'action' => 'editar', 'codigo' => $codigo, 'success' => $resultado['message']]);
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'detalle_completo', 'codigo' => $codigo, 'success' => $resultado['message']]);
         } else {
-            $query = http_build_query(['module' => 'prestamos', 'action' => 'editar', 'codigo' => $codigo, 'error' => $resultado['message']]);
+            $query = http_build_query(['module' => 'prestamos', 'action' => 'detalle_completo', 'codigo' => $codigo, 'error' => $resultado['message']]);
         }
 
         header('Location: index.php?' . $query);
@@ -1351,6 +1412,7 @@ if ($auth->check()) {
                 $datos = [
                     'cliente' => trim((string) ($_POST['cliente'] ?? '')),
                     'prestamos' => is_array($_POST['prestamos'] ?? []) ? $_POST['prestamos'] : [$_POST['prestamos'] ?? []],
+                    'cuotasSeleccionadas' => $_POST['cuotas_seleccionadas'] ?? [],
                     'formaPago' => trim((string) ($_POST['formaPago'] ?? '')),
                     'observaciones' => trim((string) ($_POST['observaciones'] ?? '')),
                 ];
