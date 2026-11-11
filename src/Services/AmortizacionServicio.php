@@ -552,15 +552,7 @@ class AmortizacionServicio
             // Calcular capital faltante
             $capitalFaltante = max(0, $capitalOriginal - $capitalYaAplicado);
             
-            // Aplicar exceso de capital primero
-            $capitalAplicadoEstaCuota = 0;
-            if ($excesoCapital > 0 && $capitalFaltante > 0) {
-                $capitalAplicadoEstaCuota = min($excesoCapital, $capitalFaltante);
-                $excesoCapital -= $capitalAplicadoEstaCuota;
-                $totalCapitalAplicado += $capitalAplicadoEstaCuota;
-            }
-            
-            // Aplicar exceso de interés después del capital
+            // Aplicar exceso de interés primero (nueva prioridad)
             $interesAplicadoEstaCuota = 0;
             if ($excesoInteres > 0) {
                 // El usuario pagó interés explícitamente, usar la lógica actual
@@ -579,7 +571,6 @@ class AmortizacionServicio
             } elseif (isset($excesoInfo['usar_exceso_capital_para_interes']) && $excesoInfo['usar_exceso_capital_para_interes'] && $excesoCapital > 0) {
                 // El usuario NO pagó interés pero hay exceso de capital
                 // Usar parte del exceso de capital para pagar interés automáticamente
-                // SOLO si alcanza para completar la cuota (capital + interés)
 
                 // Calcular interés faltante
                 $sqlInteres = "SELECT SUM(f17_interes_aplicado) as interes_aplicado
@@ -594,6 +585,14 @@ class AmortizacionServicio
                 // Aplicar interés usando el exceso de capital disponible
                 $interesAplicadoEstaCuota = min($excesoCapital, $interesFaltante);
                 $excesoCapital -= $interesAplicadoEstaCuota; // Reducir el exceso de capital
+            }
+            
+            // Aplicar exceso de capital después del interés (nueva prioridad)
+            $capitalAplicadoEstaCuota = 0;
+            if ($excesoCapital > 0 && $capitalFaltante > 0) {
+                $capitalAplicadoEstaCuota = min($excesoCapital, $capitalFaltante);
+                $excesoCapital -= $capitalAplicadoEstaCuota;
+                $totalCapitalAplicado += $capitalAplicadoEstaCuota;
             }
             
             // Si aplicó algo a esta cuota, registrar la aplicación

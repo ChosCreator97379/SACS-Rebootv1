@@ -29,20 +29,21 @@ final class PagoIntegralServicio
 
     /**
      * Obtiene préstamos activos del socio (estado 4)
+     * Las cuotas pendientes se cuentan como cuotas VIGENTE del cronograma nuevo
      */
     public function obtenerPrestamosActivos(string $clienteCodigo): array
     {
         $sql = "SELECT
-                    f16_codigo as codigo,
-                    f16_importe as importe,
-                    f16_cuotasPend as cuotas_pendientes,
-                    f16_saldo as saldo,
-                    f16_sobre as sobregiro,
-                    f16_fechaDes as fecha_desembolso
-                FROM f16_prestamo
-                WHERE f16_cliente = :cliente
-                AND f16_estado = 4
-                ORDER BY f16_codigo ASC";
+                    p.f16_codigo as codigo,
+                    p.f16_importe as importe,
+                    (SELECT COUNT(*) FROM f17_cuotasprestamo_nuevo WHERE f17_prestamo = p.f16_codigo AND f17_estado = 'VIGENTE') as cuotas_pendientes,
+                    p.f16_saldo as saldo,
+                    p.f16_sobre as sobregiro,
+                    p.f16_fechaDes as fecha_desembolso
+                FROM f16_prestamo p
+                WHERE p.f16_cliente = :cliente
+                AND p.f16_estado = 4
+                ORDER BY p.f16_codigo ASC";
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(['cliente' => $clienteCodigo]);

@@ -55,17 +55,17 @@ $supervisor = $user['supervisor'] === 'S';
 
         .quick-search-section { margin-bottom: 50px; }
         .quick-search-title { margin: 0 0 20px; font-family: Georgia, serif; font-size: 24px; font-weight: normal; color: var(--navy); }
-        .quick-search-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .quick-search-card { display: flex; align-items: center; gap: 20px; padding: 25px; background: var(--panel); border: 2px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); transition: all 0.3s; }
+        .quick-search-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .quick-search-card { display: flex; align-items: center; gap: 15px; padding: 18px; background: var(--panel); border: 2px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); transition: all 0.3s; }
         .quick-search-card:hover { border-color: var(--teal); transform: translateY(-2px); }
-        .quick-search-icon { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 10px; background: var(--teal); color: #fff; font-size: 24px; }
+        .quick-search-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 8px; background: var(--teal); color: #fff; font-size: 20px; }
         .quick-search-content { flex: 1; }
-        .quick-search-title-card { margin: 0 0 8px; font-size: 16px; font-weight: bold; }
-        .quick-search-desc { margin: 0; color: var(--muted); font-size: 13px; }
-        .quick-form { display: flex; gap: 10px; margin-top: 15px; }
-        .quick-form input { flex: 1; padding: 10px 15px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+        .quick-search-title-card { margin: 0 0 6px; font-size: 14px; font-weight: bold; }
+        .quick-search-desc { margin: 0; color: var(--muted); font-size: 12px; }
+        .quick-form { display: flex; gap: 8px; margin-top: 12px; }
+        .quick-form input { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: 13px; }
         .quick-form input:focus { outline: none; border-color: var(--teal); }
-        .quick-form button { padding: 10px 20px; border: 0; border-radius: 6px; background: var(--teal); color: #fff; cursor: pointer; font: inherit; font-size: 13px; font-weight: bold; transition: background 0.2s; }
+        .quick-form button { padding: 8px 16px; border: 0; border-radius: 5px; background: var(--teal); color: #fff; cursor: pointer; font: inherit; font-size: 12px; font-weight: bold; transition: background 0.2s; }
         .quick-form button:hover { background: #166664; }
 
         .modules-section { margin-bottom: 50px; }
@@ -95,6 +95,10 @@ $supervisor = $user['supervisor'] === 'S';
             .user-details { text-align: left; }
             .quick-search-grid { grid-template-columns: 1fr; }
             .modules-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 1024px) {
+            .quick-search-grid { grid-template-columns: repeat(2, 1fr); }
         }
     </style>
 </head>
@@ -154,6 +158,20 @@ $supervisor = $user['supervisor'] === 'S';
                         <input type="hidden" name="module" value="prestamos">
                         <input type="hidden" name="action" value="detalle_completo">
                         <input name="codigo" inputmode="numeric" maxlength="11" required placeholder="Código de préstamo">
+                        <button type="submit">Consultar</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="quick-search-card">
+                <div class="quick-search-icon">💳</div>
+                <div class="quick-search-content">
+                    <h3 class="quick-search-title-card">Pago Integral</h3>
+                    <p class="quick-search-desc">Pago integral de préstamos de un socio</p>
+                    <form class="quick-form" method="get" action="index.php">
+                        <input type="hidden" name="module" value="caja">
+                        <input type="hidden" name="action" value="pago_integral_seleccion">
+                        <input name="client" inputmode="numeric" maxlength="11" required placeholder="Código de socio">
                         <button type="submit">Consultar</button>
                     </form>
                 </div>

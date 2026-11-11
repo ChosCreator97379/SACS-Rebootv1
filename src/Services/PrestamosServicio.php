@@ -357,38 +357,57 @@ class PrestamosServicio
     }
 
     /**
-     * Calcular cuota mensual
+     * Calcular cuota mensual usando fórmula de amortización francesa
+     * Cuota = P * [ (i * (1 + i)^n) / ((1 + i)^n - 1) ]
      */
     private function calcularCuotaMensual(float $importe, int $cuotas, float $interes): float
     {
-        $cuotaCapital = $importe / $cuotas;
-        $cuotaInteres = $importe * ($interes / 100);
-        
-        return $cuotaCapital + $cuotaInteres;
+        // Convertir tasa de interés porcentual a decimal
+        $i = $interes / 100;
+        $n = $cuotas;
+        $P = $importe;
+
+        // Calcular (1 + i)^n
+        $pow = pow(1 + $i, $n);
+
+        // Aplicar fórmula de amortización francesa
+        $cuota = $P * (($i * $pow) / ($pow - 1));
+
+        return round($cuota, 2);
     }
 
     /**
-     * Calcular cronograma de cuotas
+     * Calcular cronograma de cuotas usando amortización francesa
+     * Interés = Saldo pendiente × Tasa mensual
+     * Capital = Cuota mensual - Interés
+     * Saldo = Saldo anterior - Capital
      */
     public function calcularCronograma(float $importe, int $cuotas, float $interes, string $fechaInicio): array
     {
         $cronograma = [];
         $cuotaMensual = $this->calcularCuotaMensual($importe, $cuotas, $interes);
-        $capitalPorCuota = $importe / $cuotas;
         $saldoPendiente = $importe;
+        $tasaMensual = $interes / 100; // Convertir a decimal
 
         $fecha = new \DateTime($fechaInicio);
 
         for ($i = 1; $i <= $cuotas; $i++) {
-            $saldoPendiente -= $capitalPorCuota;
+            // Calcular interés de esta cuota (saldo pendiente × tasa mensual)
+            $interesCuota = $saldoPendiente * $tasaMensual;
+            
+            // Calcular capital de esta cuota (cuota mensual - interés)
+            $capitalCuota = $cuotaMensual - $interesCuota;
+            
+            // Actualizar saldo pendiente (saldo anterior - capital)
+            $saldoPendiente -= $capitalCuota;
 
             $cronograma[] = [
                 'numero' => $i,
                 'fecha' => $fecha->format('Y-m-d'),
-                'capital' => $capitalPorCuota,
-                'interes' => $importe * ($interes / 100),
-                'total' => $cuotaMensual,
-                'saldo' => max(0, $saldoPendiente), // Saldo decreciente según capital pendiente
+                'capital' => round($capitalCuota, 2),
+                'interes' => round($interesCuota, 2),
+                'total' => round($cuotaMensual, 2),
+                'saldo' => max(0, round($saldoPendiente, 2)),
                 'estado' => 'pendiente'
             ];
 

@@ -399,7 +399,7 @@ $socios = $sociosServicio->listarSocios([], 1, 1000);
                         </div>
 
                         <div class="form-group">
-                            <label for="interes">Tasa de Interés (%) *</label>
+                            <label for="interes">Tasa de Interés Mensual (%) *</label>
                             <input type="number" id="interes" name="interes" step="0.01" min="0" required value="<?= $escape($prestamo['interes']) ?>">
                         </div>
 
