@@ -231,6 +231,37 @@ $socioSeleccionado = $socioSeleccionado ?? null;
                             </div>
                         </div>
 
+                    <!-- Datos de Préstamo -->
+                    <div class="form-section">
+                        <h3>Datos de Préstamo (Opcional)</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Tasa de Interés Mensual (%)</label>
+                                <input type="number" name="interes_prestamo" step="0.01" min="0" placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Desembolso</label>
+                                <input type="date" name="fecha_desembolso">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Producto de Préstamo</label>
+                                <input type="text" name="producto_prestamo" placeholder="Nombre del producto">
+                            </div>
+                            <div class="form-group">
+                                <label>Crear Préstamo Automáticamente</label>
+                                <div style="display: flex; align-items: center; gap: 8px; padding: 8px 0;">
+                                    <input type="checkbox" name="crear_prestamo" id="crear_prestamo" style="width: auto; height: auto;">
+                                    <label for="crear_prestamo" style="margin: 0; font-size: 13px; color: var(--ink);">Sí, crear préstamo al registrar trámite</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Datos del Tramitante -->
+                    <div class="form-section">
+                        <h3>Datos del Tramitante</h3>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Tramitante</label>

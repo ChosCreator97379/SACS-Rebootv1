@@ -164,7 +164,11 @@ class TramitesServicio
                     f29_socio_dni as socio_dni,
                     f29_tramitante_cel as tramitante_cel,
                     f29_tramitante_email as tramitante_email,
-                    f29_tramitante_email2 as tramitante_email2
+                    f29_tramitante_email2 as tramitante_email2,
+                    f29_interes_prestamo as interes_prestamo,
+                    f29_fecha_desembolso as fecha_desembolso,
+                    f29_producto_prestamo as producto_prestamo,
+                    f29_prestamo_codigo as prestamo_codigo
                 FROM f29_tramite
                 WHERE f29_codigo = :codigo";
 
@@ -430,7 +434,10 @@ class TramitesServicio
                         f29_tramitante_cel,
                         f29_tramitante_email,
                         f29_tramitante_email2,
-                        f29_cuenta
+                        f29_cuenta,
+                        f29_interes_prestamo,
+                        f29_fecha_desembolso,
+                        f29_producto_prestamo
                     ) VALUES (
                         :codigo,
                         :numero,
@@ -464,7 +471,10 @@ class TramitesServicio
                         :tramitante_cel,
                         :tramitante_email,
                         :tramitante_email2,
-                        :cuenta
+                        :cuenta,
+                        :interes_prestamo,
+                        :fecha_desembolso,
+                        :producto_prestamo
                     )";
 
             $stmt = $this->db->prepare($sql);
@@ -500,7 +510,10 @@ class TramitesServicio
                 'tramitante_cel' => $datos['tramitante_cel'] ?? null,
                 'tramitante_email' => $datos['tramitante_email'] ?? null,
                 'tramitante_email2' => $datos['tramitante_email2'] ?? null,
-                'cuenta' => $datos['cuenta'] ?? null
+                'cuenta' => $datos['cuenta'] ?? null,
+                'interes_prestamo' => $datos['interes_prestamo'] ?? null,
+                'fecha_desembolso' => $datos['fecha_desembolso'] ?? null,
+                'producto_prestamo' => $datos['producto_prestamo'] ?? null
             ]);
 
             // Actualizar correlativo
@@ -532,6 +545,79 @@ class TramitesServicio
                 'success' => false,
                 'message' => 'Error al registrar trámite: ' . $e->getMessage()
             ];
+        }
+    }
+
+    /**
+     * Crear préstamo desde trámite
+     */
+    public function crearPrestamoDesdeTramite(int $codigoTramite, string $usuario = 'SISTEMA'): array
+    {
+        try {
+            // Obtener datos del trámite
+            $tramite = $this->obtenerTramite($codigoTramite);
+            if (!$tramite) {
+                return ['success' => false, 'message' => 'Trámite no encontrado'];
+            }
+
+            // Verificar que el trámite tenga datos de préstamo
+            if (empty($tramite['socio']) || empty($tramite['importe']) || empty($tramite['cuotas'])) {
+                return ['success' => false, 'message' => 'El trámite no tiene datos de préstamo suficientes'];
+            }
+
+            // Preparar datos del préstamo
+            $datosPrestamo = [
+                'cliente' => $tramite['socio'],
+                'importe' => $tramite['importe'],
+                'cuotas' => $tramite['cuotas'],
+                'interes' => $tramite['interes_prestamo'] ?? 0,
+                'fecha_desembolso' => $tramite['fecha_desembolso'] ?? date('Y-m-d'),
+                'producto' => $tramite['producto_prestamo'] ?? '',
+                'garante' => '',
+                'garante2' => '',
+                'garante3' => '',
+                'garante4' => '',
+                'tramite' => $tramite['numero'] ?? ''
+            ];
+
+            // Crear préstamo usando el servicio de préstamos
+            $prestamosServicio = new PrestamosServicio();
+            $resultadoPrestamo = $prestamosServicio->registrarPrestamo($datosPrestamo, $usuario);
+
+            if (!$resultadoPrestamo['success']) {
+                // Actualizar trámite con error (solo actualizar obs)
+                $nuevaObs = ($tramite['obs'] ?? '') . "\n\nError al crear préstamo: " . $resultadoPrestamo['message'];
+                $sqlUpdate = "UPDATE f29_tramite SET f29_obs = :obs WHERE f29_codigo = :codigo";
+                $stmtUpdate = $this->db->prepare($sqlUpdate);
+                $stmtUpdate->execute(['obs' => $nuevaObs, 'codigo' => $codigoTramite]);
+                return ['success' => false, 'message' => 'Error al crear préstamo: ' . $resultadoPrestamo['message']];
+            }
+
+            // Actualizar trámite con el código del préstamo creado (solo actualizar prestamo_codigo y obs)
+            $codigoPrestamo = $resultadoPrestamo['codigo'];
+            $nuevaObs = ($tramite['obs'] ?? '') . "\n\nPréstamo #$codigoPrestamo creado exitosamente";
+            $sqlUpdate = "UPDATE f29_tramite SET f29_prestamo_codigo = :prestamo_codigo, f29_obs = :obs WHERE f29_codigo = :codigo";
+            $stmtUpdate = $this->db->prepare($sqlUpdate);
+            $stmtUpdate->execute(['prestamo_codigo' => $codigoPrestamo, 'obs' => $nuevaObs, 'codigo' => $codigoTramite]);
+
+            // Registrar histórico
+            $this->registrarHistorico(
+                $codigoTramite,
+                $usuario,
+                $tramite['destino'] ?? null,
+                'REGISTRADO',
+                "Préstamo #$codigoPrestamo creado automáticamente desde trámite"
+            );
+
+            return [
+                'success' => true,
+                'message' => 'Préstamo creado exitosamente',
+                'codigo_prestamo' => $codigoPrestamo
+            ];
+
+        } catch (Exception $e) {
+            $this->log('Error al crear préstamo desde trámite', ['error' => $e->getMessage()]);
+            return ['success' => false, 'message' => 'Error al crear préstamo: ' . $e->getMessage()];
         }
     }
 
@@ -571,7 +657,11 @@ class TramitesServicio
                         f29_tramitante_email2 = :tramitante_email2,
                         f29_cuenta = :cuenta,
                         f29_hora_edicion = :hora_edicion,
-                        f29_estado = :estado
+                        f29_estado = :estado,
+                        f29_interes_prestamo = :interes_prestamo,
+                        f29_fecha_desembolso = :fecha_desembolso,
+                        f29_producto_prestamo = :producto_prestamo,
+                        f29_prestamo_codigo = :prestamo_codigo
                     WHERE f29_codigo = :codigo";
 
             $stmt = $this->db->prepare($sql);
@@ -602,7 +692,11 @@ class TramitesServicio
                 'tramitante_email2' => $datos['tramitante_email2'] ?? null,
                 'cuenta' => $datos['cuenta'] ?? null,
                 'hora_edicion' => date('H:i:s'),
-                'estado' => $datos['estado'] ?? 'REGISTRADO'
+                'estado' => $datos['estado'] ?? 'REGISTRADO',
+                'interes_prestamo' => $datos['interes_prestamo'] ?? null,
+                'fecha_desembolso' => $datos['fecha_desembolso'] ?? null,
+                'producto_prestamo' => $datos['producto_prestamo'] ?? null,
+                'prestamo_codigo' => $datos['prestamo_codigo'] ?? null
             ]);
 
             $this->db->commit();
@@ -791,7 +885,7 @@ class TramitesServicio
     /**
      * Registrar histórico de trámite
      */
-    public function registrarHistorico(int $codigoTramite, string $origen, string $destino, string $estado, ?string $obs = null): array
+    public function registrarHistorico(int $codigoTramite, string $origen, ?string $destino, string $estado, ?string $obs = null): array
     {
         $this->log('Iniciando registro de histórico', [
             'codigo_tramite' => $codigoTramite,

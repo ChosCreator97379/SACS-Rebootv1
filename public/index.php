@@ -447,6 +447,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'socio_dni' => trim((string) ($_POST['socio_dni'] ?? '')),
                 'importe' => trim((string) ($_POST['importe'] ?? '')),
                 'cuotas' => trim((string) ($_POST['cuotas'] ?? '')),
+                'interes_prestamo' => trim((string) ($_POST['interes_prestamo'] ?? '')),
+                'fecha_desembolso' => trim((string) ($_POST['fecha_desembolso'] ?? '')),
+                'producto_prestamo' => trim((string) ($_POST['producto_prestamo'] ?? '')),
                 'tramitante' => trim((string) ($_POST['tramitante'] ?? '')),
                 'ref_documento' => trim((string) ($_POST['ref_documento'] ?? '')),
                 'tramitante_cel' => trim((string) ($_POST['tramitante_cel'] ?? '')),
@@ -463,12 +466,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $resultado = $tramitesServicio->registrarTramite($datos, $usuario);
 
             if ($resultado['success']) {
+                // Verificar si se debe crear préstamo automáticamente
+                $crearPrestamo = isset($_POST['crear_prestamo']) && $_POST['crear_prestamo'] === 'on';
+                
+                if ($crearPrestamo) {
+                    $resultadoPrestamo = $tramitesServicio->crearPrestamoDesdeTramite($resultado['codigo'], $usuario);
+                    if (!$resultadoPrestamo['success']) {
+                        // Si falla la creación del préstamo, mostrar error pero el trámite sigue registrado
+                        $query = http_build_query(['module' => 'tramites', 'action' => 'ver', 'codigo' => $resultado['codigo'], 'error' => 'Trámite registrado pero error al crear préstamo: ' . $resultadoPrestamo['message']]);
+                        header('Location: index.php?' . $query);
+                        exit;
+                    }
+                }
+
                 // Verificar si es modo popup
                 $popupMode = ($_POST['popup'] ?? '') === '1';
 
                 // Renderizar vista de éxito con el número de trámite (tanto para popup como normal)
                 $_GET['tramite_numero'] = $resultado['numero'];
                 $_GET['popup'] = $popupMode ? '1' : '0';
+                $_GET['prestamo_creado'] = $crearPrestamo ? '1' : '0';
                 require dirname(__DIR__) . '/views/tramites/popup_success.php';
                 exit;
             } else {
